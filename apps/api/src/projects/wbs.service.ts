@@ -96,7 +96,7 @@ export class WbsService {
     const ctx = await this.access.load(actor, projectId);
     this.access.requireManager(ctx);
     this.access.requireOpen(ctx);
-    this.guard.assertAllowed(ctx, dto.changeRequestId);
+    await this.guard.assertAllowed(ctx, dto.changeRequestId);
 
     if (dto.parentId) {
       const parent = await this.prisma.workPackage.findFirst({
@@ -219,7 +219,7 @@ export class WbsService {
     const ctx = await this.access.load(actor, projectId);
     this.access.requireManager(ctx);
     this.access.requireOpen(ctx);
-    this.guard.assertAllowed(ctx, changeRequestId);
+    await this.guard.assertAllowed(ctx, changeRequestId);
     const wp = await this.findWp(ctx, id);
     const kids = await this.prisma.workPackage.count({ where: { parentId: id } });
     if (kids > 0) throw new ConflictException('Remove child work packages first');

@@ -125,3 +125,31 @@ export async function addMember(
     .send({ userId, projectRole, ...extra })
     .expect(201);
 }
+
+/** 建立带 PM、质量经理、成员、最高管理层可见的项目；phases 缺省用自定义三阶段模板 */
+export async function gateProject(
+  app: INestApplication,
+  t: Awaited<ReturnType<typeof setupTenant>>,
+  opts: { baseline?: boolean } = {},
+) {
+  const tpl = await request(app.getHttpServer())
+    .post('/phase-templates')
+    .set(bearer(t.admin.token))
+    .send({
+      name: `gate-${uid()}`,
+      phases: [
+        { name: '设计', checklist: ['设计评审完成'], mandatoryRoles: ['PROJECT_MANAGER'] },
+        { name: '制造', checklist: ['首件合格'], mandatoryRoles: ['PROJECT_MANAGER', 'PROJECT_QUALITY_MANAGER'] },
+        { name: '交付', checklist: [], mandatoryRoles: [] },
+      ],
+    })
+    .expect(201);
+  const p = await createProject(app, t.pm.token, { templateId: tpl.body.id });
+  await addMember(app, t.pm.token, p.id, t.pqm.id, 'PROJECT_QUALITY_MANAGER');
+  await addMember(app, t.pm.token, p.id, t.member.id, 'MEMBER');
+  if (opts.baseline !== false) {
+    await request(app.getHttpServer()).post(`/projects/${p.id}/baseline`).set(bearer(t.pm.token)).expect(200);
+  }
+  const phases = await request(app.getHttpServer()).get(`/projects/${p.id}/phases`).set(bearer(t.pm.token)).expect(200);
+  return { ...p, phases: phases.body as { id: string; name: string; status: string; order: number }[] };
+}

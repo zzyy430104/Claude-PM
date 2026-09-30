@@ -308,3 +308,196 @@ model Deliverable {
   @@index([tenantId, projectId])
   @@map("deliverables")
 }
+
+// ───────── 批次 C：评审、变更、风险、问题 ─────────
+
+enum GateStatus {
+  OPEN
+  DECIDED
+}
+
+enum GateDecision {
+  APPROVED
+  CONDITIONAL
+  REJECTED
+}
+
+enum IssueKind {
+  ISSUE
+  ACTION
+}
+
+enum IssueStatus {
+  OPEN
+  CLOSED
+}
+
+enum ChangeType {
+  SCOPE
+  SCHEDULE
+  BUDGET
+  DELIVERY_DATE
+  TECHNICAL
+  OTHER
+}
+
+enum ChangeStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  IMPLEMENTED
+  VERIFIED
+  CLOSED
+}
+
+enum RiskKind {
+  RISK
+  OPPORTUNITY
+}
+
+enum RiskStatus {
+  OPEN
+  MITIGATING
+  OCCURRED
+  CLOSED
+}
+
+model GateReview {
+  id                     String        @id @default(uuid())
+  tenantId               String        @map("tenant_id")
+  projectId              String        @map("project_id")
+  phaseId                String        @map("phase_id")
+  status                 GateStatus    @default(OPEN)
+  decision               GateDecision?
+  /// [{ item, passed, comment? }]
+  checklistResults       Json          @default("[]")
+  /// 出席者 userId 列表
+  attendees              Json          @default("[]")
+  notes                  String?
+  decisionNote           String?
+  decidedById            String?       @map("decided_by_id")
+  decidedAt              DateTime?
+  /// 带着未关闭问题通过时，由最高管理层授权
+  overrideAuthorizedById String?       @map("override_authorized_by_id")
+  overrideReason         String?
+  escalated              Boolean       @default(false)
+  createdById            String        @map("created_by_id")
+  createdAt              DateTime      @default(now())
+
+  @@index([tenantId, projectId])
+  @@index([phaseId])
+  @@map("gate_reviews")
+}
+
+model ProjectReview {
+  id           String    @id @default(uuid())
+  tenantId     String    @map("tenant_id")
+  projectId    String    @map("project_id")
+  reviewDate   DateTime  @db.Date
+  attendees    Json      @default("[]")
+  /// 评审时的绩效快照：计划与实际进度、预测完工日等
+  performance  Json
+  notes        String?
+  /// 提交上级决策或升级的事项
+  escalations  String?
+  reportedToId String?   @map("reported_to_id")
+  reportedAt   DateTime?
+  createdById  String    @map("created_by_id")
+  createdAt    DateTime  @default(now())
+
+  @@index([tenantId, projectId])
+  @@map("project_reviews")
+}
+
+model Issue {
+  id              String      @id @default(uuid())
+  tenantId        String      @map("tenant_id")
+  projectId       String      @map("project_id")
+  kind            IssueKind
+  title           String
+  description     String?
+  status          IssueStatus @default(OPEN)
+  ownerId         String?     @map("owner_id")
+  dueDate         DateTime?   @db.Date
+  /// GATE | PROJECT_REVIEW | RISK | MANUAL
+  source          String      @default("MANUAL")
+  gateReviewId    String?     @map("gate_review_id")
+  projectReviewId String?     @map("project_review_id")
+  riskId          String?     @map("risk_id")
+  phaseId         String?     @map("phase_id")
+  closedAt        DateTime?
+  closedById      String?     @map("closed_by_id")
+  closureNote     String?
+  createdById     String      @map("created_by_id")
+  createdAt       DateTime    @default(now())
+
+  @@index([tenantId, projectId, status])
+  @@map("issues")
+}
+
+model ChangeRequest {
+  id                 String       @id @default(uuid())
+  tenantId           String       @map("tenant_id")
+  projectId          String       @map("project_id")
+  code               String
+  type               ChangeType
+  title              String
+  description        String
+  reason             String
+  triggeredByFailure Boolean      @default(false)
+  causeAnalysis      String?
+  impactAnalysis     String?
+  verificationPlan   String?
+  /// 技术变更的影响分析：已交付部件、客户规格与配置、相关文件、技术要求、再验证
+  technicalImpact    Json?
+  /// 拟变更内容：{ budget?, customerDeliveryDate?, startDate?, endDate? }
+  proposed           Json?
+  customerNotifiedAt DateTime?
+  customerAgreedAt   DateTime?
+  status             ChangeStatus @default(DRAFT)
+  requestedById      String       @map("requested_by_id")
+  submittedAt        DateTime?
+  decidedById        String?      @map("decided_by_id")
+  decidedAt          DateTime?
+  decisionNote       String?
+  implementedById    String?      @map("implemented_by_id")
+  implementedAt      DateTime?
+  verifiedById       String?      @map("verified_by_id")
+  verifiedAt         DateTime?
+  effectivenessNote  String?
+  closedAt           DateTime?
+  createdAt          DateTime     @default(now())
+
+  @@unique([projectId, code])
+  @@index([tenantId, projectId])
+  @@map("change_requests")
+}
+
+model Risk {
+  id                  String     @id @default(uuid())
+  tenantId            String     @map("tenant_id")
+  projectId           String     @map("project_id")
+  kind                RiskKind
+  title               String
+  description         String?
+  /// 1–5
+  probability         Int
+  /// 1–5
+  impact              Int
+  /// 风险的潜在损失，或机会的潜在收益
+  exposureAmount      Decimal    @map("exposure_amount") @db.Decimal(14, 2)
+  /// 应对措施成本
+  responseCost        Decimal    @map("response_cost") @db.Decimal(14, 2)
+  costBenefitAnalysis String     @map("cost_benefit_analysis")
+  ownerId             String?    @map("owner_id")
+  status              RiskStatus @default(OPEN)
+  closureNote         String?
+  lastReviewedAt      DateTime?
+  createdById         String     @map("created_by_id")
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  @@index([tenantId, projectId])
+  @@map("risks")
+}

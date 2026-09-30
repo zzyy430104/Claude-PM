@@ -143,7 +143,7 @@ export class ProjectsService {
       dto.customerDeliveryDate !== undefined ||
       dto.startDate !== undefined ||
       dto.endDate !== undefined;
-    if (controlled) this.guard.assertAllowed(ctx);
+    if (controlled) await this.guard.assertAllowed(ctx);
     const start = dto.startDate ? day(dto.startDate) : p.startDate;
     const end = dto.endDate ? day(dto.endDate) : p.endDate;
     if (end < start) throw new BadRequestException('endDate must not be before startDate');

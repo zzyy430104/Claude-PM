@@ -30,7 +30,19 @@ export function errorMessage(e: unknown, fallback = '操作失败'): string {
   if (!(e instanceof HttpErrorResponse)) return fallback;
   const body = e.error as { code?: string; message?: string | string[] } | null;
   if (body?.code === 'CHANGE_REQUEST_REQUIRED') return '项目已建立基线，此项修改需要先提交并批准变更申请';
-  if (body?.code === 'OPEN_ISSUES') return '上一阶段还有未关闭的问题，需要最高管理层授权才能通过';
+  if (body?.code === 'OPEN_ISSUES') return '此前评审遗留的问题还没关闭，需要先关闭，或由最高管理层授权后才能通过';
+  if (body?.code === 'MANDATORY_PARTICIPANTS_MISSING') {
+    const missing = (e.error as { missing?: string[] }).missing ?? [];
+    return `必选参与者未出席：${missing.join('、')}`;
+  }
+  if (body?.code === 'GATE_CRITERIA_NOT_MET') {
+    const b = (e.error as { blockers?: { checklist: string[]; workPackages: string[]; deliverables: string[] } }).blockers;
+    return `关口准则未满足，不能直接通过（请选择“有条件通过”并制定行动计划）。未通过清单项 ${b?.checklist.length ?? 0} 个，未核验工作包 ${b?.workPackages.length ?? 0} 个，未接受交付物 ${b?.deliverables.length ?? 0} 个`;
+  }
+  if (body?.code === 'CUSTOMER_NOT_NOTIFIED') return '客户交期变更须先通知客户，请先记录“已通知客户”';
+  if (body?.code === 'CUSTOMER_AGREEMENT_REQUIRED') return '客户尚未同意，请先记录“客户已同意”';
+  if (body?.code === 'TOP_MANAGEMENT_REQUIRED') return '预算增加必须由最高管理层批准';
+  if (body?.code === 'CHANGE_INCOMPLETE') return (e.error as { problems?: string[] }).problems?.join('；') ?? '变更申请信息不完整';
   if (e.status === 403) return '没有权限执行此操作';
   if (e.status === 404) return '记录不存在或无权访问';
   const msg = Array.isArray(body?.message) ? body!.message.join('；') : body?.message;

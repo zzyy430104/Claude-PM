@@ -5,6 +5,7 @@ import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BootstrapService } from './bootstrap.service.js';
 import { JwtAuthGuard, RolesGuard } from './common/guards.js';
+import { GovernanceModule } from './governance/governance.module.js';
 import { HealthController } from './health/health.controller.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -20,6 +21,7 @@ import { UsersModule } from './users/users.module.js';
     AuthModule,
     UsersModule,
     ProjectsModule,
+    GovernanceModule,
   ],
   controllers: [HealthController],
   providers: [

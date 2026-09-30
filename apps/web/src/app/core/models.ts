@@ -197,3 +197,103 @@ export const DELIVERABLE_STATUS_LABELS: Record<Deliverable['status'], string> = 
   ACCEPTED: '已接受',
   REJECTED: '被拒绝',
 };
+
+export interface GateReview {
+  id: string;
+  phaseId: string;
+  status: 'OPEN' | 'DECIDED';
+  decision: 'APPROVED' | 'CONDITIONAL' | 'REJECTED' | null;
+  checklistResults: { item: string; passed: boolean; comment?: string }[];
+  attendees: string[];
+  notes: string | null;
+  decisionNote: string | null;
+  overrideAuthorizedById: string | null;
+  overrideReason: string | null;
+  escalated: boolean;
+  createdAt: string;
+  decidedAt: string | null;
+}
+export const DECISION_LABELS = { APPROVED: '通过', CONDITIONAL: '有条件通过', REJECTED: '拒绝' } as const;
+
+export interface Readiness {
+  checklistFailed: string[];
+  pendingWorkPackages: { id: string; code: string; name: string }[];
+  pendingDeliverables: { id: string; name: string }[];
+  priorOpenIssues: { id: string; title: string }[];
+}
+
+export interface Issue {
+  id: string;
+  kind: 'ISSUE' | 'ACTION';
+  title: string;
+  description: string | null;
+  status: 'OPEN' | 'CLOSED';
+  ownerId: string | null;
+  dueDate: string | null;
+  source: string;
+  closureNote: string | null;
+}
+export const ISSUE_SOURCE_LABELS: Record<string, string> = { GATE: '关口评审', PROJECT_REVIEW: '项目评审', RISK: '风险应对', MANUAL: '手工登记' };
+
+export interface ProjectReview {
+  id: string;
+  reviewDate: string;
+  attendees: string[];
+  notes: string | null;
+  escalations: string | null;
+  reportedToId: string | null;
+  performance: {
+    progress: { plannedPercent: number; actualPercent: number; varianceDays: number; projectedEnd: string; exceedsPlannedEnd: boolean; plannedEnd: string };
+    openIssues: { id: string; title: string; kind: string }[];
+    overdueActions: number;
+    openRisks: { id: string; title: string; score: number; kind: string }[];
+    budget: string | null;
+  };
+}
+
+export type ChangeType = 'SCOPE' | 'SCHEDULE' | 'BUDGET' | 'DELIVERY_DATE' | 'TECHNICAL' | 'OTHER';
+export type ChangeStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'IMPLEMENTED' | 'VERIFIED' | 'CLOSED';
+export const CHANGE_TYPE_LABELS: Record<ChangeType, string> = {
+  SCOPE: '范围', SCHEDULE: '进度', BUDGET: '预算', DELIVERY_DATE: '客户交期', TECHNICAL: '技术', OTHER: '其他',
+};
+export const CHANGE_STATUS_LABELS: Record<ChangeStatus, string> = {
+  DRAFT: '草稿', SUBMITTED: '待审批', APPROVED: '已批准', REJECTED: '已驳回', IMPLEMENTED: '已实施', VERIFIED: '已验证', CLOSED: '已关闭',
+};
+export interface ChangeRequest {
+  id: string;
+  code: string;
+  type: ChangeType;
+  status: ChangeStatus;
+  title: string;
+  description: string;
+  reason: string;
+  triggeredByFailure: boolean;
+  causeAnalysis: string | null;
+  impactAnalysis: string | null;
+  proposed: { budget?: number; customerDeliveryDate?: string; startDate?: string; endDate?: string } | null;
+  customerNotifiedAt: string | null;
+  customerAgreedAt: string | null;
+  requestedById: string;
+  implementedById: string | null;
+  decisionNote: string | null;
+  effectivenessNote: string | null;
+}
+
+export interface RiskRow {
+  id: string;
+  kind: 'RISK' | 'OPPORTUNITY';
+  title: string;
+  probability: number;
+  impact: number;
+  score: number;
+  exposureAmount: string;
+  responseCost: string;
+  expectedValue: number;
+  netBenefitOfResponse: number;
+  costBenefitAnalysis: string;
+  status: 'OPEN' | 'MITIGATING' | 'OCCURRED' | 'CLOSED';
+  ownerId: string | null;
+  openActions: number;
+  closedActions: number;
+}
+export const RISK_STATUS_LABELS = { OPEN: '未处理', MITIGATING: '应对中', OCCURRED: '已发生', CLOSED: '已关闭' } as const;

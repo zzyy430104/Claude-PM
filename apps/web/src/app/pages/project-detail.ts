@@ -7,11 +7,16 @@ import { ProjectMembers } from '../components/project-members';
 import { ProjectOverview } from '../components/project-overview';
 import { ProjectPhases } from '../components/project-phases';
 import { ProjectWbs } from '../components/project-wbs';
+import { ProjectChanges } from '../components/project-changes';
+import { ProjectGates } from '../components/project-gates';
+import { ProjectIssues } from '../components/project-issues';
+import { ProjectReviews } from '../components/project-reviews';
+import { ProjectRisks } from '../components/project-risks';
 
 /** 项目详情：各模块以标签页挂载，后续批次在此追加 */
 @Component({
   selector: 'app-project-detail',
-  imports: [MatTabsModule, ProjectOverview, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables],
+  imports: [MatTabsModule, ProjectOverview, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues],
   template: `
     @if (project(); as p) {
       <div class="page">
@@ -21,6 +26,11 @@ import { ProjectWbs } from '../components/project-wbs';
           <mat-tab label="概览与计划"><ng-template matTabContent><app-project-overview [project]="p" (changed)="load()" /></ng-template></mat-tab>
           <mat-tab label="阶段"><ng-template matTabContent><app-project-phases [project]="p" /></ng-template></mat-tab>
           <mat-tab label="WBS 与进度"><ng-template matTabContent><app-project-wbs [project]="p" /></ng-template></mat-tab>
+          <mat-tab label="关口评审"><ng-template matTabContent><app-project-gates [project]="p" /></ng-template></mat-tab>
+          <mat-tab label="项目评审"><ng-template matTabContent><app-project-reviews [project]="p" /></ng-template></mat-tab>
+          <mat-tab label="变更控制"><ng-template matTabContent><app-project-changes [project]="p" /></ng-template></mat-tab>
+          <mat-tab label="风险与机会"><ng-template matTabContent><app-project-risks [project]="p" /></ng-template></mat-tab>
+          <mat-tab label="问题与行动"><ng-template matTabContent><app-project-issues [project]="p" /></ng-template></mat-tab>
           <mat-tab label="交付物"><ng-template matTabContent><app-project-deliverables [project]="p" /></ng-template></mat-tab>
           <mat-tab label="成员"><ng-template matTabContent><app-project-members [project]="p" /></ng-template></mat-tab>
         </mat-tab-group>
