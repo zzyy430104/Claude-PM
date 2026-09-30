@@ -14,9 +14,9 @@ import { ProjectAccess, ProjectCtx } from './access.service.js';
 import { ChangeGuard } from './change-guard.service.js';
 import { AddDependencyDto, CreateWpDto, UpdateWpDto } from './dto.js';
 import { computeSchedule, CycleError, topoOrder } from './schedule.js';
+import { CalendarService } from './calendar.service.js';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
-const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
 
 @Injectable()
 export class WbsService {
@@ -25,6 +25,7 @@ export class WbsService {
     private readonly audit: AuditService,
     private readonly access: ProjectAccess,
     private readonly guard: ChangeGuard,
+    private readonly calendars: CalendarService,
   ) {}
 
   /** WBS 树、依赖、按 CPM 计算的排程；父节点的日期由子节点汇总 */
@@ -67,26 +68,33 @@ export class WbsService {
       return r;
     };
 
+    // 排程以工作日计算，再按企业工作日历换成日期；甘特图用的偏移量是自然日，便于与批准计划的日期对比
     const start = ctx.project.startDate;
+    const cal = await this.calendars.forTenant(ctx.tenantId);
+    const origin = Date.parse(iso(start));
+    const calOffset = (d: string) => Math.round((Date.parse(d) - origin) / 86_400_000);
     const items = wps.map((w) => {
       const r = rollUp(w.id);
       const s = byId.get(w.id);
+      const span = cal.span(start, r.es, r.ef);
       return {
         ...w,
         isLeaf: !parents.has(w.id),
-        scheduledStart: iso(addDays(start, r.es)),
-        scheduledEnd: iso(addDays(start, r.ef)),
-        startOffsetDays: r.es,
-        endOffsetDays: r.ef,
+        scheduledStart: span.start,
+        scheduledEnd: span.end,
+        startOffsetDays: calOffset(span.start),
+        endOffsetDays: calOffset(span.end) + (w.isMilestone ? 0 : 1),
         critical: r.critical,
         totalFloatDays: s?.totalFloat ?? null,
       };
     });
-    const projectedEnd = iso(addDays(start, sched.projectDurationDays));
+    const projectedEnd = sched.projectDurationDays > 0 ? cal.dateAt(start, sched.projectDurationDays - 1) : iso(start);
     return {
       items,
       dependencies: deps,
       projectDurationDays: sched.projectDurationDays,
+      /** 甘特图横轴长度（自然日） */
+      calendarDays: items.length ? Math.max(...items.map((i) => i.endOffsetDays), 1) : 0,
       projectedEnd,
       exceedsPlannedEnd: projectedEnd > iso(ctx.project.endDate),
     };
@@ -111,6 +119,8 @@ export class WbsService {
       }
     }
     await this.checkRefs(ctx, dto.phaseId, dto.ownerId, dto);
+    const durationDays = dto.isMilestone ? 0 : dto.durationDays;
+    if (durationDays < 1 && !dto.isMilestone) throw new BadRequestException('durationDays must be at least 1 (use a milestone for zero duration)');
     try {
       return await this.audit.tx(
         actor,
@@ -131,7 +141,8 @@ export class WbsService {
               parentId: dto.parentId,
               phaseId: dto.phaseId,
               ownerId: dto.ownerId,
-              durationDays: dto.durationDays,
+              durationDays,
+              isMilestone: dto.isMilestone ?? false,
               budget: dto.budget,
               costAccountId: dto.costAccountId,
               deliverableId: dto.deliverableId,
@@ -164,9 +175,12 @@ export class WbsService {
       dto.ownerId !== undefined || dto.phaseId !== undefined ||
       dto.durationDays !== undefined || dto.budget !== undefined ||
       dto.costAccountId !== undefined || dto.deliverableId !== undefined || dto.resourceDays !== undefined ||
-      dto.externalProvider !== undefined || dto.longLead !== undefined;
+      dto.externalProvider !== undefined || dto.longLead !== undefined || dto.isMilestone !== undefined;
     if (managerOnly && !ctx.isManager) throw new ForbiddenException('Project manager required');
     await this.checkRefs(ctx, dto.phaseId ?? undefined, dto.ownerId, dto);
+    const milestone = dto.isMilestone ?? wp.isMilestone;
+    const durationDays = milestone ? 0 : dto.durationDays ?? (wp.isMilestone ? 1 : undefined);
+    if (!milestone && durationDays !== undefined && durationDays < 1) throw new BadRequestException('durationDays must be at least 1');
 
     const status =
       dto.status ??
@@ -192,7 +206,8 @@ export class WbsService {
             description: dto.description,
             ownerId: dto.ownerId,
             phaseId: dto.phaseId,
-            durationDays: dto.durationDays,
+            durationDays,
+            isMilestone: dto.isMilestone,
             budget: dto.budget,
             costAccountId: dto.costAccountId,
             deliverableId: dto.deliverableId,

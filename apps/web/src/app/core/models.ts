@@ -120,6 +120,7 @@ export interface Phase {
   status: 'PLANNED' | 'ACTIVE' | 'CLOSED';
   checklist: string[];
   mandatoryRoles: ProjectRole[];
+  optionalRoles?: ProjectRole[];
 }
 
 export interface Member {
@@ -164,6 +165,7 @@ export interface WorkPackage {
   resourceDays: string | null;
   externalProvider: string | null;
   longLead: boolean;
+  isMilestone?: boolean;
 }
 
 export interface Dependency {
@@ -176,6 +178,7 @@ export interface WbsResponse {
   items: WorkPackage[];
   dependencies: Dependency[];
   projectDurationDays: number;
+  calendarDays?: number;
   projectedEnd: string;
   exceedsPlannedEnd: boolean;
 }
@@ -183,7 +186,7 @@ export interface WbsResponse {
 export interface PhaseTemplate {
   id: string;
   name: string;
-  phases: { name: string; checklist: string[]; mandatoryRoles: ProjectRole[] }[];
+  phases: { name: string; checklist: string[]; mandatoryRoles: ProjectRole[]; optionalRoles?: ProjectRole[] }[];
 }
 
 export interface Deliverable {
@@ -311,6 +314,9 @@ export interface RiskRow {
   ownerId: string | null;
   openActions: number;
   closedActions: number;
+  maturityLevel?: string | null;
+  functionalReviewers?: string | null;
+  budgetRecovery?: string | null;
 }
 export const RISK_STATUS_LABELS = { OPEN: '未处理', MITIGATING: '应对中', OCCURRED: '已发生', CLOSED: '已关闭' } as const;
 
@@ -406,3 +412,16 @@ export interface Performance {
   };
   triangle: { quality: Dimension; schedule: Dimension; cost: Dimension };
 }
+
+export interface WbsTemplate { id: string; name: string; items: { code: string; name: string; parentCode?: string; durationDays: number; isMilestone?: boolean }[] }
+export interface ResourceLoad {
+  weeks: { start: string; capacity: number }[];
+  people: { userId: string; name: string; load: number[]; overloadedWeeks: number; items: { project: string; code: string; name: string; days: number }[] }[];
+}
+export interface CalendarSettings { evmAmber: number; evmRed: number; workWeek: number[]; holidays: string[]; extraWorkdays: string[] }
+
+export interface SwotReview { id: string; reviewDate: string; participants: string; strengths: string; weaknesses: string; opportunities: string; threats: string; actions: string }
+export interface DeviationNotice { id: string; dimension: 'QUALITY' | 'SCHEDULE' | 'COST'; noticeDate: string; audience: string; impact: string; countermeasures: string }
+export interface Stakeholder { id: string; name: string; organization: string; role: string; influence: 'HIGH' | 'MEDIUM' | 'LOW'; interest: 'HIGH' | 'MEDIUM' | 'LOW'; expectations: string; communication: string }
+export const LEVEL_LABELS = { HIGH: '高', MEDIUM: '中', LOW: '低' } as const;
+export const DIMENSION_LABELS = { QUALITY: '质量', SCHEDULE: '进度', COST: '成本' } as const;

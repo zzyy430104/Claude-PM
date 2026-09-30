@@ -26,6 +26,10 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/projects').then((m) => m.ProjectsPage),
       },
       {
+        path: 'projects/:id/report',
+        loadComponent: () => import('./pages/report').then((m) => m.ReportPage),
+      },
+      {
         path: 'projects/:id',
         loadComponent: () => import('./pages/project-detail').then((m) => m.ProjectDetailPage),
       },
@@ -52,6 +56,11 @@ export const routes: Routes = [
         path: 'audit',
         canActivate: [roleGuard('TENANT_ADMIN', 'TOP_MANAGEMENT')],
         loadComponent: () => import('./pages/audit').then((m) => m.AuditPage),
+      },
+      {
+        path: 'resources',
+        canActivate: [roleGuard('TENANT_ADMIN', 'TOP_MANAGEMENT', 'PROJECT_MANAGER', 'FUNCTION_MANAGER')],
+        loadComponent: () => import('./pages/resources').then((m) => m.ResourcesPage),
       },
       {
         path: 'settings',

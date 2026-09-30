@@ -1,4 +1,8 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
+import { WbsExcelService } from './wbs-excel.service.js';
+import { ApplyTemplateDto, CreateWbsTemplateDto, SaveAsTemplateDto, WbsTemplatesService } from './wbs-templates.service.js';
 import { CurrentUser, Roles } from '../common/decorators.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { Role } from '../generated/prisma/enums.js';
@@ -25,6 +29,8 @@ export class ProjectsController {
     private readonly deliverables: DeliverablesService,
     private readonly planVersions: PlanVersionsService,
     private readonly requirements: RequirementsService,
+    private readonly excel: WbsExcelService,
+    private readonly wbsTemplates: WbsTemplatesService,
   ) {}
 
   // 阶段模板
@@ -75,6 +81,35 @@ export class ProjectsController {
   }
 
   // WBS 与进度
+  // 标准 WBS 模板
+  @Get('wbs-templates') listWbsTemplates(@CurrentUser() u: AuthUser) { return this.wbsTemplates.list(u); }
+  @Post('wbs-templates') createWbsTemplate(@CurrentUser() u: AuthUser, @Body() dto: CreateWbsTemplateDto) { return this.wbsTemplates.create(u, dto); }
+  @Delete('wbs-templates/:id') @Roles(Role.TENANT_ADMIN) @HttpCode(204)
+  deleteWbsTemplate(@CurrentUser() u: AuthUser, @Id() id: string) { return this.wbsTemplates.deactivate(u, id); }
+  @Post('projects/:id/wbs/save-as-template') saveWbsTemplate(@CurrentUser() u: AuthUser, @Id() id: string, @Body() dto: SaveAsTemplateDto) {
+    return this.wbsTemplates.saveFromProject(u, id, dto);
+  }
+  @Post('projects/:id/wbs/apply-template') @HttpCode(200) applyWbsTemplate(@CurrentUser() u: AuthUser, @Id() id: string, @Body() dto: ApplyTemplateDto) {
+    return this.wbsTemplates.apply(u, id, dto);
+  }
+
+  // Excel 导出与导入
+  @Get('projects/:id/wbs/export')
+  async exportWbs(@CurrentUser() u: AuthUser, @Id() id: string, @Res({ passthrough: true }) res: Response, @Query('template') template?: string) {
+    const { buffer, fileName } = await this.excel.export(u, id, template === '1');
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${fileName}"`, 'X-Content-Type-Options': 'nosniff',
+    });
+    return new StreamableFile(buffer);
+  }
+  @Post('projects/:id/wbs/import') @HttpCode(200)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }))
+  importWbs(@CurrentUser() u: AuthUser, @Id() id: string, @UploadedFile() file: { buffer: Buffer } | undefined, @Body() body: DeleteWpQuery) {
+    if (!file?.buffer?.length) throw new BadRequestException('An .xlsx file is required');
+    return this.excel.import(u, id, file.buffer, body.changeRequestId);
+  }
+
   @Get('projects/:id/wbs') getWbs(@CurrentUser() u: AuthUser, @Id() id: string) { return this.wbs.get(u, id); }
   @Post('projects/:id/wbs') createWp(@CurrentUser() u: AuthUser, @Id() id: string, @Body() dto: CreateWpDto) { return this.wbs.create(u, id, dto); }
   @Patch('projects/:id/wbs/:wpId')

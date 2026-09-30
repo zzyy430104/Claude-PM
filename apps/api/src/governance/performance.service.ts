@@ -4,12 +4,11 @@ import { WpStatus } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { PlanSnapshot } from '../projects/plan-versions.service.js';
 import { computeSchedule } from '../projects/schedule.js';
+import { CalendarService } from '../projects/calendar.service.js';
 
-const DAY = 86_400_000;
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const ratio = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) / 100 : null);
-const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / DAY);
 
 export type Health = 'RED' | 'AMBER' | 'GREEN';
 export interface Dimension { health: Health; reasons: string[] }
@@ -25,7 +24,7 @@ export interface Dimension { health: Health; reasons: string[] }
  */
 @Injectable()
 export class PerformanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly calendars: CalendarService) {}
 
   async compute(ctx: { project: Project; tenantId: string }, today = new Date()) {
     const { project, tenantId } = ctx;
@@ -50,9 +49,9 @@ export class PerformanceService {
     const leaves = wps.filter((w) => !parents.has(w.id));
     const sched = computeSchedule(leaves.map((w) => ({ id: w.id, durationDays: w.durationDays })), deps);
     const cur = new Map(sched.items.map((s) => [s.id, s]));
-    const startMs = project.startDate.getTime();
-    const curEnd = (id: string) => { const s = cur.get(id); return s ? iso(new Date(startMs + s.earlyFinish * DAY)) : null; };
-    const projectedEnd = iso(new Date(startMs + sched.projectDurationDays * DAY));
+    const cal = await this.calendars.forTenant(tenantId);
+    const curEnd = (id: string) => { const s = cur.get(id); return s ? cal.span(project.startDate, s.earlyStart, s.earlyFinish).end : null; };
+    const projectedEnd = sched.projectDurationDays > 0 ? cal.dateAt(project.startDate, sched.projectDurationDays - 1) : iso(project.startDate);
 
     // 基准：最近一版计划批准快照
     const snap = version?.snapshot as PlanSnapshot | undefined;
@@ -69,13 +68,15 @@ export class PerformanceService {
     for (const w of baseLeaves) {
       const b = bacOf(w);
       bac += b;
-      const span = Math.max(daysBetween(w.start, w.end), 1);
-      const frac = Math.min(Math.max(daysBetween(w.start, todayIso) / span, 0), 1);
+      // 计划值按工作日线性累计；里程碑到期即计入
+      const frac = w.durationDays > 0
+        ? Math.min(Math.max(cal.workdaysBetween(w.start, todayIso) / w.durationDays, 0), 1)
+        : todayIso >= w.start ? 1 : 0;
       pv += b * frac;
       ev += b * ((pctById.get(w.id) ?? 0) / 100);
       const ce = curEnd(w.id);
       if (ce) {
-        const slip = daysBetween(w.end, ce);
+        const slip = cal.workdaysBetween(w.end, ce);
         if (slip !== 0) slips.push({ id: w.id, code: w.code, name: w.name, baselineEnd: w.end, currentEnd: ce, slipDays: slip, critical: !!cur.get(w.id)?.critical });
       }
     }
@@ -90,7 +91,7 @@ export class PerformanceService {
     const eac = cpi && budget ? round2(budget / cpi) : accounts.length ? round2(accountEac) : null;
 
     const baselineEnd = snap ? (baseLeaves.length ? baseLeaves.map((w) => w.end).sort().at(-1)! : snap.project.endDate) : null;
-    const scheduleSlipDays = baselineEnd && leaves.length ? daysBetween(baselineEnd, projectedEnd) : 0;
+    const scheduleSlipDays = baselineEnd && leaves.length ? cal.workdaysBetween(baselineEnd, projectedEnd) : 0;
     const customerDate = project.customerDeliveryDate ? iso(project.customerDeliveryDate) : null;
 
     // 质量
@@ -120,7 +121,7 @@ export class PerformanceService {
     else if (leaves.length && projectedEnd > iso(project.endDate)) sRed.push(`预计完工 ${projectedEnd} 晚于计划结束 ${iso(project.endDate)}`);
     if (spi !== null && spi < redAt) sRed.push(`进度绩效指数 SPI ${fmt(spi)} 低于 ${fmt(redAt)}`);
     else if (spi !== null && spi < amberAt) sAmber.push(`进度绩效指数 SPI ${fmt(spi)} 低于 ${fmt(amberAt)}`);
-    if (scheduleSlipDays > 0) sAmber.push(`比批准的计划晚 ${scheduleSlipDays} 天`);
+    if (scheduleSlipDays > 0) sAmber.push(`比批准的计划晚 ${scheduleSlipDays} 个工作日`);
 
     const cRed: string[] = [], cAmber: string[] = [];
     if (eac !== null && budget && eac > budget) cRed.push(`完工估算 ${eac.toLocaleString()} 超出预算 ${budget.toLocaleString()}`);

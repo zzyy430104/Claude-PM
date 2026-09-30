@@ -78,7 +78,7 @@ describe('整合：需求、工作包四要素、计划批准版本', () => {
     expect(versions).toHaveLength(1);
     expect(versions[0]).toMatchObject({ version: 1, note: '批准计划' });
     expect(versions[0].snapshot.project.budget).toBe('1000000');
-    expect(versions[0].snapshot.workPackages[0]).toMatchObject({ code: '1', start: '2026-01-05', end: '2026-01-15', durationDays: 10 });
+    expect(versions[0].snapshot.workPackages[0]).toMatchObject({ code: '1', start: '2026-01-05', end: '2026-01-16', durationDays: 10 });
 
     const crId = await approvedCr(t, p.id, 'BUDGET', { budget: 1100000 });
     await http().post(`/projects/${p.id}/changes/${crId}/implement`).set(bearer(t.pm.token)).expect(200);

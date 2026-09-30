@@ -33,10 +33,10 @@ describe('WBS、依赖、关键路径与基线', () => {
     expect(by['1.2'].critical).toBe(true);
     expect(by['1.3'].critical).toBe(false);
     expect(by['1.3'].totalFloatDays).toBe(3);
-    expect(by['2'].scheduledStart).toBe('2026-03-09'); // 2026-03-02 + 7 天
+    expect(by['2'].scheduledStart).toBe('2026-03-11'); // 2026-03-02（周一）后第 7 个工作日
     expect(by['1'].isLeaf).toBe(false);
     expect(by['1'].scheduledStart).toBe('2026-03-02');
-    expect(by['1'].scheduledEnd).toBe('2026-03-09');
+    expect(by['1'].scheduledEnd).toBe('2026-03-10'); // 最后一个工作日
     expect(by['1'].critical).toBe(true);
     expect(g.body.exceedsPlannedEnd).toBe(false);
   });

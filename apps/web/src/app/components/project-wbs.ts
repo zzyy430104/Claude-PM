@@ -7,9 +7,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Api, errorMessage } from '../core/api';
+import { askText } from '../core/i18n';
 import { AuthService } from '../core/auth.service';
 import {
-  ChangeRequest, CostSummary, Deliverable, Member, Performance, Phase, PlanVersion, Project, WP_STATUS_LABELS, WbsResponse, WorkPackage, WpStatus,
+  ChangeRequest, CostSummary, Deliverable, Member, Performance, Phase, PlanVersion, Project, WbsTemplate, WP_STATUS_LABELS, WbsResponse, WorkPackage, WpStatus,
 } from '../core/models';
 import { approvedScopeChanges } from '../core/scope-change';
 import { BaselineDates, GanttComponent } from './gantt';
@@ -40,6 +41,11 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
     .scope-cr p { margin: 0 0 6px; font-size: 13px; }
     .form-title { font-weight: 600; width: 100%; margin: 0 0 4px; }
     .num { text-align: right !important; }
+    .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+    .tools .sep { width: 1px; height: 24px; background: var(--pm-line); margin: 0 4px; }
+    .tpl { height: 36px; border: 1px solid #c5cfdb; border-radius: 8px; padding: 0 8px; font: inherit; background: #fff; }
+    .ok-box { background: var(--pm-green-bg); color: var(--pm-green); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
+    .error ul { margin: 6px 0 0; padding-left: 18px; }
     .nw { white-space: nowrap; }
     .dates { white-space: nowrap; font-size: 12.5px; }
   `,
@@ -66,6 +72,28 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
       </div>
     }
 
+    <div class="tools">
+      <button mat-stroked-button type="button" (click)="exportExcel()">导出 Excel</button>
+      @if (manage()) {
+        <button mat-stroked-button type="button" (click)="templateExcel()">下载导入模板</button>
+        <button mat-stroked-button type="button" (click)="fileInput.click()">导入 Excel</button>
+        <input #fileInput type="file" accept=".xlsx" hidden (change)="importExcel($any($event.target))" aria-label="选择 Excel 文件" />
+        <span class="sep"></span>
+        <select class="tpl" [value]="''" (change)="applyTemplate($any($event.target))" aria-label="从 WBS 模板添加">
+          <option value="">从 WBS 模板添加…</option>
+          @for (t of wbsTemplates(); track t.id) { <option [value]="t.id">{{ t.name }}（{{ t.items.length }} 项）</option> }
+        </select>
+        <button mat-button type="button" (click)="saveAsTemplate()">另存为 WBS 模板</button>
+      }
+    </div>
+    @if (importResult(); as r) { <div class="ok-box" role="status">导入完成：新增 {{ r.created }} 个、更新 {{ r.updated }} 个工作包，新增 {{ r.dependencies }} 个依赖。</div> }
+    @if (importErrors().length) {
+      <div class="error" role="alert">
+        导入失败，表格没有写入任何数据。请修改后重新导入：
+        <ul>@for (e of importErrors(); track e) { <li>{{ e }}</li> }</ul>
+      </div>
+    }
+
     @if (manage()) {
       <form class="row" [formGroup]="wpForm" (ngSubmit)="saveWp()">
         <div class="form-title">{{ editing() ? '编辑工作包 ' + editing()!.code : '新增工作包' }}</div>
@@ -80,7 +108,10 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
             </mat-select>
           </mat-form-field>
         }
-        <mat-form-field><mat-label>工期（天）</mat-label><input matInput type="number" formControlName="durationDays" /></mat-form-field>
+        <mat-checkbox formControlName="isMilestone">里程碑</mat-checkbox>
+        @if (!wpForm.controls.isMilestone.value) {
+          <mat-form-field><mat-label>工期（工作日）</mat-label><input matInput type="number" formControlName="durationDays" /></mat-form-field>
+        }
         <mat-form-field>
           <mat-label>负责人</mat-label>
           <mat-select formControlName="ownerId">
@@ -148,23 +179,23 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
               <tr>
                 <td [style.padding-left.px]="14 + depth(w) * 16">{{ w.code }}</td>
                 <td>
-                  <span [class.crit-name]="w.critical">{{ w.name }}{{ w.critical ? ' ★' : '' }}</span>
+                  <span [class.crit-name]="w.critical">@if (w.isMilestone) { ◆ }{{ w.name }}{{ w.critical ? ' ★' : '' }}</span>
                   <div class="tags">
                     @if (phaseName(w)) { <span class="tag">{{ phaseName(w) }}</span> }
                     @if (deliverableName(w)) { <span class="tag">交付物：{{ deliverableName(w) }}</span> }
                     @if (w.externalProvider) { <span class="tag ext">外部供方：{{ w.externalProvider }}</span> }
                     @if (w.longLead) { <span class="tag lead">长周期</span> }
                     @if (w.resourceDays) { <span class="tag">{{ +w.resourceDays }} 人天</span> }
-                    @if (slip(w); as s) { <span class="tag late">比批准计划{{ s > 0 ? '晚' : '早' }} {{ s > 0 ? s : -s }} 天</span> }
+                    @if (slip(w); as s) { <span class="tag late">比批准计划{{ s > 0 ? '晚' : '早' }} {{ s > 0 ? s : -s }} 个工作日</span> }
                   </div>
                 </td>
                 <td class="nw">{{ ownerName(w) }}</td>
-                <td class="nw">{{ w.isLeaf ? w.durationDays + ' 天' : '' }}</td>
+                <td class="nw">{{ w.isMilestone ? '里程碑' : w.isLeaf ? w.durationDays + ' 天' : '' }}</td>
                 <td class="dates">{{ w.scheduledStart }}<br />{{ w.scheduledEnd }}</td>
                 <td class="num nw">{{ w.budget ? (+w.budget).toLocaleString() : '' }}</td>
                 <td class="nw">{{ status(w.status) }}</td>
                 <td class="nw">
-                  @if (w.isLeaf && canProgress(w)) {
+                  @if (w.isLeaf && canProgress(w) && !w.isMilestone) {
                     <input class="pct" type="number" min="0" max="100" [value]="w.percentComplete" (change)="setPercent(w, $any($event.target).valueAsNumber)" aria-label="进度百分比" /> %
                   } @else { {{ w.isLeaf ? w.percentComplete + '%' : '' }} }
                 </td>
@@ -177,10 +208,10 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
             }
           </tbody>
         </table>
-        <p class="muted">★ 表示在关键路径上。</p>
+        <p class="muted">★ 表示在关键路径上，◆ 表示里程碑。工期按企业工作日历计算（工作日）。</p>
       }
       @case ('gantt') {
-        @if (data(); as d) { <app-gantt [items]="items()" [dependencies]="d.dependencies" [totalDays]="d.projectDurationDays" [baseline]="baseline()" /> }
+        @if (data(); as d) { <app-gantt [items]="items()" [dependencies]="d.dependencies" [totalDays]="d.calendarDays ?? d.projectDurationDays" [baseline]="baseline()" /> }
       }
       @case ('board') {
         <div class="board">
@@ -217,6 +248,9 @@ export class ProjectWbs {
   readonly editing = signal<WorkPackage | null>(null);
   readonly baseline = signal<BaselineDates | null>(null);
   readonly slips = signal<Record<string, number>>({});
+  readonly wbsTemplates = signal<WbsTemplate[]>([]);
+  readonly importResult = signal<{ created: number; updated: number; dependencies: number } | null>(null);
+  readonly importErrors = signal<string[]>([]);
   slip(w: WorkPackage) { return this.slips()[w.id] ?? 0; }
   readonly error = signal('');
   readonly view = signal<'table' | 'gantt' | 'board'>('table');
@@ -232,7 +266,7 @@ export class ProjectWbs {
 
   private readonly empty = {
     code: '', name: '', parentId: '', durationDays: 1, ownerId: '', phaseId: '', deliverableId: '', costAccountId: '',
-    budget: null as number | null, resourceDays: null as number | null, externalProvider: '', longLead: false,
+    budget: null as number | null, resourceDays: null as number | null, externalProvider: '', longLead: false, isMilestone: false,
   };
   readonly wpForm = this.fb.group({
     ...this.empty,
@@ -268,6 +302,7 @@ export class ProjectWbs {
     if (this.manage()) {
       this.accounts.set((await this.api.get<CostSummary>(`/projects/${id}/cost`)).accounts);
       if (this.project().baselined) this.scopeChanges.set(await approvedScopeChanges(this.api, id));
+      this.wbsTemplates.set(await this.api.get<WbsTemplate[]>('/wbs-templates'));
     }
     await this.load();
   }
@@ -301,7 +336,7 @@ export class ProjectWbs {
       code: w.code, name: w.name, parentId: w.parentId ?? '', durationDays: w.durationDays, ownerId: w.ownerId ?? '',
       phaseId: w.phaseId ?? '', deliverableId: w.deliverableId ?? '', costAccountId: w.costAccountId ?? '',
       budget: w.budget === null ? null : +w.budget, resourceDays: w.resourceDays === null ? null : +w.resourceDays,
-      externalProvider: w.externalProvider ?? '', longLead: w.longLead,
+      externalProvider: w.externalProvider ?? '', longLead: w.longLead, isMilestone: !!w.isMilestone,
     });
     this.wpForm.controls.code.disable();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -322,18 +357,60 @@ export class ProjectWbs {
           name: v.name, durationDays: v.durationDays, ownerId: v.ownerId || undefined,
           phaseId: v.phaseId || null, deliverableId: v.deliverableId || null, costAccountId: v.costAccountId || null,
           budget: v.budget ?? undefined, resourceDays: v.resourceDays ?? null, externalProvider: v.externalProvider, longLead: v.longLead,
+          isMilestone: v.isMilestone,
         });
       } else {
         await this.api.post(`/projects/${this.project().id}/wbs`, {
-          code: v.code, name: v.name, durationDays: v.durationDays, parentId: v.parentId || undefined, ownerId: v.ownerId || undefined,
+          code: v.code, name: v.name, parentId: v.parentId || undefined, ownerId: v.ownerId || undefined,
           phaseId: v.phaseId || undefined, deliverableId: v.deliverableId || undefined, costAccountId: v.costAccountId || undefined,
           budget: v.budget ?? undefined, resourceDays: v.resourceDays ?? undefined,
           externalProvider: v.externalProvider || undefined, longLead: v.longLead,
+          isMilestone: v.isMilestone, durationDays: v.isMilestone ? 0 : v.durationDays,
           changeRequestId: this.crControl.value || undefined,
         });
       }
       this.cancelEdit();
     }, editing ? '保存失败' : '添加失败');
+  }
+
+  exportExcel() {
+    return this.run(() => this.api.download(`/projects/${this.project().id}/wbs/export`, `wbs-${this.project().code}.xlsx`), '导出失败');
+  }
+  templateExcel() {
+    return this.run(() => this.api.download(`/projects/${this.project().id}/wbs/export?template=1`, 'wbs-import-template.xlsx'), '下载失败');
+  }
+  async importExcel(input: HTMLInputElement) {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    this.importResult.set(null);
+    this.importErrors.set([]);
+    const form = new FormData();
+    form.append('file', file);
+    if (this.crControl.value) form.append('changeRequestId', this.crControl.value);
+    await this.run(async () => {
+      try {
+        this.importResult.set(await this.api.upload<{ created: number; updated: number; dependencies: number }>(`/projects/${this.project().id}/wbs/import`, form));
+      } catch (e) {
+        const errs = (e as { error?: { errors?: string[] } })?.error?.errors;
+        if (errs?.length) { this.importErrors.set(errs); return; }
+        throw e;
+      }
+    }, '导入失败');
+  }
+  async applyTemplate(select: HTMLSelectElement) {
+    const templateId = select.value;
+    select.value = '';
+    if (!templateId) return;
+    await this.run(() => this.api.post(`/projects/${this.project().id}/wbs/apply-template`, { templateId, changeRequestId: this.crControl.value || undefined }), '添加失败');
+  }
+  async saveAsTemplate() {
+    const name = askText('WBS 模板名称');
+    if (!name?.trim()) return;
+    await this.run(async () => {
+      await this.api.post(`/projects/${this.project().id}/wbs/save-as-template`, { name: name.trim() });
+      this.wbsTemplates.set(await this.api.get<WbsTemplate[]>('/wbs-templates'));
+    }, '保存模板失败');
   }
 
   addDep() {

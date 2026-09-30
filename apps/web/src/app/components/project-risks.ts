@@ -23,6 +23,11 @@ import { Member, Project, RISK_STATUS_LABELS, RiskRow } from '../core/models';
       <mat-form-field><mat-label>潜在损失 / 收益金额</mat-label><input matInput type="number" formControlName="exposureAmount" /></mat-form-field>
       <mat-form-field><mat-label>应对成本</mat-label><input matInput type="number" formControlName="responseCost" /></mat-form-field>
       <mat-form-field style="min-width: 300px"><mat-label>成本收益分析</mat-label><input matInput formControlName="costBenefitAnalysis" /></mat-form-field>
+      <mat-form-field><mat-label>产品成熟度（与客户商定）</mat-label><input matInput formControlName="maturityLevel" placeholder="如 TRL 7、已批量应用" /></mat-form-field>
+      <mat-form-field style="min-width: 240px"><mat-label>参与评审的职能经理</mat-label><input matInput formControlName="functionalReviewers" /></mat-form-field>
+      @if (form.controls.kind.value === 'OPPORTUNITY') {
+        <mat-form-field><mat-label>可弥补预算损失的金额</mat-label><input matInput type="number" formControlName="budgetRecovery" /></mat-form-field>
+      }
       <mat-form-field><mat-label>负责人</mat-label>
         <mat-select formControlName="ownerId"><mat-option value="">未分配</mat-option>@for (m of members(); track m.userId) { <mat-option [value]="m.userId">{{ m.user?.name }}</mat-option> }</mat-select>
       </mat-form-field>
@@ -35,7 +40,11 @@ import { Member, Project, RISK_STATUS_LABELS, RiskRow } from '../core/models';
         @for (r of rows(); track r.id) {
           <tr>
             <td>{{ r.kind === 'RISK' ? '风险' : '机会' }}</td>
-            <td>{{ r.title }}<small>{{ r.costBenefitAnalysis }}</small></td>
+            <td>{{ r.title }}<small>{{ r.costBenefitAnalysis }}</small>
+              @if (r.maturityLevel || r.functionalReviewers || r.budgetRecovery) {
+                <small>@if (r.maturityLevel) { 成熟度：{{ r.maturityLevel }}　}@if (r.functionalReviewers) { 职能评审：{{ r.functionalReviewers }}　}@if (r.budgetRecovery) { 可弥补预算：{{ (+r.budgetRecovery).toLocaleString() }} }</small>
+              }
+            </td>
             <td [class.high]="r.score >= 15">{{ r.score }}（{{ r.probability }}×{{ r.impact }}）</td>
             <td>{{ r.expectedValue }} / {{ r.responseCost }}<small>{{ r.netBenefitOfResponse >= 0 ? '应对划算' : '应对成本高于期望价值' }}</small></td>
             <td>{{ owner(r) }}</td>
@@ -64,6 +73,7 @@ export class ProjectRisks {
     kind: ['RISK'], title: ['', Validators.required], probability: [3, [Validators.min(1), Validators.max(5)]],
     impact: [3, [Validators.min(1), Validators.max(5)]], exposureAmount: [0], responseCost: [0],
     costBenefitAnalysis: ['', Validators.required], ownerId: [''],
+    maturityLevel: [''], functionalReviewers: [''], budgetRecovery: [null as number | null],
   });
 
   statusLabel(r: RiskRow) { return RISK_STATUS_LABELS[r.status]; }
@@ -84,8 +94,11 @@ export class ProjectRisks {
   add() {
     const v = this.form.getRawValue();
     return this.run(async () => {
-      await this.api.post(`/projects/${this.project().id}/risks`, { ...v, ownerId: v.ownerId || undefined });
-      this.form.reset({ kind: 'RISK', title: '', probability: 3, impact: 3, exposureAmount: 0, responseCost: 0, costBenefitAnalysis: '', ownerId: '' });
+      await this.api.post(`/projects/${this.project().id}/risks`, {
+        ...v, ownerId: v.ownerId || undefined, maturityLevel: v.maturityLevel || undefined, functionalReviewers: v.functionalReviewers || undefined,
+        budgetRecovery: v.kind === 'OPPORTUNITY' && v.budgetRecovery ? v.budgetRecovery : undefined,
+      });
+      this.form.reset({ kind: 'RISK', title: '', probability: 3, impact: 3, exposureAmount: 0, responseCost: 0, costBenefitAnalysis: '', ownerId: '', maturityLevel: '', functionalReviewers: '', budgetRecovery: null });
     }, '登记失败');
   }
   setStatus(r: RiskRow, status: string) { return this.run(() => this.api.patch(`/projects/${this.project().id}/risks/${r.id}`, { status }), '更新失败'); }

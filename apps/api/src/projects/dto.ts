@@ -34,6 +34,7 @@ export class PhaseTemplatePhaseDto {
   @IsString() @MinLength(1) @MaxLength(100) name: string;
   @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) checklist: string[];
   @IsArray() @IsEnum(ProjectRole, { each: true }) mandatoryRoles: ProjectRole[];
+  @IsOptional() @IsArray() @IsEnum(ProjectRole, { each: true }) optionalRoles?: ProjectRole[];
 }
 
 export class CreatePhaseTemplateDto {
@@ -99,6 +100,7 @@ export class UpdatePhaseDto {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(100) name?: string;
   @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) checklist?: string[];
   @IsOptional() @IsArray() @IsEnum(ProjectRole, { each: true }) mandatoryRoles?: ProjectRole[];
+  @IsOptional() @IsArray() @IsEnum(ProjectRole, { each: true }) optionalRoles?: ProjectRole[];
 }
 
 export class CreateWpDto {
@@ -108,7 +110,8 @@ export class CreateWpDto {
   @IsOptional() @IsUUID() parentId?: string;
   @IsOptional() @IsUUID() phaseId?: string;
   @IsOptional() @IsUUID() ownerId?: string;
-  @IsInt() @Min(1) @Max(3650) durationDays: number;
+  @IsInt() @Min(0) @Max(3650) durationDays: number;
+  @IsOptional() @IsBoolean() isMilestone?: boolean;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) budget?: number;
   @IsOptional() @IsUUID() costAccountId?: string | null;
   @IsOptional() @IsUUID() deliverableId?: string | null;
@@ -123,7 +126,8 @@ export class UpdateWpDto {
   @IsOptional() @IsString() @MaxLength(2000) description?: string;
   @IsOptional() @IsUUID() ownerId?: string;
   @IsOptional() @IsUUID() phaseId?: string | null;
-  @IsOptional() @IsInt() @Min(1) @Max(3650) durationDays?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(3650) durationDays?: number;
+  @IsOptional() @IsBoolean() isMilestone?: boolean;
   @IsOptional() @IsInt() @Min(0) @Max(100) percentComplete?: number;
   @IsOptional() @IsEnum(WpStatus) status?: WpStatus;
   @IsOptional() @IsDateString() actualStart?: string;

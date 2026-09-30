@@ -30,6 +30,10 @@ model Tenant {
   /// 挣值预警阈值：SPI / CPI 低于 amber 为黄，低于 red 为红
   evmAmber  Decimal  @default(0.95) @map("evm_amber") @db.Decimal(4, 2)
   evmRed    Decimal  @default(0.90) @map("evm_red") @db.Decimal(4, 2)
+  /// 工作日历：每周上班的日子（1 = 周一 … 7 = 周日）、放假日、调休上班日
+  workWeek      Int[]  @default([1, 2, 3, 4, 5]) @map("work_week")
+  holidays      Json   @default("[]")
+  extraWorkdays Json   @default("[]") @map("extra_workdays")
   users     User[]
   auditLogs AuditLog[]
 
@@ -238,6 +242,8 @@ model Phase {
   status         PhaseStatus @default(PLANNED)
   checklist      Json        @default("[]")
   mandatoryRoles Json        @default("[]") @map("mandatory_roles")
+  /// 可选参与者角色（8.1.3.1.3）
+  optionalRoles  Json        @default("[]") @map("optional_roles")
   startedAt      DateTime?
   closedAt       DateTime?
 
@@ -278,6 +284,8 @@ model WorkPackage {
   externalProvider String?  @map("external_provider")
   /// 长周期物料，需与外部供方共同管理（8.1.3.4 c2）
   longLead        Boolean   @default(false) @map("long_lead")
+  /// 里程碑：工期为 0 的节点（客户验收点、关口等）
+  isMilestone     Boolean   @default(false) @map("is_milestone")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -514,6 +522,12 @@ model Risk {
   /// 应对措施成本
   responseCost        Decimal    @map("response_cost") @db.Decimal(14, 2)
   costBenefitAnalysis String     @map("cost_benefit_analysis")
+  /// 与客户商定的产品成熟度（作为风险输入，8.1.3.9.2 b）
+  maturityLevel       String?    @map("maturity_level")
+  /// 参与风险评审的职能经理（8.1.3.9.2 a）
+  functionalReviewers String?    @map("functional_reviewers")
+  /// 机会：可用于弥补预算损失的金额（8.1.3.9.2 c）
+  budgetRecovery      Decimal?   @map("budget_recovery") @db.Decimal(14, 2)
   ownerId             String?    @map("owner_id")
   status              RiskStatus @default(OPEN)
   closureNote         String?
@@ -923,4 +937,80 @@ model PlanVersion {
   @@unique([projectId, version])
   @@index([tenantId, projectId])
   @@map("plan_versions")
+}
+
+// ───────── 改进方案第三步：补齐 ─────────
+
+/// 标准 WBS 模板（8.1.3.3）：[{ code, name, durationDays, isMilestone, parentCode? }]
+model WbsTemplate {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  items     Json
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, name])
+  @@map("wbs_templates")
+}
+
+/// 与客户和关键外部供方的 SWOT 评审（8.1.3.1.2 b）
+model SwotReview {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  projectId     String   @map("project_id")
+  reviewDate    DateTime @map("review_date") @db.Date
+  participants  String
+  strengths     String   @default("")
+  weaknesses    String   @default("")
+  opportunities String   @default("")
+  threats       String   @default("")
+  actions       String   @default("")
+  createdById   String   @map("created_by_id")
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, projectId])
+  @@map("swot_reviews")
+}
+
+enum DeviationDimension {
+  QUALITY
+  SCHEDULE
+  COST
+}
+
+/// 偏离通报：即将偏离项目目标时，向客户和相关方通报影响与对策（8.1.3.8、8.1.3.11）
+model DeviationNotice {
+  id             String             @id @default(uuid())
+  tenantId       String             @map("tenant_id")
+  projectId      String             @map("project_id")
+  dimension      DeviationDimension
+  noticeDate     DateTime           @map("notice_date") @db.Date
+  audience       String
+  impact         String
+  countermeasures String
+  createdById    String             @map("created_by_id")
+  createdAt      DateTime           @default(now())
+
+  @@index([tenantId, projectId])
+  @@map("deviation_notices")
+}
+
+/// 干系人登记册
+model Stakeholder {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  projectId     String   @map("project_id")
+  name          String
+  organization  String   @default("")
+  role          String   @default("")
+  /// 影响力、关注度：HIGH / MEDIUM / LOW
+  influence     String   @default("MEDIUM")
+  interest      String   @default("MEDIUM")
+  expectations  String   @default("")
+  communication String   @default("")
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, projectId])
+  @@map("stakeholders")
 }

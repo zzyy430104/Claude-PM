@@ -138,6 +138,9 @@ export class CreateRiskDto {
   @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) responseCost: number;
   @IsString() @MinLength(2) @MaxLength(5000) costBenefitAnalysis: string;
   @IsOptional() @IsUUID() ownerId?: string;
+  @IsOptional() @IsString() @MaxLength(200) maturityLevel?: string;
+  @IsOptional() @IsString() @MaxLength(500) functionalReviewers?: string;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) budgetRecovery?: number;
 }
 
 export class UpdateRiskDto {
@@ -152,6 +155,9 @@ export class UpdateRiskDto {
   @IsOptional() @IsEnum(RiskStatus) status?: RiskStatus;
   @IsOptional() @IsString() @MaxLength(2000) closureNote?: string;
   @IsOptional() @IsBoolean() reviewed?: boolean;
+  @IsOptional() @IsString() @MaxLength(200) maturityLevel?: string;
+  @IsOptional() @IsString() @MaxLength(500) functionalReviewers?: string;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) budgetRecovery?: number;
 }
 
 export class IssueListQuery {

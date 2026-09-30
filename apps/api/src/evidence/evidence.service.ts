@@ -29,6 +29,9 @@ const CLAUSE_MAP: [string, string, string][] = [
   ['8.1.3.9', '风险与机会登记册', 'risks.json'],
   ['8.1.3.10', '采购（外部供方交付物）', 'deliverables.json'],
   ['8.1.3.11', '项目评审', 'project-reviews.json, issues.json'],
+  ['8.1.3.1.2 b', '与客户和关键供方的 SWOT 评审', 'swot-reviews.json'],
+  ['8.1.3.8、8.1.3.11', '偏离通报（影响与对策）', 'deviation-notices.json'],
+  ['8.1.3.8', '干系人登记册', 'stakeholders.json'],
   ['8.1.4.1', '配置管理', 'config-items.json, baselines.json'],
   ['8.1.4.2', '变更控制', 'change-requests.json, audit-logs.json'],
   ['7.5', '成文信息的控制与追溯', 'audit-logs.json, MANIFEST.sha256'],
@@ -78,9 +81,12 @@ export class EvidenceService {
       this.prisma.document.findMany({ where: w, orderBy: [{ folder: 'asc' }, { name: 'asc' }] }),
       this.prisma.documentVersion.findMany({ where: { tenantId, document: { projectId } }, orderBy: [{ documentId: 'asc' }, { version: 'asc' }] }),
     ]);
-    const [requirements, planVersions] = await Promise.all([
+    const [requirements, planVersions, swot, deviations, stakeholders] = await Promise.all([
       this.prisma.requirement.findMany({ where: w, orderBy: { code: 'asc' } }),
       this.prisma.planVersion.findMany({ where: w, orderBy: { version: 'asc' } }),
+      this.prisma.swotReview.findMany({ where: w, orderBy: { reviewDate: 'asc' } }),
+      this.prisma.deviationNotice.findMany({ where: w, orderBy: { noticeDate: 'asc' } }),
+      this.prisma.stakeholder.findMany({ where: w, orderBy: { createdAt: 'asc' } }),
     ]);
     const [costSummary, costEntries, progress] = await Promise.all([
       this.cost.summary(actor, projectId),
@@ -114,6 +120,7 @@ export class EvidenceService {
       ['trainings.json', json(trainings)], ['cost.json', json({ summary: costSummary, entries: costEntries })],
       ['config-items.json', json(cfgItems)], ['baselines.json', json(baselines)], ['lessons.json', json(lessons)],
       ['requirements.json', json(requirements)], ['plan-versions.json', json(planVersions)],
+      ['swot-reviews.json', json(swot)], ['deviation-notices.json', json(deviations)], ['stakeholders.json', json(stakeholders)],
       ['documents.json', json({ documents: docs, versions: docVersions.map(({ storagePath: _p, ...v }) => v) })],
       ['audit-logs.json', json({ users, logs: auditLogs })],
     ];

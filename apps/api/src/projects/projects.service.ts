@@ -75,7 +75,7 @@ export class ProjectsService {
     const managerId = dto.managerId ?? (actor.role === Role.PROJECT_MANAGER ? actor.id : undefined);
     if (managerId) await this.requireTenantUser(tenantId, managerId);
 
-    let phases: readonly { name: string; checklist: readonly string[]; mandatoryRoles: readonly string[] }[] = DEFAULT_PHASES;
+    let phases: readonly { name: string; checklist: readonly string[]; mandatoryRoles: readonly string[]; optionalRoles?: readonly string[] }[] = DEFAULT_PHASES;
     if (dto.templateId) {
       const tpl = await this.prisma.phaseTemplate.findFirst({
         where: { id: dto.templateId, tenantId, active: true },
@@ -117,6 +117,7 @@ export class ProjectsService {
               order: i + 1,
               checklist: [...p.checklist],
               mandatoryRoles: [...p.mandatoryRoles],
+              optionalRoles: [...(p.optionalRoles ?? [])],
             })),
           });
           if (managerId) {
@@ -363,6 +364,7 @@ export class ProjectsService {
             name: dto.name,
             checklist: dto.checklist as Prisma.InputJsonValue | undefined,
             mandatoryRoles: dto.mandatoryRoles as Prisma.InputJsonValue | undefined,
+            optionalRoles: dto.optionalRoles as Prisma.InputJsonValue | undefined,
           },
         }),
     );

@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Patch } from '@nestjs/common';
-import { IsNumber, IsOptional, Max, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsInt, IsNumber, IsOptional, Matches, Max, Min } from 'class-validator';
 import { AuditService } from '../audit/audit.service.js';
 import { CurrentUser, Roles } from '../common/decorators.js';
 import { requireTenantId } from '../common/auth.types.js';
@@ -10,24 +10,40 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class UpdateTenantSettingsDto {
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.5) @Max(1) evmAmber?: number;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.5) @Max(1) evmRed?: number;
+  /** 每周上班的日子：1 = 周一 … 7 = 周日 */
+  @IsOptional() @IsArray() @ArrayMaxSize(7) @IsInt({ each: true }) @Min(1, { each: true }) @Max(7, { each: true }) workWeek?: number[];
+  @IsOptional() @IsArray() @ArrayMaxSize(500) @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true }) holidays?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(500) @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true }) extraWorkdays?: string[];
 }
 
-/** 企业设置：目前是挣值预警阈值（SPI / CPI 低于黄线为黄，低于红线为红） */
+/** 企业设置：挣值预警阈值（SPI / CPI 低于黄线为黄，低于红线为红）与工作日历 */
 @Controller('tenant-settings')
 export class SettingsController {
   constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
 
   @Get() async get(@CurrentUser() u: AuthUser) {
-    const t = await this.prisma.tenant.findUniqueOrThrow({ where: { id: requireTenantId(u) }, select: { evmAmber: true, evmRed: true } });
-    return { evmAmber: Number(t.evmAmber), evmRed: Number(t.evmRed) };
+    const t = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: requireTenantId(u) }, select: { evmAmber: true, evmRed: true, workWeek: true, holidays: true, extraWorkdays: true },
+    });
+    return {
+      evmAmber: Number(t.evmAmber), evmRed: Number(t.evmRed), workWeek: t.workWeek,
+      holidays: (t.holidays as string[]) ?? [], extraWorkdays: (t.extraWorkdays as string[]) ?? [],
+    };
   }
 
   @Patch() @Roles(Role.TENANT_ADMIN)
   async update(@CurrentUser() u: AuthUser, @Body() dto: UpdateTenantSettingsDto) {
     const id = requireTenantId(u);
     const cur = await this.get(u);
-    const next = { evmAmber: dto.evmAmber ?? cur.evmAmber, evmRed: dto.evmRed ?? cur.evmRed };
+    const uniqSorted = (xs: string[]) => [...new Set(xs)].sort();
+    const next = {
+      evmAmber: dto.evmAmber ?? cur.evmAmber, evmRed: dto.evmRed ?? cur.evmRed,
+      workWeek: dto.workWeek ? [...new Set(dto.workWeek)].sort() : cur.workWeek,
+      holidays: dto.holidays ? uniqSorted(dto.holidays) : cur.holidays,
+      extraWorkdays: dto.extraWorkdays ? uniqSorted(dto.extraWorkdays) : cur.extraWorkdays,
+    };
     if (next.evmRed >= next.evmAmber) throw new BadRequestException('The red threshold must be below the amber threshold');
+    if (next.workWeek.length === 0) throw new BadRequestException('At least one working day per week is required');
     await this.audit.tx(
       u,
       { action: 'tenant.settings', entity: 'Tenant', entityId: () => id, before: cur, after: () => next },

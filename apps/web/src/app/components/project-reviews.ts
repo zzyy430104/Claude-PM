@@ -7,12 +7,13 @@ import { MatSelectModule } from '@angular/material/select';
 import { Api, errorMessage } from '../core/api';
 import { Member, Project, ProjectReview, UserRow, Health, Performance } from '../core/models';
 import { TriangleComponent } from './triangle';
+import { ProjectSwot } from './project-swot';
 
 type Prep = ProjectReview['performance'];
 
 @Component({
   selector: 'app-project-reviews',
-  imports: [TriangleComponent, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [TriangleComponent, ProjectSwot, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   styles: `.tri-line { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px; } .box { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 12px 16px; margin: 12px 0; } .warn { color: var(--mat-sys-error); } .meta { font-size: 13px; color: var(--mat-sys-on-surface-variant); }`,
   template: `
     <h2>评审准备：质量、进度、成本</h2>
@@ -63,6 +64,7 @@ type Prep = ProjectReview['performance'];
       </div>
     }
     @if (rows().length === 0) { <p>尚未进行项目评审。评审周期：{{ project().reviewIntervalDays }} 天。</p> }
+    <app-project-swot [project]="project()" />
   `,
 })
 export class ProjectReviews {

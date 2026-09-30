@@ -164,3 +164,11 @@ html .page form:not(.row) > .mdc-button, html .page form:not(.row) > label + .md
 html .page :not(.row):not(.row-nav) > .mdc-button + .mdc-button { margin-left: 8px; }
 html .page label:has(> input[type=checkbox]) { display: inline-flex; align-items: center; gap: 6px; margin: 0 14px 0 0; }
 html .page input[type=checkbox] { accent-color: var(--pm-primary); }
+
+// 打印：只保留页面内容（项目周报等）
+@media print {
+  mat-toolbar, mat-sidenav, .no-print { display: none !important; }
+  mat-sidenav-content { margin: 0 !important; }
+  body, mat-sidenav-container { background: #fff !important; }
+  .page { padding: 0 !important; max-width: none !important; }
+}

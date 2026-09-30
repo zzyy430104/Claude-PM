@@ -1,4 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -20,7 +21,7 @@ interface Plan {
 
 @Component({
   selector: 'app-project-overview',
-  imports: [NgTemplateOutlet, TriangleComponent, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [NgTemplateOutlet, RouterLink, TriangleComponent, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   styles: `
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 24px; margin: 0 0 20px; }
     dt { font-size: 12px; color: var(--pm-muted); } dd { margin: 0 0 4px; font-weight: 500; }
@@ -75,7 +76,13 @@ interface Plan {
       </div>
     }
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
-    @if (canExport()) { <div class="toolbar"><button mat-stroked-button (click)="exportPack()">导出审核证据包</button></div> }
+    <div class="toolbar">
+      <a mat-stroked-button [routerLink]="['/projects', project().id, 'report']">项目周报</a>
+      @if (canExport()) { <button mat-stroked-button (click)="exportPack()">导出审核证据包</button> }
+    </div>
+    @if (manage() && hasRed()) {
+      <p class="hint">有方面处于告警状态。如需向客户或相关方通报影响和对策，请在「沟通与培训」里记录偏离通报。</p>
+    }
 
     @if (versions().length) {
       <h2>计划批准版本</h2>
@@ -169,6 +176,7 @@ export class ProjectOverview {
   readonly members = signal<Member[]>([]);
   readonly versions = signal<PlanVersion[]>([]);
   readonly perf = signal<Performance | null>(null);
+  readonly hasRed = computed(() => { const t = this.perf()?.triangle; return !!t && [t.quality, t.schedule, t.cost].some((d) => d.health === 'RED'); });
   readonly orgChart = signal<OrgNode[]>([]);
   readonly confirming = signal(false);
   readonly error = signal('');

@@ -8,7 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Api, errorMessage } from '../core/api';
-import { DECISION_LABELS, GateReview, Member, Phase, Project, Readiness } from '../core/models';
+import { DECISION_LABELS, GateReview, Member, PROJECT_ROLE_LABELS, Phase, Project, Readiness } from '../core/models';
 
 const STATUS = { PLANNED: '未开始', ACTIVE: '进行中', CLOSED: '已关闭' } as const;
 
@@ -76,7 +76,8 @@ const STATUS = { PLANNED: '未开始', ACTIVE: '进行中', CLOSED: '已关闭' 
                 <button mat-stroked-button type="button" (click)="saveReview(g)">保存清单与出席者</button>
               </form>
             }
-            @if (p.mandatoryRoles.length) { <div class="meta">必选参与者：{{ p.mandatoryRoles.join('、') }}</div> }
+            @if (p.mandatoryRoles.length) { <div class="meta">必选参与者：{{ roles(p.mandatoryRoles) }}</div> }
+            @if (p.optionalRoles?.length) { <div class="meta">可选参与者：{{ roles(p.optionalRoles!) }}</div> }
 
             @if (readiness()?.priorOpenIssues?.length && project().permissions?.topManagement && !g.overrideAuthorizedById) {
               <button mat-button (click)="authorize(g)">最高管理层授权：带遗留问题通过</button>
@@ -124,6 +125,7 @@ export class ProjectGates {
   readonly reviews = signal<GateReview[]>([]);
   readonly members = signal<Member[]>([]);
   readonly readiness = signal<Readiness | null>(null);
+  roles(rs: string[]) { return rs.map((r) => PROJECT_ROLE_LABELS[r as keyof typeof PROJECT_ROLE_LABELS] ?? r).join('、'); }
   readonly dlStatus = { PLANNED: '计划中', SUBMITTED: '已提交', ACCEPTED: '已接受', REJECTED: '被退回' } as const;
   readonly error = signal('');
   readonly checklist = signal<GateReview['checklistResults']>([]);

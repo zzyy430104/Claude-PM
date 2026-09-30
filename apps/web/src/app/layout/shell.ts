@@ -64,6 +64,7 @@ import { NotificationRow, ROLE_LABELS } from '../core/models';
           }
           @if (auth.hasRole('TENANT_ADMIN', 'TOP_MANAGEMENT', 'PROJECT_MANAGER', 'FUNCTION_MANAGER')) {
             <a routerLink="/tenders" routerLinkActive="active">投标</a>
+            <a routerLink="/resources" routerLinkActive="active">资源负荷</a>
           }
           @if (!auth.hasRole('PLATFORM_ADMIN')) {
             <a routerLink="/lessons" routerLinkActive="active">经验教训库</a>

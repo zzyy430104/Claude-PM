@@ -26,6 +26,11 @@ const HEADER = 24;
             <text x="4" [attr.y]="HEADER + i * ROW + 18" font-size="12" fill="var(--mat-sys-on-surface)">
               {{ r.code }} {{ r.name.length > 16 ? r.name.slice(0, 16) + '…' : r.name }}
             </text>
+            @if (r.isMilestone) {
+              <polygon [attr.points]="diamond(r, i)" fill="var(--pm-primary)" stroke="var(--pm-primary-strong)">
+                <title>里程碑 {{ r.code }} {{ r.name }}：{{ r.scheduledStart }}</title>
+              </polygon>
+            } @else {
             <rect
               [attr.x]="x(r.startOffsetDays)" [attr.y]="HEADER + i * ROW + 5"
               [attr.width]="w(r)" height="16" rx="3"
@@ -34,12 +39,13 @@ const HEADER = 24;
               [attr.opacity]="r.isLeaf ? 1 : 0.55">
               <title>{{ r.code }} {{ r.name }}：{{ r.scheduledStart }} → {{ r.scheduledEnd }}（{{ r.percentComplete }}%{{ r.critical ? '，关键路径' : '' }}）</title>
             </rect>
+            }
             @if (bars()[r.id]; as b) {
               <rect [attr.x]="x(b.s)" [attr.y]="HEADER + i * ROW + 22" [attr.width]="Math.max((b.e - b.s) * scale(), 3)" height="4" rx="2" fill="#8a97a8">
                 <title>批准的计划：{{ b.start }} → {{ b.end }}</title>
               </rect>
             }
-            @if (r.percentComplete > 0) {
+            @if (r.percentComplete > 0 && !r.isMilestone) {
               <rect
                 [attr.x]="x(r.startOffsetDays)" [attr.y]="HEADER + i * ROW + 5"
                 [attr.width]="w(r) * r.percentComplete / 100" height="16" rx="3"
@@ -54,6 +60,7 @@ const HEADER = 24;
       <p class="legend">
         <span class="dot crit"></span> 关键路径　<span class="dot"></span> 非关键（有浮动时间）　深色为已完成进度
         @if (hasBaseline()) { 　<span class="bl"></span> 批准的计划 }
+        　◆ 里程碑
       </p>
     }
   `,
@@ -97,6 +104,11 @@ export class GanttComponent {
   private readonly span = computed(() => Math.max(this.totalDays(), ...Object.values(this.bars()).map((b) => b.e), 1));
   protected readonly scale = computed(() => CHART_W / this.span());
 
+  diamond(r: WorkPackage, i: number) {
+    const cx = this.x(r.startOffsetDays);
+    const cy = HEADER + i * ROW + 13;
+    return `${cx},${cy - 8} ${cx + 8},${cy} ${cx},${cy + 8} ${cx - 8},${cy}`;
+  }
   x(day: number) {
     return LABEL_W + day * this.scale();
   }

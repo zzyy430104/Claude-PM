@@ -21,7 +21,7 @@ await p.waitForSelector('tr:has-text("评审演示项目") .dot3.RED'); step('�
 await openProject(p, proj.code);
 await p.waitForSelector('app-triangle .card.RED:has-text("进度")');
 await p.waitForSelector('app-triangle li:has-text("SPI 0.50 低于 0.90")');
-await p.waitForSelector('app-triangle li:has-text("比批准的计划晚 4 天")'); step('项目概览显示三方面状态与原因');
+await p.waitForSelector('app-triangle li:has-text("比批准的计划晚 4 个工作日")'); step('项目概览显示三方面状态与原因');
 
 await tab(p, '成本');
 await p.waitForSelector('.evm:has-text("计划值 PV")');
@@ -29,7 +29,7 @@ await p.waitForSelector('.evm .RED:has-text("0.50")');
 await p.waitForSelector('.evm .RED:has-text("0.67")'); step('成本页显示挣值分析（PV、EV、AC、SPI、CPI、EAC）');
 
 await tab(p, 'WBS');
-await p.waitForSelector('.tag.late:has-text("比批准计划晚 4 天")');
+await p.waitForSelector('.tag.late:has-text("比批准计划晚 4 个工作日")');
 await p.click('mat-button-toggle:has-text("甘特图")');
 await p.waitForSelector('svg[aria-label=甘特图] title:has-text("批准的计划")', { state: 'attached' }); step('WBS 标出延误，甘特图显示批准计划的对比条');
 

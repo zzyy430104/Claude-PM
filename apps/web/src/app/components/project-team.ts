@@ -1,3 +1,4 @@
+import { ProjectStakeholders } from './project-stakeholders';
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,7 +11,7 @@ import { COMM_KIND_LABELS, CommLog, CommPlan, Member, Project, TrainingRow } fro
 
 @Component({
   selector: 'app-project-team',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [ProjectStakeholders, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   styles: `.box { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 8px 16px; margin: 8px 0; } .meta { font-size: 13px; color: var(--mat-sys-on-surface-variant); }`,
   template: `
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
@@ -47,6 +48,7 @@ import { COMM_KIND_LABELS, CommLog, CommPlan, Member, Project, TrainingRow } fro
         @if (t.status === 'PLANNED' && (manage() || t.userId === me()?.id)) { <button mat-button (click)="done(t)">标记完成</button> }
       </div>
     }
+    <app-project-stakeholders [project]="project()" />
   `,
 })
 export class ProjectTeam {

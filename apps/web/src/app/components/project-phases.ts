@@ -14,6 +14,7 @@ const STATUS = { PLANNED: '未开始', ACTIVE: '进行中', CLOSED: '已关闭' 
       <div class="phase" [class.active]="p.status === 'ACTIVE'">
         <h3>{{ p.order }}. {{ p.name }} · {{ status[p.status] }}</h3>
         <div>必选参与者：{{ roles(p) }}</div>
+        @if (p.optionalRoles?.length) { <div>可选参与者：{{ optional(p) }}</div> }
         @if (p.checklist.length) {
           <div>关口清单：</div>
           <ul>@for (c of p.checklist; track c) { <li>{{ c }}</li> }</ul>
@@ -28,6 +29,7 @@ export class ProjectPhases {
   readonly phases = signal<Phase[]>([]);
   readonly status = STATUS;
 
+  optional(p: Phase) { return (p.optionalRoles ?? []).map((r) => PROJECT_ROLE_LABELS[r]).join('、'); }
   roles(p: Phase) {
     return p.mandatoryRoles.map((r) => PROJECT_ROLE_LABELS[r]).join('、') || '无';
   }

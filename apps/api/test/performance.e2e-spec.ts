@@ -50,13 +50,13 @@ describe('对比：挣值、计划与实际、三方面红黄绿', () => {
     await http().post(`/projects/${p.id}/baseline`).set(bearer(t.pm.token)).expect(200);
     await http().patch(`/projects/${p.id}/wbs/${w1}`).set(bearer(t.pm.token)).send({ durationDays: 15 }).expect(200);
     const r = (await http().get(`/projects/${p.id}/performance`).set(bearer(t.pm.token)).expect(200)).body;
-    expect(r.schedule).toMatchObject({ baselineEnd: '2026-01-15', projectedEnd: '2026-01-20', slipDays: 5 });
+    expect(r.schedule).toMatchObject({ baselineEnd: '2026-01-16', projectedEnd: '2026-01-23', slipDays: 5 });
     expect(r.schedule.slips[0]).toMatchObject({ code: '1', slipDays: 5, critical: true });
 
     await http().patch('/tenant-settings').set(bearer(t.pm.token)).send({ evmAmber: 0.9 }).expect(403);
     await http().patch('/tenant-settings').set(bearer(t.admin.token)).send({ evmAmber: 0.8, evmRed: 0.85 }).expect(400);
     const s = await http().patch('/tenant-settings').set(bearer(t.admin.token)).send({ evmAmber: 0.9, evmRed: 0.8 }).expect(200);
-    expect(s.body).toEqual({ evmAmber: 0.9, evmRed: 0.8 });
+    expect(s.body).toMatchObject({ evmAmber: 0.9, evmRed: 0.8 });
     const r2 = (await http().get(`/projects/${p.id}/performance`).set(bearer(t.pm.token)).expect(200)).body;
     expect(r2.thresholds).toEqual({ amber: 0.9, red: 0.8 });
   });

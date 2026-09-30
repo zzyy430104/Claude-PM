@@ -1,3 +1,4 @@
+import { EngagementModule } from './engagement/engagement.module.js';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -43,6 +44,7 @@ import { UsersModule } from './users/users.module.js';
     NotificationsModule,
     DashboardModule,
     EvidenceModule,
+    EngagementModule,
   ],
   controllers: [HealthController],
   providers: [
