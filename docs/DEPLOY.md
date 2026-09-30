@@ -25,7 +25,7 @@ node scripts/smoke-test.mjs   # 见第 3 节
 3. 按 `PLATFORM_ADMIN_EMAIL / PLATFORM_ADMIN_PASSWORD` 创建平台管理员。
 
 用平台管理员登录（企业标识留空），在「租户管理」里创建企业，即得到该企业的管理员账号。
-登录后请立即修改初始密码，并从 `.env` 中删除 `PLATFORM_ADMIN_PASSWORD`。
+当前版本还没有「修改密码」页面，请一开始就设置强密码；首次登录成功后从 `.env` 中删除 `PLATFORM_ADMIN_PASSWORD`。
 
 私有部署通常保持 `ALLOW_TENANT_SIGNUP=false`；云端要开放企业自助注册才设为 `true`。
 
