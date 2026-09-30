@@ -67,7 +67,7 @@ await p.fill('input[formcontrolname=title]', '图纸版本冲突');
 await p.click('button:has-text("登记")');
 await p.waitForSelector('td:has-text("图纸版本冲突")'); step('登记问题');
 await tab(p, '项目评审');
-await p.waitForSelector('text=评审准备：当前绩效');
+await p.waitForSelector('text=评审准备：质量、进度、成本');
 await p.click('mat-select[formcontrolname=attendees]');
 await p.click('mat-option:has-text("李经理")'); await p.keyboard.press('Escape');
 await p.fill('textarea[formcontrolname=notes]', '月度评审');

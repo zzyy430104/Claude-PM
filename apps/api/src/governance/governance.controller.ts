@@ -11,6 +11,8 @@ import { GatesService } from './gates.service.js';
 import { IssuesService } from './issues.service.js';
 import { ReviewsService } from './reviews.service.js';
 import { RisksService } from './risks.service.js';
+import { PerformanceService } from './performance.service.js';
+import { ProjectAccess } from '../projects/access.service.js';
 
 const P = () => Param('id', ParseUUIDPipe);
 const U = (name: string) => Param(name, ParseUUIDPipe);
@@ -23,7 +25,14 @@ export class GovernanceController {
     private readonly changes: ChangesService,
     private readonly risks: RisksService,
     private readonly issues: IssuesService,
+    private readonly performance: PerformanceService,
+    private readonly access: ProjectAccess,
   ) {}
+
+  /** 绩效：挣值、计划与实际对比、质量 / 进度 / 成本红黄绿 */
+  @Get('performance') async perf(@CurrentUser() u: AuthUser, @P() id: string) {
+    return this.performance.compute(await this.access.load(u, id));
+  }
 
   // 阶段关口评审
   @Get('gate-reviews') listGates(@CurrentUser() u: AuthUser, @P() id: string) { return this.gates.list(u, id); }

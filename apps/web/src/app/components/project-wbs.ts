@@ -9,10 +9,10 @@ import { MatSelectModule } from '@angular/material/select';
 import { Api, errorMessage } from '../core/api';
 import { AuthService } from '../core/auth.service';
 import {
-  ChangeRequest, CostSummary, Deliverable, Member, Phase, Project, WP_STATUS_LABELS, WbsResponse, WorkPackage, WpStatus,
+  ChangeRequest, CostSummary, Deliverable, Member, Performance, Phase, PlanVersion, Project, WP_STATUS_LABELS, WbsResponse, WorkPackage, WpStatus,
 } from '../core/models';
 import { approvedScopeChanges } from '../core/scope-change';
-import { GanttComponent } from './gantt';
+import { BaselineDates, GanttComponent } from './gantt';
 
 const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
 
@@ -24,6 +24,7 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
     .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
     .tag { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: #e9edf3; color: var(--pm-muted); white-space: nowrap; }
     .tag.ext { background: #e3eefa; color: #2a5d8f; }
+    .tag.late { background: var(--pm-red-bg); color: var(--pm-red); }
     .tag.lead { background: var(--pm-amber-bg); color: var(--pm-amber); }
     .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
     .col { border-radius: 8px; padding: 8px; min-height: 120px; }
@@ -154,6 +155,7 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
                     @if (w.externalProvider) { <span class="tag ext">外部供方：{{ w.externalProvider }}</span> }
                     @if (w.longLead) { <span class="tag lead">长周期</span> }
                     @if (w.resourceDays) { <span class="tag">{{ +w.resourceDays }} 人天</span> }
+                    @if (slip(w); as s) { <span class="tag late">比批准计划{{ s > 0 ? '晚' : '早' }} {{ s > 0 ? s : -s }} 天</span> }
                   </div>
                 </td>
                 <td class="nw">{{ ownerName(w) }}</td>
@@ -178,7 +180,7 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
         <p class="muted">★ 表示在关键路径上。</p>
       }
       @case ('gantt') {
-        @if (data(); as d) { <app-gantt [items]="items()" [dependencies]="d.dependencies" [totalDays]="d.projectDurationDays" /> }
+        @if (data(); as d) { <app-gantt [items]="items()" [dependencies]="d.dependencies" [totalDays]="d.projectDurationDays" [baseline]="baseline()" /> }
       }
       @case ('board') {
         <div class="board">
@@ -213,6 +215,9 @@ export class ProjectWbs {
   readonly accounts = signal<CostSummary['accounts']>([]);
   readonly scopeChanges = signal<ChangeRequest[]>([]);
   readonly editing = signal<WorkPackage | null>(null);
+  readonly baseline = signal<BaselineDates | null>(null);
+  readonly slips = signal<Record<string, number>>({});
+  slip(w: WorkPackage) { return this.slips()[w.id] ?? 0; }
   readonly error = signal('');
   readonly view = signal<'table' | 'gantt' | 'board'>('table');
   readonly columns = COLUMNS;
@@ -268,6 +273,15 @@ export class ProjectWbs {
   }
 
   async load() {
+    if (this.project().baselined) {
+      const [versions, perf] = await Promise.all([
+        this.api.get<PlanVersion[]>(`/projects/${this.project().id}/plan-versions`),
+        this.api.get<Performance>(`/projects/${this.project().id}/performance`),
+      ]);
+      const latest = versions[0];
+      this.baseline.set(latest ? Object.fromEntries(latest.snapshot.workPackages.map((w) => [w.id, { start: w.start, end: w.end }])) : null);
+      this.slips.set(Object.fromEntries(perf.schedule.slips.map((s) => [s.id, s.slipDays])));
+    }
     this.data.set(await this.api.get<WbsResponse>(`/projects/${this.project().id}/wbs`));
   }
 

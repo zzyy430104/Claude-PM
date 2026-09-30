@@ -15,7 +15,7 @@ const STATUS = { PLANNED: '未开始', ACTIVE: '进行中', CLOSED: '已关闭' 
 @Component({
   selector: 'app-project-gates',
   imports: [ReactiveFormsModule, DatePipe, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule],
-  styles: `.phase { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 12px 16px; margin: 12px 0; } .phase.active { border-color: var(--mat-sys-primary); } .warn { color: var(--mat-sys-error); } h3 { margin: 0 0 6px; } ul { margin: 4px 0; } .meta { font-size: 13px; color: var(--mat-sys-on-surface-variant); }`,
+  styles: `.sum-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin: 10px 0; } @media (max-width: 900px) { .sum-grid { grid-template-columns: 1fr; } } h4 { margin: 8px 0 4px; font-size: 13px; } .phase { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 12px 16px; margin: 12px 0; } .phase.active { border-color: var(--mat-sys-primary); } .warn { color: var(--mat-sys-error); } h3 { margin: 0 0 6px; } ul { margin: 4px 0; } .meta { font-size: 13px; color: var(--mat-sys-on-surface-variant); }`,
   template: `
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
     @if (!project().baselined) { <p>项目计划批准并启动后，才能进行阶段关口评审。</p> }
@@ -28,6 +28,32 @@ const STATUS = { PLANNED: '未开始', ACTIVE: '进行中', CLOSED: '已关闭' 
             <div class="meta">
               关口就绪情况：清单未通过 {{ r.checklistFailed.length }} 项；未核验工作包 {{ r.pendingWorkPackages.length }} 个；未接受交付物 {{ r.pendingDeliverables.length }} 个；此前遗留的未关闭问题
               <span [class.warn]="r.priorOpenIssues.length > 0">{{ r.priorOpenIssues.length }} 个</span>
+            </div>
+            <div class="sum-grid">
+              <div>
+                <h4>工作包（从第 {{ r.wbsLevel ?? 1 }} 级 WBS 起汇总）</h4>
+                @if (r.wbsGroups?.length) {
+                  <table>
+                    <thead><tr><th>工作包</th><th>末级工作包</th><th>已完成</th><th>已验证</th></tr></thead>
+                    <tbody>
+                      @for (g of r.wbsGroups; track g.id) {
+                        <tr><td>{{ g.code }} {{ g.name }}</td><td>{{ g.leaves }}</td><td>{{ g.done }}</td><td [class.warn]="g.verified < g.leaves">{{ g.verified }}</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                } @else { <p class="meta">本阶段还没有归属的工作包（在「WBS 与进度」里为工作包指定所属阶段）。</p> }
+              </div>
+              <div>
+                <h4>本阶段交付物</h4>
+                @if (r.deliverables?.length) {
+                  <table>
+                    <thead><tr><th>交付物</th><th>状态</th></tr></thead>
+                    <tbody>
+                      @for (d of r.deliverables; track d.id) { <tr><td>{{ d.name }}</td><td [class.warn]="d.status !== 'ACCEPTED'">{{ dlStatus[d.status] }}</td></tr> }
+                    </tbody>
+                  </table>
+                } @else { <p class="meta">本阶段没有交付物。</p> }
+              </div>
             </div>
           }
           @if (!openReview() && manage()) { <button mat-flat-button (click)="createReview(p)">发起关口评审</button> }
@@ -98,6 +124,7 @@ export class ProjectGates {
   readonly reviews = signal<GateReview[]>([]);
   readonly members = signal<Member[]>([]);
   readonly readiness = signal<Readiness | null>(null);
+  readonly dlStatus = { PLANNED: '计划中', SUBMITTED: '已提交', ACCEPTED: '已接受', REJECTED: '被退回' } as const;
   readonly error = signal('');
   readonly checklist = signal<GateReview['checklistResults']>([]);
   readonly manage = computed(() => !!this.project().permissions?.manage);

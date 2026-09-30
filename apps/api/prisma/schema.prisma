@@ -27,6 +27,9 @@ model Tenant {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
+  /// 挣值预警阈值：SPI / CPI 低于 amber 为黄，低于 red 为红
+  evmAmber  Decimal  @default(0.95) @map("evm_amber") @db.Decimal(4, 2)
+  evmRed    Decimal  @default(0.90) @map("evm_red") @db.Decimal(4, 2)
   users     User[]
   auditLogs AuditLog[]
 

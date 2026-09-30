@@ -7,6 +7,7 @@ import { ProjectAccess } from '../projects/access.service.js';
 import { CreateProjectReviewDto } from './dto.js';
 import { IssuesService } from './issues.service.js';
 import { MetricsService } from './metrics.service.js';
+import { PerformanceService } from './performance.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 
 /** 定期项目评审（8.1.3.11）：对比计划与实际，跟踪此前遗留的问题，并上报更高层 */
@@ -18,6 +19,7 @@ export class ReviewsService {
     private readonly access: ProjectAccess,
     private readonly issues: IssuesService,
     private readonly metrics: MetricsService,
+    private readonly performance: PerformanceService,
     private readonly notifications: NotificationsService,
   ) {}
 
@@ -100,8 +102,9 @@ export class ReviewsService {
 
   private async snapshot(ctx: Awaited<ReturnType<ProjectAccess['load']>>) {
     const { project, tenantId } = ctx;
-    const [progress, openIssues, openRisks] = await Promise.all([
+    const [progress, perf, openIssues, openRisks] = await Promise.all([
       this.metrics.progress(ctx),
+      this.performance.compute(ctx),
       this.prisma.issue.findMany({
         where: { projectId: project.id, tenantId, status: IssueStatus.OPEN },
         select: { id: true, kind: true, title: true, ownerId: true, dueDate: true, source: true },
@@ -118,6 +121,12 @@ export class ReviewsService {
       overdueActions: openIssues.filter((i) => i.dueDate && i.dueDate.toISOString().slice(0, 10) < today).length,
       openRisks: openRisks.map((r) => ({ ...r, score: r.probability * r.impact })),
       budget: project.budget?.toString() ?? null,
+      /** 计划与实际对比（挣值）、预测与三方面红黄绿（8.1.3.11 a、b） */
+      evm: perf.evm,
+      schedule: { baselineEnd: perf.schedule.baselineEnd, projectedEnd: perf.schedule.projectedEnd, slipDays: perf.schedule.slipDays, customerDate: perf.schedule.customerDate },
+      quality: perf.quality,
+      triangle: perf.triangle,
+      baselineVersion: perf.baselineVersion,
     };
   }
 }

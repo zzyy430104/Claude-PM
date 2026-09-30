@@ -1,6 +1,9 @@
 import { Component, computed, input } from '@angular/core';
 import { Dependency, WorkPackage } from '../core/models';
 
+/** 计划批准快照里各工作包的计划起止日期 */
+export type BaselineDates = Record<string, { start: string; end: string }>;
+
 const ROW = 28;
 const LABEL_W = 240;
 const CHART_W = 760;
@@ -31,6 +34,11 @@ const HEADER = 24;
               [attr.opacity]="r.isLeaf ? 1 : 0.55">
               <title>{{ r.code }} {{ r.name }}：{{ r.scheduledStart }} → {{ r.scheduledEnd }}（{{ r.percentComplete }}%{{ r.critical ? '，关键路径' : '' }}）</title>
             </rect>
+            @if (bars()[r.id]; as b) {
+              <rect [attr.x]="x(b.s)" [attr.y]="HEADER + i * ROW + 22" [attr.width]="Math.max((b.e - b.s) * scale(), 3)" height="4" rx="2" fill="#8a97a8">
+                <title>批准的计划：{{ b.start }} → {{ b.end }}</title>
+              </rect>
+            }
             @if (r.percentComplete > 0) {
               <rect
                 [attr.x]="x(r.startOffsetDays)" [attr.y]="HEADER + i * ROW + 5"
@@ -45,6 +53,7 @@ const HEADER = 24;
       </div>
       <p class="legend">
         <span class="dot crit"></span> 关键路径　<span class="dot"></span> 非关键（有浮动时间）　深色为已完成进度
+        @if (hasBaseline()) { 　<span class="bl"></span> 批准的计划 }
       </p>
     }
   `,
@@ -52,6 +61,7 @@ const HEADER = 24;
     .scroll { overflow-x: auto; }
     .legend { font-size: 12px; color: var(--mat-sys-on-surface-variant); }
     .dot { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--mat-sys-primary-container); border: 1px solid var(--mat-sys-primary); vertical-align: middle; }
+    .bl { display: inline-block; width: 16px; height: 4px; border-radius: 2px; background: #8a97a8; vertical-align: middle; }
     .dot.crit { background: var(--mat-sys-error-container); border-color: var(--mat-sys-error); }
   `,
 })
@@ -59,6 +69,8 @@ export class GanttComponent {
   readonly items = input.required<WorkPackage[]>();
   readonly dependencies = input<Dependency[]>([]);
   readonly totalDays = input.required<number>();
+  readonly baseline = input<BaselineDates | null>(null);
+  protected readonly Math = Math;
 
   protected readonly LABEL_W = LABEL_W;
   protected readonly CHART_W = CHART_W;
@@ -68,7 +80,22 @@ export class GanttComponent {
   /** 按编号排序，父节点在前，保持树的阅读顺序 */
   readonly rows = computed(() => [...this.items()].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })));
   readonly height = computed(() => HEADER + this.rows().length * ROW + 8);
-  private readonly scale = computed(() => CHART_W / Math.max(this.totalDays(), 1));
+  readonly hasBaseline = computed(() => !!this.baseline() && Object.keys(this.baseline()!).length > 0);
+
+  /** 批准计划的日期换算成相对项目开始的天数；项目开始日由任一工作包的排程反推 */
+  readonly bars = computed(() => {
+    const base = this.baseline();
+    const first = this.rows()[0];
+    if (!base || !first) return {} as Record<string, { s: number; e: number; start: string; end: string }>;
+    const origin = Date.parse(first.scheduledStart) - first.startOffsetDays * 86_400_000;
+    const out: Record<string, { s: number; e: number; start: string; end: string }> = {};
+    for (const [id, d] of Object.entries(base)) {
+      out[id] = { s: (Date.parse(d.start) - origin) / 86_400_000, e: (Date.parse(d.end) - origin) / 86_400_000, start: d.start, end: d.end };
+    }
+    return out;
+  });
+  private readonly span = computed(() => Math.max(this.totalDays(), ...Object.values(this.bars()).map((b) => b.e), 1));
+  protected readonly scale = computed(() => CHART_W / this.span());
 
   x(day: number) {
     return LABEL_W + day * this.scale();
@@ -78,7 +105,7 @@ export class GanttComponent {
   }
 
   readonly ticks = computed(() => {
-    const total = this.totalDays();
+    const total = Math.ceil(this.span());
     const step = Math.max(1, Math.ceil(total / 10 / 5) * 5);
     const out: { day: number; x: number }[] = [];
     for (let d = 0; d <= total; d += step) out.push({ day: d, x: this.x(d) });

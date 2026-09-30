@@ -7,7 +7,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Api, errorMessage } from '../core/api';
 import { I18n } from '../core/i18n';
-import { Member, PROJECT_ROLE_LABELS, PlanVersion, Project, RISK_LABELS } from '../core/models';
+import { Member, PROJECT_ROLE_LABELS, Performance, PlanVersion, Project, RISK_LABELS } from '../core/models';
+import { TriangleComponent } from './triangle';
 
 interface OrgNode { userId: string; reportsToUserId?: string | null }
 interface Interfaces { workSplit?: string; interfaces?: string; channels?: string; processes?: string }
@@ -19,7 +20,7 @@ interface Plan {
 
 @Component({
   selector: 'app-project-overview',
-  imports: [NgTemplateOutlet, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [NgTemplateOutlet, TriangleComponent, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   styles: `
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 24px; margin: 0 0 20px; }
     dt { font-size: 12px; color: var(--pm-muted); } dd { margin: 0 0 4px; font-weight: 500; }
@@ -34,13 +35,22 @@ interface Plan {
     .org-edit td { vertical-align: middle; }
     .ver td { vertical-align: top; }
     .hint { color: var(--pm-muted); font-size: 13px; margin: 0 0 8px; }
+    .lvl { font: inherit; font-weight: 500; border: 1px solid #c5cfdb; border-radius: 6px; padding: 2px 6px; background: #fff; }
   `,
   template: `
+    <app-triangle [perf]="perf()" />
     <dl class="grid panel">
       <div><dt>风险等级</dt><dd>{{ risk(project().riskLevel) }}（评审周期 {{ project().reviewIntervalDays }} 天）</dd></div>
       <div><dt>项目周期</dt><dd>{{ project().startDate.slice(0, 10) }} → {{ project().endDate.slice(0, 10) }}</dd></div>
       <div><dt>客户交期</dt><dd>{{ project().customerDeliveryDate?.slice(0, 10) ?? '—' }}</dd></div>
       <div><dt>预算</dt><dd>{{ project().budget ? (+project().budget!).toLocaleString() : '—' }}</dd></div>
+      <div><dt>阶段评审起始 WBS 层级</dt><dd>
+        @if (manage()) {
+          <select class="lvl" [value]="project().gateReviewWbsLevel ?? 1" (change)="setLevel($any($event.target).value)" aria-label="阶段评审起始 WBS 层级">
+            @for (l of [1, 2, 3, 4]; track l) { <option [value]="l">第 {{ l }} 级</option> }
+          </select>
+        } @else { 第 {{ project().gateReviewWbsLevel ?? 1 }} 级 }
+      </dd></div>
     </dl>
 
     @if (!project().baselined && project().permissions?.manage) {
@@ -158,6 +168,7 @@ export class ProjectOverview {
   readonly plan = signal<Plan | null>(null);
   readonly members = signal<Member[]>([]);
   readonly versions = signal<PlanVersion[]>([]);
+  readonly perf = signal<Performance | null>(null);
   readonly orgChart = signal<OrgNode[]>([]);
   readonly confirming = signal(false);
   readonly error = signal('');
@@ -217,6 +228,7 @@ export class ProjectOverview {
     this.members.set(members.filter((m) => m.active));
     this.versions.set(versions);
     this.orgChart.set(Array.isArray(plan.orgChart) ? plan.orgChart : []);
+    this.perf.set(await this.api.get<Performance>(`/projects/${id}/performance`));
     this.form.patchValue({ ...plan, interfaces: plan.interfaces ?? {} });
   }
 
@@ -226,9 +238,20 @@ export class ProjectOverview {
       await this.api.post(`/projects/${this.project().id}/baseline`);
       this.confirming.set(false);
       this.versions.set(await this.api.get<PlanVersion[]>(`/projects/${this.project().id}/plan-versions`));
+      this.perf.set(await this.api.get<Performance>(`/projects/${this.project().id}/performance`));
       this.changed.emit();
     } catch (e) {
       this.error.set(errorMessage(e, '批准计划失败'));
+    }
+  }
+
+  async setLevel(level: string) {
+    this.error.set('');
+    try {
+      await this.api.patch(`/projects/${this.project().id}`, { gateReviewWbsLevel: Number(level) });
+      this.changed.emit();
+    } catch (e) {
+      this.error.set(errorMessage(e, '保存失败'));
     }
   }
 

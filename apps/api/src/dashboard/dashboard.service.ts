@@ -4,6 +4,7 @@ import { requireTenantId } from '../common/auth.types.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { CostService } from '../cost/cost.service.js';
 import { MetricsService } from '../governance/metrics.service.js';
+import { PerformanceService } from '../governance/performance.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export type Health = 'RED' | 'AMBER' | 'GREEN';
@@ -18,6 +19,7 @@ export class DashboardService {
     private readonly prisma: PrismaService,
     private readonly metrics: MetricsService,
     private readonly cost: CostService,
+    private readonly performance: PerformanceService,
   ) {}
 
   private visibleProjects(actor: AuthUser) {
@@ -56,6 +58,7 @@ export class DashboardService {
         this.prisma.phase.findFirst({ where: { projectId: p.id, tenantId, status: 'ACTIVE' }, select: { name: true } }),
         p.budget ? this.cost.summary(actor, p.id) : Promise.resolve(null),
       ]);
+      const perf = await this.performance.compute({ project: p, tenantId }, today);
 
       const overdueActions = issues.filter((i) => i.dueDate && i.dueDate.toISOString().slice(0, 10) < todayIso).length;
       const highRisks = risks.filter((r) => r.probability * r.impact >= HIGH_RISK_SCORE).length;
@@ -78,6 +81,12 @@ export class DashboardService {
       if (accountOverruns) amber.push(`${accountOverruns} 个成本科目预计超支`);
       if (major) amber.push(`${major} 个重大不符合项未关闭`);
 
+      // 质量、进度、成本三方面的判断并入总体健康度
+      for (const d of [perf.triangle.quality, perf.triangle.schedule, perf.triangle.cost]) {
+        const target = d.health === 'RED' ? red : d.health === 'AMBER' ? amber : null;
+        if (target) for (const r of d.reasons) if (!red.includes(r) && !amber.includes(r)) target.push(r);
+      }
+
       rows.push({
         id: p.id, code: p.code, name: p.name, status: p.status, riskLevel: p.riskLevel, activePhase: activePhase?.name ?? null,
         health: (red.length ? 'RED' : amber.length ? 'AMBER' : 'GREEN') as Health,
@@ -86,6 +95,8 @@ export class DashboardService {
         openIssues: issues.length, overdueActions, highRisks, openNonconformities: ncs.length, pendingChanges,
         cost: cost && cost.accounts.length ? { budget: cost.projectBudget, eac: cost.eac, overrun: cost.overrun } : null,
         lastReviewDate: lastReview?.reviewDate.toISOString().slice(0, 10) ?? null, reviewOverdue,
+        triangle: { quality: perf.triangle.quality.health, schedule: perf.triangle.schedule.health, cost: perf.triangle.cost.health },
+        spi: perf.evm.spi, cpi: perf.evm.cpi,
       });
     }
     return {

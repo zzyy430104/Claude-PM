@@ -5,18 +5,21 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Api, errorMessage } from '../core/api';
-import { Member, Project, ProjectReview, UserRow } from '../core/models';
+import { Member, Project, ProjectReview, UserRow, Health, Performance } from '../core/models';
+import { TriangleComponent } from './triangle';
 
 type Prep = ProjectReview['performance'];
 
 @Component({
   selector: 'app-project-reviews',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
-  styles: `.box { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 12px 16px; margin: 12px 0; } .warn { color: var(--mat-sys-error); } .meta { font-size: 13px; color: var(--mat-sys-on-surface-variant); }`,
+  imports: [TriangleComponent, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  styles: `.tri-line { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px; } .box { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 12px 16px; margin: 12px 0; } .warn { color: var(--mat-sys-error); } .meta { font-size: 13px; color: var(--mat-sys-on-surface-variant); }`,
   template: `
+    <h2>评审准备：质量、进度、成本</h2>
+    <app-triangle [perf]="perf()" />
     @if (prep(); as p) {
       <div class="box">
-        <h3>评审准备：当前绩效</h3>
+        <h3>进度与遗留事项</h3>
         <div>计划进度 {{ p.progress.plannedPercent }}% · 实际进度 {{ p.progress.actualPercent }}% · 偏差 {{ p.progress.varianceDays }} 天</div>
         <div>预计完工 {{ p.progress.projectedEnd }}（计划 {{ p.progress.plannedEnd }}）
           @if (p.progress.exceedsPlannedEnd) { <span class="warn">预计超期</span> }
@@ -47,6 +50,14 @@ type Prep = ProjectReview['performance'];
       <div class="box">
         <strong>{{ r.reviewDate.slice(0, 10) }}</strong>
         <div class="meta">计划 {{ r.performance.progress.plannedPercent }}% / 实际 {{ r.performance.progress.actualPercent }}% · 预计完工 {{ r.performance.progress.projectedEnd }} · 未关闭问题 {{ r.performance.openIssues.length }} · 风险 {{ r.performance.openRisks.length }}</div>
+        @if (r.performance.triangle; as t) {
+          <div class="meta tri-line">
+            质量 <span [class]="'badge ' + t.quality.health">{{ hl(t.quality.health) }}</span>
+            进度 <span [class]="'badge ' + t.schedule.health">{{ hl(t.schedule.health) }}</span>
+            成本 <span [class]="'badge ' + t.cost.health">{{ hl(t.cost.health) }}</span>
+            · SPI {{ r.performance.evm?.spi ?? '—' }} · CPI {{ r.performance.evm?.cpi ?? '—' }}
+          </div>
+        }
         @if (r.notes) { <div>{{ r.notes }}</div> }
         @if (r.escalations) { <div class="warn">升级事项：{{ r.escalations }}{{ r.reportedToId ? '（已上报）' : '' }}</div> }
       </div>
@@ -60,6 +71,8 @@ export class ProjectReviews {
   readonly project = input.required<Project>();
   readonly rows = signal<ProjectReview[]>([]);
   readonly prep = signal<Prep | null>(null);
+  readonly perf = signal<Performance | null>(null);
+  hl(h: Health) { return ({ RED: '告警', AMBER: '关注', GREEN: '正常' } as const)[h]; }
   readonly members = signal<Member[]>([]);
   readonly managers = signal<UserRow[]>([]);
   readonly error = signal('');
@@ -81,6 +94,7 @@ export class ProjectReviews {
     const id = this.project().id;
     this.rows.set(await this.api.get<ProjectReview[]>(`/projects/${id}/reviews`));
     this.prep.set(await this.api.get<Prep>(`/projects/${id}/reviews/prepare`));
+    this.perf.set(await this.api.get<Performance>(`/projects/${id}/performance`));
   }
   async create() {
     this.error.set('');

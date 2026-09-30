@@ -11,6 +11,9 @@ const HEALTH = { RED: '告警', AMBER: '关注', GREEN: '正常' } as const;
   selector: 'app-home',
   imports: [RouterLink],
   styles: `
+    .dot3 { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--pm-green); }
+    .dot3.RED { background: var(--pm-red); } .dot3.AMBER { background: var(--pm-amber); }
+    .idx { font-size: 11.5px; color: var(--pm-muted); margin-top: 2px; white-space: nowrap; }
     .reasons { font-size: 12px; color: var(--pm-muted); margin-top: 4px; }
     .todo { list-style: none; margin: 0; padding: 0; }
     .todo li { padding: 10px 0; border-bottom: 1px solid var(--pm-line); }
@@ -42,15 +45,18 @@ const HEALTH = { RED: '告警', AMBER: '关注', GREEN: '正常' } as const;
           </div>
           <div class="tbl">
           <table>
-            <thead><tr><th>{{ i18n.t('健康度') }}</th><th>{{ i18n.t('项目') }}</th><th>{{ i18n.t('当前阶段') }}</th><th>{{ i18n.t('进度') }}</th><th>{{ i18n.t('预计完工') }}</th><th>{{ i18n.t('未关闭问题') }}</th></tr></thead>
+            <thead><tr><th>{{ i18n.t('健康度') }}</th><th>{{ i18n.t('项目') }}</th><th>{{ i18n.t('质量') }}</th><th>{{ i18n.t('进度') }}</th><th>{{ i18n.t('成本') }}</th><th>{{ i18n.t('当前阶段') }}</th><th>{{ i18n.t('完成') }}</th><th>{{ i18n.t('预计完工') }}</th><th>{{ i18n.t('未关闭问题') }}</th></tr></thead>
             <tbody>
               @for (p of d.projects; track p.id) {
                 <tr>
                   <td><span [class]="'badge ' + p.health">{{ i18n.t(healthLabel[p.health]) }}</span><div class="reasons">{{ reasonText(p.reasons) }}</div></td>
                   <td><a [routerLink]="['/projects', p.id]">{{ p.code }}</a> {{ p.name }}</td>
+                  <td><span [class]="'dot3 ' + (p.triangle?.quality ?? 'GREEN')" [attr.title]="i18n.t('质量')"></span></td>
+                  <td><span [class]="'dot3 ' + (p.triangle?.schedule ?? 'GREEN')"></span><div class="idx">SPI {{ p.spi ?? '—' }}</div></td>
+                  <td><span [class]="'dot3 ' + (p.triangle?.cost ?? 'GREEN')"></span><div class="idx">CPI {{ p.cpi ?? '—' }}</div></td>
                   <td>{{ p.activePhase ? i18n.t(p.activePhase) : '—' }}</td>
                   <td>{{ p.progress.actual }}% / {{ p.progress.planned }}%<div class="bar"><i [style.width.%]="p.progress.actual"></i></div></td>
-                  <td>{{ p.progress.projectedEnd }}</td>
+                  <td style="white-space: nowrap">{{ p.progress.projectedEnd }}</td>
                   <td>{{ p.openIssues }}</td>
                 </tr>
               }

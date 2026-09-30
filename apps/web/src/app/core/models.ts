@@ -102,6 +102,7 @@ export interface Project {
   customerDeliveryDate: string | null;
   budget: string | null;
   reviewIntervalDays: number;
+  gateReviewWbsLevel?: number;
   permissions?: Permissions;
 }
 
@@ -229,6 +230,9 @@ export interface Readiness {
   pendingWorkPackages: { id: string; code: string; name: string }[];
   pendingDeliverables: { id: string; name: string }[];
   priorOpenIssues: { id: string; title: string }[];
+  wbsLevel?: number;
+  wbsGroups?: { id: string; code: string; name: string; leaves: number; done: number; verified: number }[];
+  deliverables?: { id: string; name: string; kind: string; status: 'PLANNED' | 'SUBMITTED' | 'ACCEPTED' | 'REJECTED' }[];
 }
 
 export interface Issue {
@@ -257,6 +261,8 @@ export interface ProjectReview {
     overdueActions: number;
     openRisks: { id: string; title: string; score: number; kind: string }[];
     budget: string | null;
+    evm?: { spi: number | null; cpi: number | null };
+    triangle?: { quality: Dimension; schedule: Dimension; cost: Dimension };
   };
 }
 
@@ -359,6 +365,7 @@ export interface DashboardProject {
   openIssues: number; overdueActions: number; highRisks: number; openNonconformities: number; pendingChanges: number;
   cost: { budget: number | null; eac: number; overrun: boolean } | null;
   lastReviewDate: string | null; reviewOverdue: boolean;
+  triangle?: { quality: Health; schedule: Health; cost: Health }; spi?: number | null; cpi?: number | null;
 }
 export interface Dashboard { totals: { projects: number; red: number; amber: number; green: number }; projects: DashboardProject[] }
 export interface Todo { kind: string; title: string; projectId: string; projectCode: string; link: string; dueDate: string | null }
@@ -380,4 +387,22 @@ export interface PlanVersion {
     project: { startDate: string; endDate: string; customerDeliveryDate: string | null; budget: string | null };
     workPackages: { id: string; code: string; name: string; start: string; end: string; durationDays: number; budget: string | null; isLeaf: boolean }[];
   };
+}
+
+export type Health = 'RED' | 'AMBER' | 'GREEN';
+export interface Dimension { health: Health; reasons: string[] }
+export interface Performance {
+  baselineVersion: number | null;
+  thresholds: { amber: number; red: number };
+  evm: { basis: 'WORK_PACKAGE_BUDGET' | 'DURATION'; bac: number; pv: number; ev: number; ac: number; spi: number | null; cpi: number | null; eac: number | null; budget: number | null };
+  schedule: {
+    baselineEnd: string | null; projectedEnd: string; plannedEnd: string; customerDate: string | null; slipDays: number;
+    slips: { id: string; code: string; name: string; baselineEnd: string; currentEnd: string; slipDays: number; critical: boolean }[];
+  };
+  quality: {
+    requirements: number; uncoveredRequirements: number; verifiedRequirements: number;
+    deliverables: number; acceptedDeliverables: number; rejectedDeliverables: number; overdueDeliverables: number;
+    openNonconformities: number; criticalNonconformities: number; majorNonconformities: number;
+  };
+  triangle: { quality: Dimension; schedule: Dimension; cost: Dimension };
 }

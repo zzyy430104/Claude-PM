@@ -65,6 +65,8 @@ export class UpdateProjectDto {
   @IsOptional() @IsDateString() customerDeliveryDate?: string;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) budget?: number;
   @IsOptional() @IsInt() @Min(1) @Max(365) reviewIntervalDays?: number;
+  /** 阶段评审从哪一级 WBS 开始（8.1.3.1.3 c） */
+  @IsOptional() @IsInt() @Min(1) @Max(10) gateReviewWbsLevel?: number;
 }
 
 export class AddMemberDto {

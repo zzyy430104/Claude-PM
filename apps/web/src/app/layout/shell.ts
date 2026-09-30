@@ -70,6 +70,7 @@ import { NotificationRow, ROLE_LABELS } from '../core/models';
           }
           @if (auth.hasRole('TENANT_ADMIN')) {
             <a routerLink="/templates" routerLinkActive="active">阶段模板</a>
+            <a routerLink="/settings" routerLinkActive="active">企业设置</a>
           }
           @if (auth.hasRole('TENANT_ADMIN', 'TOP_MANAGEMENT')) {
             <a routerLink="/users" routerLinkActive="active">用户管理</a>

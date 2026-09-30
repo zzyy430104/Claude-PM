@@ -54,6 +54,11 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/audit').then((m) => m.AuditPage),
       },
       {
+        path: 'settings',
+        canActivate: [roleGuard('TENANT_ADMIN')],
+        loadComponent: () => import('./pages/settings').then((m) => m.SettingsPage),
+      },
+      {
         path: 'account',
         loadComponent: () => import('./pages/account').then((m) => m.AccountPage),
       },

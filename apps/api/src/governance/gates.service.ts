@@ -31,7 +31,38 @@ export class GatesService {
   async readiness(actor: AuthUser, projectId: string, phaseId: string) {
     const ctx = await this.access.load(actor, projectId);
     const phase = await this.findPhase(ctx, phaseId);
-    return this.computeReadiness(ctx, phase);
+    const [ready, all, deliverables] = await Promise.all([
+      this.computeReadiness(ctx, phase),
+      this.prisma.workPackage.findMany({ where: { projectId, tenantId: ctx.tenantId }, orderBy: { code: 'asc' } }),
+      this.prisma.deliverable.findMany({ where: { projectId, tenantId: ctx.tenantId, phaseId }, orderBy: { name: 'asc' } }),
+    ]);
+    return { ...ready, ...this.wbsSummary(all, phaseId, ctx.project.gateReviewWbsLevel), deliverables: deliverables.map((d) => ({ id: d.id, name: d.name, kind: d.kind, status: d.status })) };
+  }
+
+  /**
+   * 阶段评审从项目设定的 WBS 层级开始（8.1.3.1.3 c）：列出该层级上与本阶段相关的工作包，
+   * 并汇总其下属本阶段末级工作包的完成与验证情况。层级比实际 WBS 更深时，取到末级为止。
+   */
+  private wbsSummary(all: { id: string; parentId: string | null; code: string; name: string; phaseId: string | null; status: string }[], phaseId: string, level: number) {
+    const byId = new Map(all.map((w) => [w.id, w]));
+    const kids = new Set(all.map((w) => w.parentId).filter(Boolean));
+    const depth = (w: { parentId: string | null }): number => (w.parentId && byId.get(w.parentId) ? depth(byId.get(w.parentId)!) + 1 : 1);
+    const ancestorAt = (w: (typeof all)[number]) => {
+      let cur = w;
+      while (depth(cur) > level && cur.parentId && byId.get(cur.parentId)) cur = byId.get(cur.parentId)!;
+      return cur;
+    };
+    const groups = new Map<string, { id: string; code: string; name: string; leaves: number; done: number; verified: number }>();
+    for (const leaf of all.filter((w) => !kids.has(w.id) && w.phaseId === phaseId)) {
+      const a = ancestorAt(leaf);
+      const g = groups.get(a.id) ?? { id: a.id, code: a.code, name: a.name, leaves: 0, done: 0, verified: 0 };
+      g.leaves += 1;
+      if (leaf.status === 'DONE' || leaf.status === 'VERIFIED') g.done += 1;
+      if (leaf.status === 'VERIFIED') g.verified += 1;
+      groups.set(a.id, g);
+    }
+    const wbsGroups = [...groups.values()].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+    return { wbsLevel: level, wbsGroups };
   }
 
   async create(actor: AuthUser, projectId: string, phaseId: string) {

@@ -173,6 +173,7 @@ export class ProjectsService {
             endDate: dto.endDate ? day(dto.endDate) : undefined,
             customerDeliveryDate: dto.customerDeliveryDate ? day(dto.customerDeliveryDate) : undefined,
             budget: dto.budget,
+            gateReviewWbsLevel: dto.gateReviewWbsLevel,
           },
         }),
     );
