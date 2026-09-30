@@ -10,7 +10,15 @@ export async function launch() {
   p.click = async (sel, opts) => {
     if (/^mat-select/.test(sel)) {
       await p.waitForSelector('.cdk-overlay-backdrop', { state: 'detached', timeout: 3000 }).catch(() => {});
-      return click(sel, { force: true, ...opts });
+      await click(sel, { force: true, ...opts });
+      // 偶尔点击落在组件初始化之前，面板没打开：此时下拉框已获得焦点，用键盘打开
+      const opened = await p.waitForSelector('.mat-mdc-select-panel', { timeout: 1500 }).then(() => true, () => false);
+      if (!opened) {
+        await p.focus(sel);
+        await p.keyboard.press('Enter');
+        await p.waitForSelector('.mat-mdc-select-panel', { timeout: 3000 });
+      }
+      return;
     }
     const r = await click(sel, opts);
     // 选完选项后等下拉面板的遮罩消失，避免下一次点击落在正在关闭的遮罩上
