@@ -23,6 +23,11 @@ export class UsersController {
     return this.users.list(user);
   }
 
+  @Get('directory')
+  directory(@CurrentUser() user: AuthUser) {
+    return this.users.directory(user);
+  }
+
   @Get(':id')
   @Roles(Role.TENANT_ADMIN, Role.TOP_MANAGEMENT)
   get(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {

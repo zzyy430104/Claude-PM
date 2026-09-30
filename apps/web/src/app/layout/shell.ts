@@ -29,6 +29,12 @@ import { ROLE_LABELS } from '../core/models';
       <mat-sidenav mode="side" opened>
         <mat-nav-list>
           <a mat-list-item routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">首页</a>
+          @if (!auth.hasRole('PLATFORM_ADMIN')) {
+            <a mat-list-item routerLink="/projects" routerLinkActive="active">项目</a>
+          }
+          @if (auth.hasRole('TENANT_ADMIN')) {
+            <a mat-list-item routerLink="/templates" routerLinkActive="active">阶段模板</a>
+          }
           @if (auth.hasRole('TENANT_ADMIN', 'TOP_MANAGEMENT')) {
             <a mat-list-item routerLink="/users" routerLinkActive="active">用户管理</a>
             <a mat-list-item routerLink="/audit" routerLinkActive="active">审计日志</a>

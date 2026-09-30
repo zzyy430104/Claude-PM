@@ -37,6 +37,15 @@ export class UsersService {
     });
   }
 
+  /** 企业通讯录：任何租户内用户都可查询在职用户的姓名与邮箱，用于选人（如加入项目） */
+  directory(actor: AuthUser) {
+    return this.prisma.user.findMany({
+      where: { tenantId: requireTenantId(actor), active: true },
+      select: { id: true, name: true, email: true, role: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async get(actor: AuthUser, id: string) {
     const user = await this.prisma.user.findFirst({
       where: { id, tenantId: requireTenantId(actor) },

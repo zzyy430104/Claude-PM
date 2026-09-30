@@ -20,7 +20,7 @@ const PAGE = 50;
         <ng-container matColumnDef="createdAt"><th mat-header-cell *matHeaderCellDef>时间</th><td mat-cell *matCellDef="let r">{{ r.createdAt | date: 'yyyy-MM-dd HH:mm:ss' }}</td></ng-container>
         <ng-container matColumnDef="action"><th mat-header-cell *matHeaderCellDef>操作</th><td mat-cell *matCellDef="let r">{{ r.action }}</td></ng-container>
         <ng-container matColumnDef="entity"><th mat-header-cell *matHeaderCellDef>对象</th><td mat-cell *matCellDef="let r">{{ r.entity }} {{ r.entityId }}</td></ng-container>
-        <ng-container matColumnDef="actor"><th mat-header-cell *matHeaderCellDef>操作人</th><td mat-cell *matCellDef="let r">{{ r.actorId ?? '系统' }}</td></ng-container>
+        <ng-container matColumnDef="actor"><th mat-header-cell *matHeaderCellDef>操作人</th><td mat-cell *matCellDef="let r">{{ r.actorName ?? (r.actorId ? '已删除用户' : '系统') }}</td></ng-container>
         <tr mat-header-row *matHeaderRowDef="cols"></tr>
         <tr mat-row *matRowDef="let row; columns: cols"></tr>
       </table>

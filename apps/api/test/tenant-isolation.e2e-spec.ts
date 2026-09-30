@@ -158,6 +158,26 @@ describe('多租户隔离与用户管理', () => {
     expect(actions).toContain('user.update');
   });
 
+  it('通讯录：普通成员可查本企业在职用户，看不到其他企业、也看不到已停用用户', async () => {
+    const a = await signupTenant(app, 'dir-a');
+    const b = await signupTenant(app, 'dir-b');
+    const gone = await http().post('/users').set(bearer(a.token)).send({
+      email: 'gone@dir.test', name: 'Gone', password: 'password-123', role: 'MEMBER',
+    }).expect(201);
+    await http().patch(`/users/${gone.body.id}`).set(bearer(a.token)).send({ active: false }).expect(200);
+    await http().post('/users').set(bearer(a.token)).send({
+      email: 'm@dir.test', name: 'M', password: 'password-123', role: 'MEMBER',
+    }).expect(201);
+    const login = await http().post('/auth/login')
+      .send({ tenantSlug: a.slug, email: 'm@dir.test', password: 'password-123' }).expect(200);
+    const dir = await http().get('/users/directory').set(bearer(login.body.accessToken)).expect(200);
+    const emails = dir.body.map((u: { email: string }) => u.email);
+    expect(emails).toContain('m@dir.test');
+    expect(emails).not.toContain('gone@dir.test');
+    expect(emails).not.toContain(b.adminEmail);
+    expect(dir.body[0]).not.toHaveProperty('passwordHash');
+  });
+
   it('请求体校验：多余字段与弱密码被拒绝', async () => {
     const t = await signupTenant(app, 'valid');
     await http()

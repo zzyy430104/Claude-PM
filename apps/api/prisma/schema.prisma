@@ -83,3 +83,228 @@ model AuditLog {
   @@index([entity, entityId])
   @@map("audit_logs")
 }
+
+// ───────── 批次 B：项目、阶段、WBS ─────────
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  CLOSED
+  CANCELLED
+}
+
+enum ProjectRole {
+  PROJECT_MANAGER
+  PROJECT_QUALITY_MANAGER
+  WORK_PACKAGE_OWNER
+  FUNCTION_MANAGER
+  MEMBER
+}
+
+enum PhaseStatus {
+  PLANNED
+  ACTIVE
+  CLOSED
+}
+
+enum WpStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
+  VERIFIED
+}
+
+enum DeliverableKind {
+  INTERNAL
+  CUSTOMER_APPROVAL
+  EXTERNAL_PROVIDER
+  CUSTOMER_SUPPLIED
+}
+
+enum DeliverableStatus {
+  PLANNED
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+}
+
+model PhaseTemplate {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  /// [{ name, checklist: string[], mandatoryRoles: ProjectRole[] }]，按顺序
+  phases    Json
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, name])
+  @@map("phase_templates")
+}
+
+model Project {
+  id                   String        @id @default(uuid())
+  tenantId             String        @map("tenant_id")
+  code                 String
+  name                 String
+  description          String?
+  riskLevel            RiskLevel     @default(MEDIUM)
+  status               ProjectStatus @default(PLANNING)
+  /// 基线后，范围 / 预算 / 客户交期只能通过已批准的变更申请修改
+  baselined            Boolean       @default(false)
+  startDate            DateTime      @db.Date
+  endDate              DateTime      @db.Date
+  customerDeliveryDate DateTime?     @db.Date
+  budget               Decimal?      @db.Decimal(14, 2)
+  reviewIntervalDays   Int           @default(30)
+  createdById          String        @map("created_by_id")
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  members      ProjectMember[]
+  phases       Phase[]
+  workPackages WorkPackage[]
+  plan         ProjectPlan?
+  deliverables Deliverable[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id           String      @id @default(uuid())
+  tenantId     String      @map("tenant_id")
+  projectId    String      @map("project_id")
+  userId       String      @map("user_id")
+  projectRole  ProjectRole
+  /// 变更控制委员会（CCB）成员
+  isCcb        Boolean     @default(false)
+  /// 任命书编号或说明
+  appointment  String?
+  competencies String?
+  active       Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, userId])
+  @@index([tenantId, userId])
+  @@map("project_members")
+}
+
+model ProjectPlan {
+  projectId        String   @id @map("project_id")
+  tenantId         String   @map("tenant_id")
+  objectives       String   @default("")
+  frameConditions  String   @default("")
+  exclusions       String   @default("")
+  responsibilities String   @default("")
+  executionRules   String   @default("")
+  /// [{ userId, role, reportsToUserId? }]
+  orgChart         Json     @default("[]")
+  /// 多场地 / 联合体：工作分工、接口、沟通渠道
+  interfaces       Json     @default("{}")
+  version          Int      @default(1)
+  updatedById      String   @map("updated_by_id")
+  updatedAt        DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@map("project_plans")
+}
+
+model Phase {
+  id             String      @id @default(uuid())
+  tenantId       String      @map("tenant_id")
+  projectId      String      @map("project_id")
+  name           String
+  order          Int
+  status         PhaseStatus @default(PLANNED)
+  checklist      Json        @default("[]")
+  mandatoryRoles Json        @default("[]") @map("mandatory_roles")
+  startedAt      DateTime?
+  closedAt       DateTime?
+
+  project      Project       @relation(fields: [projectId], references: [id])
+  workPackages WorkPackage[]
+  deliverables Deliverable[]
+
+  @@unique([projectId, order])
+  @@index([tenantId, projectId])
+  @@map("phases")
+}
+
+model WorkPackage {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  projectId       String    @map("project_id")
+  parentId        String?   @map("parent_id")
+  phaseId         String?   @map("phase_id")
+  code            String
+  name            String
+  description     String?
+  ownerId         String?   @map("owner_id")
+  durationDays    Int       @default(1) @map("duration_days")
+  actualStart     DateTime? @db.Date
+  actualEnd       DateTime? @db.Date
+  percentComplete Int       @default(0) @map("percent_complete")
+  status          WpStatus  @default(NOT_STARTED)
+  verifiedById    String?   @map("verified_by_id")
+  verifiedAt      DateTime?
+  budget          Decimal?  @db.Decimal(14, 2)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project      Project        @relation(fields: [projectId], references: [id])
+  phase        Phase?         @relation(fields: [phaseId], references: [id])
+  parent       WorkPackage?   @relation("WbsTree", fields: [parentId], references: [id])
+  children     WorkPackage[]  @relation("WbsTree")
+  predecessors WpDependency[] @relation("Successor")
+  successors   WpDependency[] @relation("Predecessor")
+
+  @@unique([projectId, code])
+  @@index([tenantId, projectId])
+  @@map("work_packages")
+}
+
+model WpDependency {
+  id            String @id @default(uuid())
+  tenantId      String @map("tenant_id")
+  projectId     String @map("project_id")
+  predecessorId String @map("predecessor_id")
+  successorId   String @map("successor_id")
+
+  predecessor WorkPackage @relation("Predecessor", fields: [predecessorId], references: [id])
+  successor   WorkPackage @relation("Successor", fields: [successorId], references: [id])
+
+  @@unique([predecessorId, successorId])
+  @@index([projectId])
+  @@map("wp_dependencies")
+}
+
+model Deliverable {
+  id        String            @id @default(uuid())
+  tenantId  String            @map("tenant_id")
+  projectId String            @map("project_id")
+  phaseId   String?           @map("phase_id")
+  name      String
+  kind      DeliverableKind
+  supplier  String?
+  dueDate   DateTime?         @db.Date
+  status    DeliverableStatus @default(PLANNED)
+  notes     String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+  phase   Phase?  @relation(fields: [phaseId], references: [id])
+
+  @@index([tenantId, projectId])
+  @@map("deliverables")
+}

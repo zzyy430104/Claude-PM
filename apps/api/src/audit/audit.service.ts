@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
+import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export interface AuditEntry {
@@ -31,15 +32,57 @@ export class AuditService {
     });
   }
 
-  list(
+  /** 在事务里执行变更并同时写审计，变更与审计要么都成功要么都不生效 */
+  tx<T>(
+    actor: AuthUser,
+    entry: {
+      action: string;
+      entity: string;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      entityId: (result: any) => string;
+      before?: Prisma.InputJsonValue;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      after?: (result: any) => Prisma.InputJsonValue | undefined;
+    },
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(async (tx) => {
+      const result = await fn(tx);
+      await this.record(
+        {
+          tenantId: actor.tenantId,
+          actorId: actor.id,
+          action: entry.action,
+          entity: entry.entity,
+          entityId: entry.entityId(result),
+          before: entry.before,
+          after: entry.after?.(result),
+        },
+        tx,
+      );
+      return result;
+    });
+  }
+
+  async list(
     tenantId: string,
     q: { entity?: string; entityId?: string; take: number; cursor?: string },
   ) {
-    return this.prisma.auditLog.findMany({
+    const rows = await this.prisma.auditLog.findMany({
       where: { tenantId, entity: q.entity, entityId: q.entityId },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: q.take,
       ...(q.cursor ? { cursor: { id: q.cursor }, skip: 1 } : {}),
     });
+    const actorIds = [...new Set(rows.map((r) => r.actorId).filter(Boolean))] as string[];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: actorIds }, tenantId },
+      select: { id: true, name: true },
+    });
+    const names = new Map(users.map((u) => [u.id, u.name]));
+    return rows.map((r) => ({
+      ...r,
+      actorName: r.actorId ? (names.get(r.actorId) ?? null) : null,
+    }));
   }
 }

@@ -21,6 +21,19 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/home').then((m) => m.HomePage),
       },
       {
+        path: 'projects',
+        loadComponent: () => import('./pages/projects').then((m) => m.ProjectsPage),
+      },
+      {
+        path: 'projects/:id',
+        loadComponent: () => import('./pages/project-detail').then((m) => m.ProjectDetailPage),
+      },
+      {
+        path: 'templates',
+        canActivate: [roleGuard('TENANT_ADMIN')],
+        loadComponent: () => import('./pages/templates').then((m) => m.TemplatesPage),
+      },
+      {
         path: 'users',
         canActivate: [roleGuard('TENANT_ADMIN', 'TOP_MANAGEMENT')],
         loadComponent: () => import('./pages/users').then((m) => m.UsersPage),
