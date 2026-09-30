@@ -10,6 +10,8 @@ import { AuditService } from '../audit/audit.service.js';
 import { verifyPassword } from '../common/password.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { TenantsService } from '../tenants/tenants.service.js';
+import { withBypass } from '../prisma/tenant-context.js';
+import { limits, RateLimiter } from './rate-limiter.js';
 import { LoginDto, SignupDto } from './dto.js';
 
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
@@ -24,9 +26,17 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly audit: AuditService,
     private readonly tenants: TenantsService,
+    private readonly limiter: RateLimiter,
   ) {}
 
-  async signup(dto: SignupDto) {
+  signup(dto: SignupDto, ip: string) {
+    return withBypass(() => this.doSignup(dto, ip));
+  }
+
+  private async doSignup(dto: SignupDto, ip: string) {
+    const l = limits();
+    this.limiter.assertBelow(`signup|${ip}`, l.signupPerIp, 60 * 60_000);
+    this.limiter.record(`signup|${ip}`, 60 * 60_000);
     if (process.env.ALLOW_TENANT_SIGNUP !== 'true') {
       throw new ForbiddenException('Tenant signup is disabled');
     }
@@ -43,8 +53,25 @@ export class AuthService {
     return { tenantId: tenant.id, slug: tenant.slug };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, ip: string) {
     const email = dto.email.toLowerCase();
+    const l = limits();
+    const accountKey = `login|${dto.tenantSlug ?? ''}|${email}`;
+    const ipKey = `login-ip|${ip}`;
+    this.limiter.assertBelow(accountKey, l.loginPerAccount, l.windowMs);
+    this.limiter.assertBelow(ipKey, l.loginPerIp, l.windowMs);
+    try {
+      return await withBypass(() => this.doLogin(dto, email));
+    } catch (e) {
+      if (e instanceof UnauthorizedException) {
+        this.limiter.record(accountKey, l.windowMs);
+        this.limiter.record(ipKey, l.windowMs);
+      }
+      throw e;
+    }
+  }
+
+  private async doLogin(dto: LoginDto, email: string) {
     let tenantId: string | null = null;
     if (dto.tenantSlug) {
       const tenant = await this.prisma.tenant.findUnique({
@@ -73,11 +100,16 @@ export class AuthService {
       entity: 'User',
       entityId: user.id,
     });
+    this.limiter.reset(`login|${dto.tenantSlug ?? ''}|${email}`);
     return this.issueTokens(user.id, user.tenantId, user.role);
   }
 
   /** 刷新令牌一次性使用：用旧换新，旧的立即作废 */
-  async refresh(refreshToken: string) {
+  refresh(refreshToken: string) {
+    return withBypass(() => this.doRefresh(refreshToken));
+  }
+
+  private async doRefresh(refreshToken: string) {
     const record = await this.prisma.refreshToken.findUnique({
       where: { tokenHash: sha256(refreshToken) },
       include: { user: { include: { tenant: true } } },

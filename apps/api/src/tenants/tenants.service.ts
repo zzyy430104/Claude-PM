@@ -24,7 +24,7 @@ export class TenantsService {
   async create(input: CreateTenantInput, actorId: string | null) {
     const passwordHash = await hashPassword(input.adminPassword);
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.txn(async (tx) => {
         const tenant = await tx.tenant.create({
           data: { name: input.name, slug: input.slug },
         });
@@ -79,7 +79,7 @@ export class TenantsService {
   async setActive(id: string, active: boolean, actorId: string) {
     const existing = await this.prisma.tenant.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Tenant not found');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.txn(async (tx) => {
       const tenant = await tx.tenant.update({ where: { id }, data: { active } });
       await this.audit.record(
         {

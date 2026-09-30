@@ -18,9 +18,10 @@ export async function seedTenant(slug) {
     const email = `${key}@demo.test`;
     const u = await call('POST', '/users', admin.accessToken, { email, name, password: 'demo-pass-123', role });
     const l = await call('POST', '/auth/login', null, { tenantSlug: slug, email, password: 'demo-pass-123' });
-    users[key] = { id: u.id, email, name, access: l.accessToken, refresh: l.refreshToken };
+    // access：用于通过接口造数据；slug / password：浏览器里走真实的登录表单
+    users[key] = { id: u.id, email, name, access: l.accessToken, slug, password: 'demo-pass-123' };
   }
-  users.admin = { access: admin.accessToken, refresh: admin.refreshToken, email: 'admin@demo.test', name: '张管理' };
+  users.admin = { access: admin.accessToken, email: 'admin@demo.test', name: '张管理', slug, password: 'demo-pass-123' };
   return users;
 }
 export async function seedProject(u, extra = {}, baseline = true) {

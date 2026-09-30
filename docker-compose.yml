@@ -7,8 +7,11 @@ services:
       POSTGRES_USER: pm
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 中设置 POSTGRES_PASSWORD}
       POSTGRES_DB: claude_pm
+      # 首次初始化时用于创建受行级安全约束的应用账号 pm_app，见 db/init/01-app-role.sh
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?请在 .env 中设置 APP_DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pm -d claude_pm"]
       interval: 5s
@@ -22,7 +25,11 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://pm:${POSTGRES_PASSWORD}@db:5432/claude_pm
+      # 运行时用受限账号（受行级安全约束），迁移用有建表权限的账号
+      DATABASE_URL: postgresql://pm_app:${APP_DB_PASSWORD}@db:5432/claude_pm
+      MIGRATION_DATABASE_URL: postgresql://pm:${POSTGRES_PASSWORD}@db:5432/claude_pm
+      # 数据库账号绕过了行级安全时拒绝启动
+      REQUIRE_RLS: "true"
       JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
       ALLOW_TENANT_SIGNUP: ${ALLOW_TENANT_SIGNUP:-false}
       PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-}
@@ -30,6 +37,8 @@ services:
       PORT: 3000
       STORAGE_DIR: /data/storage
       APP_URL: ${APP_URL:-}
+      # 站点走 https 时设为 true；纯 http 内网试运行设为 false
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-Claude-PM <no-reply@localhost>}
     volumes:
@@ -43,7 +52,7 @@ services:
     depends_on:
       - api
     ports:
-      - "8080:80"
+      - "${WEB_PORT:-8080}:80"
 
 volumes:
   pgdata:

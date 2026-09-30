@@ -62,6 +62,6 @@ await p.click('.box button:has-text("措施完成，提交验证")');
 await p.waitForSelector('.box:has-text("有效性验证")');
 await p.click('.box button:has-text("验证有效并关闭")');
 await p.waitForSelector('.box:has-text("已关闭")'); step('不符合项完成闭环');
-await p.screenshot({ path: 'quality.png' });
+await p.screenshot({ path: `${process.env.SHOT_DIR ?? '/tmp'}/quality.png` });
 console.log('浏览器错误:', errors.length ? errors : '无');
 await b.close();

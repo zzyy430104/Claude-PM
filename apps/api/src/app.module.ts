@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AuditModule } from './audit/audit.module.js';
 import { CostModule } from './cost/cost.module.js';
 import { QualityModule } from './quality/quality.module.js';
@@ -15,6 +15,7 @@ import { EvidenceModule } from './evidence/evidence.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BootstrapService } from './bootstrap.service.js';
 import { JwtAuthGuard, RolesGuard } from './common/guards.js';
+import { TenantContextInterceptor } from './common/tenant-context.interceptor.js';
 import { GovernanceModule } from './governance/governance.module.js';
 import { HealthController } from './health/health.controller.js';
 import { ProjectsModule } from './projects/projects.module.js';
@@ -49,6 +50,7 @@ import { UsersModule } from './users/users.module.js';
     // 默认所有接口都需要登录，公开接口显式加 @Public()
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_INTERCEPTOR, useClass: TenantContextInterceptor },
   ],
 })
 export class AppModule {}

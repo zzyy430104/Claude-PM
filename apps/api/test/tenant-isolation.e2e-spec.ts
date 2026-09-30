@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { bearer, createApp, signupTenant } from './helpers.js';
+import { bearer, CSRF, cookieOf, createApp, signupTenant } from './helpers.js';
 
 describe('多租户隔离与用户管理', () => {
   let app: INestApplication;
@@ -146,7 +146,8 @@ describe('多租户隔离与用户管理', () => {
     await http().get('/me').set(bearer(login.body.accessToken)).expect(401);
     await http()
       .post('/auth/refresh')
-      .send({ refreshToken: login.body.refreshToken })
+      .set('Cookie', cookieOf(login))
+      .set(CSRF)
       .expect(401);
 
     const logs = await http()

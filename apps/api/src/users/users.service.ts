@@ -62,7 +62,7 @@ export class UsersService {
     }
     const passwordHash = await hashPassword(dto.password);
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.txn(async (tx) => {
         const user = await tx.user.create({
           data: {
             tenantId,
@@ -122,7 +122,7 @@ export class UsersService {
     };
     if (dto.password) data.passwordHash = await hashPassword(dto.password);
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.txn(async (tx) => {
       const user = await tx.user.update({
         where: { id },
         data,

@@ -7,10 +7,6 @@ export class LoginDto {
   @IsString() @MinLength(1) @MaxLength(128) password: string;
 }
 
-export class RefreshDto {
-  @IsString() @MinLength(10) refreshToken: string;
-}
-
 export class SignupDto {
   @IsString() @MinLength(2) @MaxLength(100) tenantName: string;
 

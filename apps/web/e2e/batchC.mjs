@@ -73,6 +73,6 @@ await p.click('mat-option:has-text("李经理")'); await p.keyboard.press('Escap
 await p.fill('textarea[formcontrolname=notes]', '月度评审');
 await p.click('button:has-text("记录项目评审")');
 await p.waitForSelector('.box:has-text("月度评审")'); step('记录项目评审');
-await p.screenshot({ path: 'review.png' });
+await p.screenshot({ path: `${process.env.SHOT_DIR ?? '/tmp'}/review.png` });
 console.log('浏览器错误:', errors.length ? errors : '无');
 await b.close();

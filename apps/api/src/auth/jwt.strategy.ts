@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import type { AuthUser } from '../common/auth.types.js';
 import { Role } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { withBypass } from '../prisma/tenant-context.js';
 
 export interface JwtPayload {
   sub: string;
@@ -22,10 +23,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   /** 每次请求回库校验，用户或租户被停用后立即失效，角色以数据库为准 */
   async validate(payload: JwtPayload): Promise<AuthUser> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-      include: { tenant: true },
-    });
+    const user = await withBypass(() =>
+      this.prisma.user.findUnique({ where: { id: payload.sub }, include: { tenant: true } }),
+    );
     if (!user || !user.active || (user.tenant && !user.tenant.active)) {
       throw new UnauthorizedException();
     }

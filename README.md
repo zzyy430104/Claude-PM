@@ -51,6 +51,7 @@ curl localhost:8080/api/health   # 浏览器访问 http://localhost:8080
 | D 质量与成本 | 成本科目与 EAC、项目质量计划、不符合项 / CAR 闭环、沟通计划与记录、培训 | 8.1.3.5、8.1.3.6、8.1.3.7、8.1.3.8 |
 | E 支撑层 | 文档管理（标准目录、版本、校验和）、经验教训库与项目关闭、配置管理（PBS、基线）、投标管理与转项目 | 7.5、8.1.2、8.1.3.1.2、8.1.4.1 |
 | F 收尾 | 项目组合仪表盘与待办、站内通知与邮件、审核证据包（ZIP + SHA-256 清单）、中英文界面、私有部署包 | 8.1.3.11、7.5 |
+| 加固 | 刷新令牌放 httpOnly Cookie、登录与注册限流、数据库行级安全（第二道租户隔离）、安全响应头 | — |
 
 标准中的 shall 要求（上一阶段问题未关闭不能通过评审、基线后范围 / 预算 / 交期变更须经批准的变更申请、
 变更实施前必须批准、审计记录不可篡改等）由后端强制执行，并有对应的自动化测试。
@@ -61,6 +62,7 @@ curl localhost:8080/api/health   # 浏览器访问 http://localhost:8080
 cd apps/api && npm test && npm run test:e2e   # 单元测试 + 接口测试（需要 PostgreSQL 测试库）
 cd apps/web && npm test                        # 前端单元测试
 cd apps/web && npm run e2e                     # 浏览器端到端测试，见 apps/web/e2e/README.md
+node scripts/smoke-test.mjs                    # 部署后的冒烟测试，见 docs/DEPLOY.md
 ```
 
 ## 文档

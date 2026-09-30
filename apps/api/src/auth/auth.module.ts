@@ -5,6 +5,7 @@ import { TenantsModule } from '../tenants/tenants.module.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtStrategy } from './jwt.strategy.js';
+import { RateLimiter } from './rate-limiter.js';
 
 @Module({
   imports: [
@@ -21,6 +22,6 @@ import { JwtStrategy } from './jwt.strategy.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, RateLimiter],
 })
 export class AuthModule {}

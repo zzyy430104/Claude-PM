@@ -59,7 +59,7 @@ if (row2.includes('★')) throw new Error('设计评审不应在关键路径上'
 step('关键路径标记正确');
 await p.click('mat-button-toggle:has-text("甘特图")');
 await p.waitForSelector('svg[aria-label=甘特图]');
-await p.screenshot({ path: 'gantt.png' }); step('甘特图渲染');
+await p.screenshot({ path: `${process.env.SHOT_DIR ?? '/tmp'}/gantt.png` }); step('甘特图渲染');
 await p.click('mat-button-toggle:has-text("看板")');
 await p.waitForSelector('.board'); step('看板视图');
 

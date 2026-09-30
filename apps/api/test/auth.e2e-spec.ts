@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { bearer, createApp, signupTenant } from './helpers.js';
+import { bearer, CSRF, cookieOf, createApp, signupTenant, uid } from './helpers.js';
 
 describe('认证', () => {
   let app: INestApplication;
@@ -68,26 +68,79 @@ describe('认证', () => {
       .expect(409);
   });
 
-  it('刷新令牌一次性使用，登出后失效', async () => {
-    const t = await signupTenant(app, 'refresh');
-    const r1 = await request(app.getHttpServer())
-      .post('/auth/refresh')
-      .send({ refreshToken: t.refreshToken })
+  it('刷新令牌只放在 httpOnly Cookie 里，响应体不含刷新令牌', async () => {
+    const t = await signupTenant(app, 'cookie');
+    const res = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ tenantSlug: t.slug, email: t.adminEmail, password: t.password })
       .expect(200);
+    expect(res.body).not.toHaveProperty('refreshToken');
+    expect(res.body.accessToken).toBeTruthy();
+    const cookie = (res.headers['set-cookie'] as unknown as string[]).find((c) => c.startsWith('pm_rt='))!;
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('SameSite=Strict');
+  });
+
+  it('刷新令牌一次性使用，登出后失效；必须带 CSRF 请求头', async () => {
+    const t = await signupTenant(app, 'refresh');
+    const refresh = (cookie: string, csrf = true) => {
+      let r = request(app.getHttpServer()).post('/auth/refresh').set('Cookie', cookie);
+      if (csrf) r = r.set(CSRF);
+      return r;
+    };
+    await refresh(t.refreshCookie, false).expect(403); // 没有 CSRF 头
+    await request(app.getHttpServer()).post('/auth/refresh').set(CSRF).expect(401); // 没有 Cookie
+
+    const r1 = await refresh(t.refreshCookie).expect(200);
+    const next = cookieOf(r1);
+    expect(next).not.toBe(t.refreshCookie);
     // 旧令牌已作废
-    await request(app.getHttpServer())
-      .post('/auth/refresh')
-      .send({ refreshToken: t.refreshToken })
-      .expect(401);
+    await refresh(t.refreshCookie).expect(401);
     await request(app.getHttpServer())
       .post('/auth/logout')
+      .set('Cookie', next)
       .set(bearer(r1.body.accessToken))
       .send({})
       .expect(204);
-    await request(app.getHttpServer())
-      .post('/auth/refresh')
-      .send({ refreshToken: r1.body.refreshToken })
-      .expect(401);
+    await refresh(next).expect(401);
+  });
+
+  it('连续输错密码会被限流，登录成功后清零', async () => {
+    const t = await signupTenant(app, 'ratelimit');
+    process.env.RATE_LIMIT_LOGIN_PER_ACCOUNT = '3';
+    try {
+      const login = (password: string) =>
+        request(app.getHttpServer()).post('/auth/login').send({ tenantSlug: t.slug, email: t.adminEmail, password });
+      await login('wrong-1').expect(401);
+      await login('wrong-2').expect(401);
+      await login(t.password).expect(200); // 成功后清零
+      await login('wrong-3').expect(401);
+      await login('wrong-4').expect(401);
+      await login('wrong-5').expect(401);
+      await login(t.password).expect(429); // 已达上限，连正确密码也拒绝
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ tenantSlug: t.slug, email: 'other@' + t.slug + '.test', password: 'x'.repeat(8) })
+        .expect(401); // 其他账号不受影响
+    } finally {
+      process.env.RATE_LIMIT_LOGIN_PER_ACCOUNT = '1000';
+    }
+  });
+
+  it('自助注册按 IP 限流', async () => {
+    process.env.RATE_LIMIT_SIGNUP_PER_IP = '2';
+    try {
+      const body = (n: number) => ({ tenantName: 'RL', tenantSlug: `rl-${uid()}-${n}`, adminEmail: `a${n}@rl.test`, adminName: 'A', password: 'admin-pass-123' });
+      // 先用掉此前测试可能累计的次数：只关心在上限内外的差异
+      let blocked = 0;
+      for (let i = 0; i < 6; i++) {
+        const r = await request(app.getHttpServer()).post('/auth/signup').send(body(i));
+        if (r.status === 429) blocked++;
+      }
+      expect(blocked).toBeGreaterThan(0);
+    } finally {
+      process.env.RATE_LIMIT_SIGNUP_PER_IP = '100000';
+    }
   });
 
   it('平台管理员可登录，但不能访问租户业务数据', async () => {

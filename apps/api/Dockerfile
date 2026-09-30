@@ -3,7 +3,8 @@ WORKDIR /app
 COPY package*.json .npmrc ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./
-RUN npm ci --ignore-scripts && npx prisma generate
+# 不加 --ignore-scripts：安装脚本会下载 Prisma 的迁移引擎并生成客户端，运行时执行迁移需要它
+RUN npm ci
 COPY . .
 RUN npm run build
 

@@ -45,9 +45,19 @@ export async function signupTenant(app: INestApplication, label: string) {
     adminEmail,
     password,
     token: login.body.accessToken as string,
-    refreshToken: login.body.refreshToken as string,
+    refreshCookie: cookieOf(login),
   };
 }
+
+/** 取出响应里的刷新令牌 Cookie（name=value 部分），用于带回 /auth/refresh */
+export function cookieOf(res: request.Response): string {
+  const raw = (res.headers['set-cookie'] as unknown as string[] | undefined) ?? [];
+  const c = raw.find((x) => x.startsWith('pm_rt='));
+  if (!c) throw new Error('response has no pm_rt cookie');
+  return c.split(';')[0];
+}
+
+export const CSRF = { 'X-Requested-With': 'claude-pm' };
 
 export const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 

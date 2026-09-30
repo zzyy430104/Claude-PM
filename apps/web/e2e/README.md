@@ -26,4 +26,14 @@ cd apps/web && npm install && npm run e2e
 环境变量：`WEB_URL`（默认 http://localhost:4200）、`API_URL`（默认 http://localhost:3000）、
 `CHROMIUM_PATH`（浏览器可执行文件；不设则用 Playwright 安装的浏览器）。
 
-脚本每次会用随机的企业标识自动建数据，可重复运行。
+脚本每次会用随机的企业标识自动建数据，可重复运行。登录一律走真实的登录表单（令牌只在内存和 httpOnly Cookie 里）。
+
+## 对着已部署的站点运行
+
+```bash
+# 需要站点开启企业自助注册（ALLOW_TENANT_SIGNUP=true），脚本用它来建测试企业
+WEB_URL=http://你的地址 API_URL=http://你的地址/api node e2e/batchC.mjs
+```
+
+nginx 对 `/api/auth/` 有访问频率限制（每 IP 每分钟 30 次，突发 20 次）。
+连续跑多个脚本时，每个之间隔约一分钟，否则登录会被限流而误报失败。

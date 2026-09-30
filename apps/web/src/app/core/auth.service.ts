@@ -2,29 +2,18 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { CurrentUser, Role, Tokens } from './models';
+import { CurrentUser, Role } from './models';
 
 export const API = '/api';
-const ACCESS_KEY = 'pm.access';
-const REFRESH_KEY = 'pm.refresh';
 
-function read(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
+/** 刷新令牌接口要求的自定义请求头，与后端约定一致，用于防跨站请求伪造 */
+export const CSRF_HEADERS = { 'X-Requested-With': 'claude-pm' };
 
-function write(key: string, value: string | null) {
-  try {
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
-  } catch {
-    /* 隐私模式下忽略 */
-  }
-}
-
+/**
+ * 登录状态：
+ *  - 访问令牌只保存在内存里，页面刷新后由刷新令牌换回
+ *  - 刷新令牌由服务端放在 httpOnly Cookie 中，页面脚本读不到，因此即使页面出现脚本注入漏洞也无法窃取
+ */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
@@ -32,10 +21,11 @@ export class AuthService {
 
   readonly user = signal<CurrentUser | null>(null);
   readonly isLoggedIn = computed(() => this.user() !== null);
+  private token: string | null = null;
   private refreshing: Promise<boolean> | null = null;
 
   get accessToken(): string | null {
-    return read(ACCESS_KEY);
+    return this.token;
   }
 
   hasRole(...roles: Role[]): boolean {
@@ -43,9 +33,9 @@ export class AuthService {
     return !!u && roles.includes(u.role);
   }
 
-  /** 应用启动时：若有令牌则恢复登录状态 */
+  /** 应用启动时：用刷新令牌 Cookie 换回访问令牌，恢复登录状态（没有 Cookie 就保持未登录） */
   async restore(): Promise<void> {
-    if (!this.accessToken && !read(REFRESH_KEY)) return;
+    if (!(await this.refresh())) return;
     try {
       await this.loadMe();
     } catch {
@@ -54,10 +44,8 @@ export class AuthService {
   }
 
   async login(body: { tenantSlug?: string; email: string; password: string }) {
-    const tokens = await firstValueFrom(
-      this.http.post<Tokens>(`${API}/auth/login`, body),
-    );
-    this.store(tokens);
+    const res = await firstValueFrom(this.http.post<{ accessToken: string }>(`${API}/auth/login`, body));
+    this.token = res.accessToken;
     await this.loadMe();
   }
 
@@ -74,13 +62,11 @@ export class AuthService {
   /** 多个并发请求同时 401 时只发一次刷新 */
   refresh(): Promise<boolean> {
     if (this.refreshing) return this.refreshing;
-    const refreshToken = read(REFRESH_KEY);
-    if (!refreshToken) return Promise.resolve(false);
     this.refreshing = firstValueFrom(
-      this.http.post<Tokens>(`${API}/auth/refresh`, { refreshToken }),
+      this.http.post<{ accessToken: string }>(`${API}/auth/refresh`, {}, { headers: CSRF_HEADERS }),
     )
-      .then((t) => {
-        this.store(t);
+      .then((r) => {
+        this.token = r.accessToken;
         return true;
       })
       .catch(() => false)
@@ -91,13 +77,8 @@ export class AuthService {
   }
 
   async logout() {
-    const refreshToken = read(REFRESH_KEY);
     try {
-      if (this.accessToken) {
-        await firstValueFrom(
-          this.http.post(`${API}/auth/logout`, { refreshToken }),
-        );
-      }
+      if (this.token) await firstValueFrom(this.http.post(`${API}/auth/logout`, {}));
     } catch {
       /* 令牌已失效也照常清理本地状态 */
     }
@@ -115,14 +96,8 @@ export class AuthService {
     this.user.set(await firstValueFrom(this.http.get<CurrentUser>(`${API}/me`)));
   }
 
-  private store(t: Tokens) {
-    write(ACCESS_KEY, t.accessToken);
-    write(REFRESH_KEY, t.refreshToken);
-  }
-
   private clear() {
-    write(ACCESS_KEY, null);
-    write(REFRESH_KEY, null);
+    this.token = null;
     this.user.set(null);
   }
 }

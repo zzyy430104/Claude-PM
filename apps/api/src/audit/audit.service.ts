@@ -46,7 +46,7 @@ export class AuditService {
     },
     fn: (tx: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.txn(async (tx) => {
       const result = await fn(tx);
       await this.record(
         {

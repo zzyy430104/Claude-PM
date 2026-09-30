@@ -15,7 +15,7 @@ await p.waitForSelector('text=待办'); step('首页：项目组合与待办');
 const home = await p.locator('.page').innerText();
 if (!home.includes('高分风险') && !home.includes('1 个高分风险')) throw new Error('健康度原因缺失: ' + home);
 step('健康度原因展示');
-await p.screenshot({ path: 'home.png' });
+await p.screenshot({ path: `${process.env.SHOT_DIR ?? '/tmp'}/home.png` });
 // 通知铃铛：PM 是 CCB，应收到待审批变更通知
 await p.click('button:has-text("通知")');
 await p.waitForSelector('button[mat-menu-item]:has-text("待审批变更 CR-001")'); step('通知菜单显示待审批变更');

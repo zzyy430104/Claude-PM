@@ -43,11 +43,16 @@ export async function addUser(p, name, email, password, roleLabel) {
   await p.waitForSelector(`td:has-text("${email}")`);
 }
 
-/** 直接写入令牌，免去表单登录 */
+/** 用真实的登录表单登录（令牌只在内存和 httpOnly Cookie 里，没有别的捷径） */
 export async function loginAs(p, user) {
+  // 先清掉上一个用户的登录状态：Cookie 会话不会因为换页面而消失
+  await p.context().clearCookies();
   await p.goto(`${WEB}/login`);
-  await p.evaluate(([a, r]) => { localStorage.setItem('pm.access', a); localStorage.setItem('pm.refresh', r); }, [user.access, user.refresh]);
-  await p.goto(`${WEB}/`);
+  await p.waitForSelector('input[formcontrolname=email]');
+  await p.fill('input[formcontrolname=tenantSlug]', user.slug ?? '');
+  await p.fill('input[formcontrolname=email]', user.email);
+  await p.fill('input[formcontrolname=password]', user.password);
+  await p.click('button:has-text("登录")');
   await p.waitForSelector('mat-toolbar');
 }
 export async function openProject(p, code) {
