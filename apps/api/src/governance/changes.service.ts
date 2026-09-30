@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectAccess, ProjectCtx } from '../projects/access.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { ChangeNoteDto, CreateChangeDto, CustomerContactDto, RequiredNoteDto, UpdateChangeDto } from './dto.js';
 
 type Proposed = { budget?: number; customerDeliveryDate?: string; startDate?: string; endDate?: string };
@@ -16,6 +17,7 @@ export class ChangesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly access: ProjectAccess,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(actor: AuthUser, projectId: string) {
@@ -116,7 +118,13 @@ export class ChangesService {
     if (cr.type === ChangeType.SCHEDULE && !p.startDate && !p.endDate) problems.push('进度变更必须给出新的开始或结束日期');
     if (problems.length) throw new BadRequestException({ code: 'CHANGE_INCOMPLETE', message: problems.join('；'), problems });
 
-    return this.transition(actor, cr.id, 'changeRequest.submit', { status: ChangeStatus.SUBMITTED, submittedAt: new Date() });
+    const submitted = await this.transition(actor, cr.id, 'changeRequest.submit', { status: ChangeStatus.SUBMITTED, submittedAt: new Date() });
+    const ccb = await this.notifications.projectUsers(ctx.tenantId, projectId, { isCcb: true });
+    const tops = await this.notifications.tenantUsersWithRole(ctx.tenantId, 'TOP_MANAGEMENT');
+    await this.notifications.notify(ctx.tenantId, [...ccb, ...tops], {
+      kind: 'CHANGE_SUBMITTED', title: `待审批变更 ${cr.code}：${cr.title}`, body: `${ctx.project.code} ${ctx.project.name}`, link: `/projects/${projectId}`,
+    }, cr.requestedById);
+    return submitted;
   }
 
   /** 记录已向客户发出变更申请 / 客户已同意（涉及客户要求的变更，8.1.4.2 f） */
@@ -149,9 +157,11 @@ export class ChangesService {
         throw new ForbiddenException({ code: 'TOP_MANAGEMENT_REQUIRED', message: 'Budget increases must be approved by top management' });
       }
     }
-    return this.transition(actor, id, 'changeRequest.approve', {
+    const approved = await this.transition(actor, id, 'changeRequest.approve', {
       status: ChangeStatus.APPROVED, decidedById: actor.id, decidedAt: new Date(), decisionNote: dto.note,
     });
+    await this.notifications.notify(ctx.tenantId, [cr.requestedById], { kind: 'CHANGE_DECIDED', title: `变更 ${cr.code} 已批准`, body: dto.note ?? '', link: `/projects/${projectId}` });
+    return approved;
   }
 
   async reject(actor: AuthUser, projectId: string, id: string, dto: RequiredNoteDto) {
@@ -159,9 +169,11 @@ export class ChangesService {
     const cr = await this.find(ctx, id);
     this.requireApprover(ctx, cr.requestedById);
     if (cr.status !== ChangeStatus.SUBMITTED) throw new ConflictException('Only submitted requests can be rejected');
-    return this.transition(actor, id, 'changeRequest.reject', {
+    const rejected = await this.transition(actor, id, 'changeRequest.reject', {
       status: ChangeStatus.REJECTED, decidedById: actor.id, decidedAt: new Date(), decisionNote: dto.note,
     });
+    await this.notifications.notify(ctx.tenantId, [cr.requestedById], { kind: 'CHANGE_DECIDED', title: `变更 ${cr.code} 被驳回`, body: dto.note, link: `/projects/${projectId}` });
+    return rejected;
   }
 
   /** 实施：只有已批准的变更才能实施（R6），并把拟变更内容写入项目 */

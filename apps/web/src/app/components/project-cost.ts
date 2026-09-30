@@ -1,4 +1,5 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
+import { askText } from '../core/i18n';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -95,7 +96,7 @@ export class ProjectCost {
     }, '记录失败');
   }
   setEtc(accountId: string) {
-    const v = window.prompt('请输入完工尚需成本（ETC）');
+    const v = askText('请输入完工尚需成本（ETC）');
     const n = v === null ? NaN : Number(v);
     return Number.isNaN(n) ? Promise.resolve() : this.run(() => this.api.patch(`/projects/${this.project().id}/cost/accounts/${accountId}`, { estimateToComplete: n }), '更新失败');
   }

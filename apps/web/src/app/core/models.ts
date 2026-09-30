@@ -341,3 +341,15 @@ export interface Tender {
   deliverablesPlan: string; estimatedCost: string; offerPrice: string; resourcePlan: string;
   decisionNote: string | null; convertedProjectId: string | null;
 }
+
+export interface DashboardProject {
+  id: string; code: string; name: string; status: string; riskLevel: RiskLevel; activePhase: string | null;
+  health: 'RED' | 'AMBER' | 'GREEN'; reasons: string[];
+  progress: { planned: number; actual: number; projectedEnd: string; plannedEnd: string };
+  openIssues: number; overdueActions: number; highRisks: number; openNonconformities: number; pendingChanges: number;
+  cost: { budget: number | null; eac: number; overrun: boolean } | null;
+  lastReviewDate: string | null; reviewOverdue: boolean;
+}
+export interface Dashboard { totals: { projects: number; red: number; amber: number; green: number }; projects: DashboardProject[] }
+export interface Todo { kind: string; title: string; projectId: string; projectCode: string; link: string; dueDate: string | null }
+export interface NotificationRow { id: string; kind: string; title: string; body: string; link: string | null; readAt: string | null; createdAt: string }

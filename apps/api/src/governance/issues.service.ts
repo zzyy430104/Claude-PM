@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectAccess } from '../projects/access.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { CreateIssueDto, UpdateIssueDto } from './dto.js';
 
 export interface NewIssue {
@@ -26,6 +27,7 @@ export class IssuesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly access: ProjectAccess,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(actor: AuthUser, projectId: string, status?: IssueStatus) {
@@ -41,11 +43,13 @@ export class IssuesService {
     this.access.requireOpen(ctx);
     if (!ctx.member && !ctx.isManager) throw new ForbiddenException('Project members only');
     await this.checkOwner(ctx.tenantId, projectId, dto.ownerId);
-    return this.audit.tx(
+    const created = await this.audit.tx(
       actor,
       { action: 'issue.create', entity: 'Issue', entityId: (i) => i.id, after: (i) => ({ title: i.title, kind: i.kind }) },
       (tx) => this.insert(tx, ctx.tenantId, projectId, actor.id, { ...dto, kind: dto.kind ?? 'ISSUE', source: 'MANUAL' }),
     );
+    await this.notifications.notify(ctx.tenantId, [dto.ownerId], { kind: 'ISSUE_ASSIGNED', title: `${created.kind === 'ISSUE' ? '问题' : '行动项'}已分配给你：${created.title}`, body: ctx.project.code, link: `/projects/${projectId}` }, actor.id);
+    return created;
   }
 
   async update(actor: AuthUser, projectId: string, id: string, dto: UpdateIssueDto) {

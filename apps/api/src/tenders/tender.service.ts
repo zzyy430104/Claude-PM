@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { requireTenantId } from '../common/auth.types.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { ConvertTenderDto, CreateTenderDto, TenderDecisionDto, UpdateTenderDto } from './tender.dto.js';
 import { DEFAULT_PHASES } from '../projects/templates.service.js';
 
@@ -17,6 +18,7 @@ export class TenderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(actor: AuthUser) {
@@ -64,18 +66,25 @@ export class TenderService {
     if (!t.resourcePlan.trim()) problems.push('合同执行资源计划必填');
     if (Number(t.offerPrice) <= 0) problems.push('报价必填');
     if (problems.length) throw new BadRequestException({ code: 'TENDER_INCOMPLETE', message: problems.join('；'), problems });
-    return this.transition(actor, id, 'tender.submit', { status: TenderStatus.IN_REVIEW });
+    const submitted = await this.transition(actor, id, 'tender.submit', { status: TenderStatus.IN_REVIEW });
+    const tops = await this.notifications.tenantUsersWithRole(t.tenantId, 'TOP_MANAGEMENT');
+    await this.notifications.notify(t.tenantId, tops, { kind: 'TENDER_SUBMITTED', title: `投标待审批：${t.code} ${t.title}`, body: `报价 ${t.offerPrice}`, link: '/tenders' }, actor.id);
+    return submitted;
   }
 
   /** 报价审批：只有最高管理层可批准（投标由项目经理或企业管理员编制，二者都无权审批） */
   async approve(actor: AuthUser, id: string, dto: TenderDecisionDto) {
-    await this.decisionGuard(actor, id);
-    return this.transition(actor, id, 'tender.approve', { status: TenderStatus.APPROVED, decidedById: actor.id, decidedAt: new Date(), decisionNote: dto.note });
+    const t = await this.decisionGuard(actor, id);
+    const approved = await this.transition(actor, id, 'tender.approve', { status: TenderStatus.APPROVED, decidedById: actor.id, decidedAt: new Date(), decisionNote: dto.note });
+    await this.notifications.notify(t.tenantId, [t.createdById], { kind: 'TENDER_DECIDED', title: `投标 ${t.code} 报价已批准`, body: dto.note, link: '/tenders' });
+    return approved;
   }
 
   async reject(actor: AuthUser, id: string, dto: TenderDecisionDto) {
-    await this.decisionGuard(actor, id);
-    return this.transition(actor, id, 'tender.reject', { status: TenderStatus.REJECTED, decidedById: actor.id, decidedAt: new Date(), decisionNote: dto.note });
+    const t = await this.decisionGuard(actor, id);
+    const rejected = await this.transition(actor, id, 'tender.reject', { status: TenderStatus.REJECTED, decidedById: actor.id, decidedAt: new Date(), decisionNote: dto.note });
+    await this.notifications.notify(t.tenantId, [t.createdById], { kind: 'TENDER_DECIDED', title: `投标 ${t.code} 被驳回`, body: dto.note, link: '/tenders' });
+    return rejected;
   }
 
   async outcome(actor: AuthUser, id: string, won: boolean) {

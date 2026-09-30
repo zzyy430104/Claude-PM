@@ -1,4 +1,5 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
+import { askText } from '../core/i18n';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -98,9 +99,9 @@ export class ProjectConfig {
     }, '建立基线失败');
   }
   bump(i: ConfigItemRow) {
-    const revision = window.prompt(`新版本号（当前 ${i.revision}）。建立基线后需填写已批准的变更申请编号（变更申请的 ID）`);
+    const revision = askText(`新版本号（当前 ${i.revision}）。建立基线后需填写已批准的变更申请编号（变更申请的 ID）`);
     if (!revision?.trim()) return Promise.resolve();
-    const changeRequestId = window.prompt('变更申请 ID（基线前可留空）') || undefined;
+    const changeRequestId = askText('变更申请 ID（基线前可留空）') || undefined;
     return this.run(() => this.api.patch(`/projects/${this.project().id}/config/items/${i.id}`, { revision, changeRequestId }), '升版失败');
   }
 }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { ProjectCtx } from '../projects/access.service.js';
+import type { Project } from '../generated/prisma/client.js';
 import { computeSchedule } from '../projects/schedule.js';
 
 const DAY = 86_400_000;
@@ -22,7 +22,7 @@ export interface ProgressSnapshot {
 export class MetricsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async progress(ctx: ProjectCtx, today = new Date()): Promise<ProgressSnapshot> {
+  async progress(ctx: { project: Project; tenantId: string }, today = new Date()): Promise<ProgressSnapshot> {
     const { project, tenantId } = ctx;
     const [wps, deps] = await Promise.all([
       this.prisma.workPackage.findMany({ where: { projectId: project.id, tenantId } }),

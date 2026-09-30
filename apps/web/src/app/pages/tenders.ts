@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { askText } from '../core/i18n';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -94,14 +95,14 @@ export class TendersPage {
   }
   save(t: Tender) { return this.run(async () => { await this.api.patch(`/tenders/${t.id}`, this.editForm.getRawValue()); this.editing.set(null); }, '保存失败'); }
   act(t: Tender, action: string, needNote = false) {
-    const note = needNote ? window.prompt('审批意见') : undefined;
+    const note = needNote ? askText('审批意见') : undefined;
     if (needNote && !note?.trim()) return Promise.resolve();
     return this.run(() => this.api.post(`/tenders/${t.id}/${action}`, needNote ? { note } : {}), '操作失败');
   }
   convert(t: Tender) {
-    const code = window.prompt('新项目编号');
-    const startDate = code ? window.prompt('项目开始日期（YYYY-MM-DD）') : null;
-    const endDate = startDate ? window.prompt('项目结束日期（YYYY-MM-DD）') : null;
+    const code = askText('新项目编号');
+    const startDate = code ? askText('项目开始日期（YYYY-MM-DD）') : null;
+    const endDate = startDate ? askText('项目结束日期（YYYY-MM-DD）') : null;
     if (!code || !startDate || !endDate) return Promise.resolve();
     return this.run(async () => {
       const p = await this.api.post<{ id: string }>(`/tenders/${t.id}/convert`, { code, riskLevel: 'MEDIUM', startDate, endDate });

@@ -1,4 +1,5 @@
 import { Component, inject, input, signal } from '@angular/core';
+import { askText } from '../core/i18n';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -89,12 +90,12 @@ export class ProjectRisks {
   }
   setStatus(r: RiskRow, status: string) { return this.run(() => this.api.patch(`/projects/${this.project().id}/risks/${r.id}`, { status }), '更新失败'); }
   close(r: RiskRow) {
-    const closureNote = window.prompt('请填写关闭结论');
+    const closureNote = askText('请填写关闭结论');
     if (!closureNote?.trim()) return Promise.resolve();
     return this.run(() => this.api.patch(`/projects/${this.project().id}/risks/${r.id}`, { status: 'CLOSED', closureNote }), '关闭失败');
   }
   addAction(r: RiskRow) {
-    const title = window.prompt('应对行动内容');
+    const title = askText('应对行动内容');
     if (!title?.trim()) return Promise.resolve();
     return this.run(() => this.api.post(`/projects/${this.project().id}/risks/${r.id}/actions`, { title }), '添加失败');
   }

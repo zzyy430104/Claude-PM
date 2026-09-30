@@ -4,6 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { Api, errorMessage } from '../core/api';
+import { I18n } from '../core/i18n';
 import { Project, RISK_LABELS } from '../core/models';
 
 interface Plan {
@@ -27,6 +28,7 @@ interface Plan {
       <button mat-flat-button (click)="baseline()">建立基线并启动项目</button>
     }
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
+    @if (canExport()) { <button mat-stroked-button (click)="exportPack()">导出审核证据包</button> }
 
     <h2>项目管理计划（第 {{ plan()?.version ?? 0 }} 版）</h2>
     <form [formGroup]="form" (ngSubmit)="save()">
@@ -44,7 +46,9 @@ interface Plan {
 export class ProjectOverview {
   private readonly api = inject(Api);
   private readonly fb = inject(FormBuilder).nonNullable;
+  readonly i18n = inject(I18n);
   readonly project = input.required<Project>();
+  readonly canExport = () => { const p = this.project().permissions; return !!(p?.manage || p?.quality || p?.topManagement); };
   readonly changed = output<void>();
   readonly plan = signal<Plan | null>(null);
   readonly error = signal('');
@@ -73,6 +77,15 @@ export class ProjectOverview {
       this.changed.emit();
     } catch (e) {
       this.error.set(errorMessage(e, '建立基线失败'));
+    }
+  }
+
+  async exportPack() {
+    this.error.set('');
+    try {
+      await this.api.download(`/projects/${this.project().id}/evidence-pack`, `evidence-${this.project().code}.zip`);
+    } catch (e) {
+      this.error.set(errorMessage(e, '导出失败'));
     }
   }
 

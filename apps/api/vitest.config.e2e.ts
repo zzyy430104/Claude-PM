@@ -17,6 +17,7 @@ export default defineConfig({
         'postgresql://pm:pm@localhost:5432/claude_pm_test',
       JWT_SECRET: 'test-secret',
       ALLOW_TENANT_SIGNUP: 'true',
+      MAIL_TRANSPORT: 'memory',
       STORAGE_DIR: join(tmpdir(), 'claude-pm-test-storage'),
       PLATFORM_ADMIN_EMAIL: 'root@platform.test',
       PLATFORM_ADMIN_PASSWORD: 'platform-pass-1',

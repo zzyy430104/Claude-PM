@@ -9,6 +9,9 @@ import { ConfigurationModule } from './configuration/config.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
 import { KnowledgeModule } from './knowledge/knowledge.module.js';
 import { TenderModule } from './tenders/tender.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
+import { EvidenceModule } from './evidence/evidence.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BootstrapService } from './bootstrap.service.js';
 import { JwtAuthGuard, RolesGuard } from './common/guards.js';
@@ -36,6 +39,9 @@ import { UsersModule } from './users/users.module.js';
     KnowledgeModule,
     ConfigurationModule,
     TenderModule,
+    NotificationsModule,
+    DashboardModule,
+    EvidenceModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -1,4 +1,5 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
+import { askText } from '../core/i18n';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
@@ -143,7 +144,7 @@ export class ProjectGates {
     }), '保存失败');
   }
   authorize(g: GateReview) {
-    const reason = window.prompt('请填写授权理由（将记入审计日志）');
+    const reason = askText('请填写授权理由（将记入审计日志）');
     return reason && reason.length >= 5
       ? this.run(() => this.api.post(`/projects/${this.project().id}/gate-reviews/${g.id}/authorize-override`, { reason }), '授权失败')
       : Promise.resolve();

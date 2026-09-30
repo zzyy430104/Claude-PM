@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectAccess } from '../projects/access.service.js';
 import { ActionInputDto, CreateRiskDto, UpdateRiskDto } from './dto.js';
 import { IssuesService } from './issues.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 const PROBABILITY_PERCENT = [0, 10, 30, 50, 70, 90];
 
@@ -17,6 +18,7 @@ export class RisksService {
     private readonly audit: AuditService,
     private readonly access: ProjectAccess,
     private readonly issues: IssuesService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(actor: AuthUser, projectId: string) {
@@ -91,10 +93,12 @@ export class RisksService {
     if (!risk) throw new NotFoundException('Risk not found');
     if (!ctx.isManager && !ctx.isQuality && risk.ownerId !== actor.id) throw new ForbiddenException('Owner or project management required');
     await this.issues.checkOwner(ctx.tenantId, projectId, dto.ownerId);
-    return this.audit.tx(
+    const created = await this.audit.tx(
       actor,
       { action: 'risk.addAction', entity: 'Risk', entityId: () => id, after: () => ({ title: dto.title }) },
       (tx) => this.issues.insert(tx, ctx.tenantId, projectId, actor.id, { kind: 'ACTION', title: dto.title, ownerId: dto.ownerId, dueDate: dto.dueDate, source: 'RISK', riskId: id }),
     );
+    await this.notifications.notify(ctx.tenantId, [dto.ownerId], { kind: 'ACTION_ASSIGNED', title: `新行动项：${dto.title}`, body: `${ctx.project.code} 风险应对`, link: `/projects/${projectId}` }, actor.id);
+    return created;
   }
 }

@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectAccess } from '../projects/access.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { CreateCommLogDto, CreateTrainingDto, UpdateCommPlanDto, UpdateTrainingDto } from './team.dto.js';
 
 /** 项目沟通管理（8.1.3.8）与项目人力资源管理中的培训（8.1.3.7 f） */
@@ -14,6 +15,7 @@ export class TeamService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly access: ProjectAccess,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async getCommPlan(actor: AuthUser, projectId: string) {
@@ -65,11 +67,13 @@ export class TeamService {
     this.access.requireOpen(ctx);
     const m = await this.prisma.projectMember.findFirst({ where: { projectId, tenantId: ctx.tenantId, userId: dto.userId, active: true } });
     if (!m) throw new BadRequestException('Trainee must be an active project member');
-    return this.audit.tx(
+    const created = await this.audit.tx(
       actor,
       { action: 'training.create', entity: 'Training', entityId: (t) => t.id, after: (t) => ({ userId: t.userId, title: t.title }) },
       (tx) => tx.training.create({ data: { tenantId: ctx.tenantId, projectId, userId: dto.userId, title: dto.title, dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined, createdById: actor.id } }),
     );
+    await this.notifications.notify(ctx.tenantId, [dto.userId], { kind: 'TRAINING', title: `培训安排：${dto.title}`, body: ctx.project.code, link: `/projects/${projectId}` }, actor.id);
+    return created;
   }
 
   async updateTraining(actor: AuthUser, projectId: string, id: string, dto: UpdateTrainingDto) {

@@ -1,4 +1,5 @@
 import { Component, inject, input, signal } from '@angular/core';
+import { askText } from '../core/i18n';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -73,7 +74,7 @@ export class ProjectIssues {
   }
 
   async close(i: Issue) {
-    const closureNote = window.prompt('请填写关闭结论');
+    const closureNote = askText('请填写关闭结论');
     if (!closureNote?.trim()) return;
     this.error.set('');
     try { await this.api.patch(`/projects/${this.project().id}/issues/${i.id}`, { status: 'CLOSED', closureNote }); }

@@ -15,6 +15,8 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts ./
 COPY --from=build /app/package.json ./
+RUN mkdir -p /data/storage && chown -R node:node /data /app
+USER node
 EXPOSE 3000
 # 启动时先执行数据库迁移，再启动服务
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]

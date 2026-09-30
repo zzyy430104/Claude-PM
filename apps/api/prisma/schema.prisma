@@ -822,3 +822,21 @@ model Tender {
   @@unique([tenantId, code])
   @@map("tenders")
 }
+
+// ───────── 批次 F：通知 ─────────
+
+model Notification {
+  id        String    @id @default(uuid())
+  tenantId  String    @map("tenant_id")
+  userId    String    @map("user_id")
+  kind      String
+  title     String
+  body      String    @default("")
+  /// 前端路由，如 /projects/xxx
+  link      String?
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId, userId, readAt])
+  @@map("notifications")
+}

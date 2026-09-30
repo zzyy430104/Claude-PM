@@ -28,6 +28,12 @@ services:
       PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-}
       PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
       PORT: 3000
+      STORAGE_DIR: /data/storage
+      APP_URL: ${APP_URL:-}
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-Claude-PM <no-reply@localhost>}
+    volumes:
+      - storage:/data/storage
     expose:
       - "3000"
 
@@ -41,3 +47,4 @@ services:
 
 volumes:
   pgdata:
+  storage:

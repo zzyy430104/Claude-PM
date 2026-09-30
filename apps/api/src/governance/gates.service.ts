@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectAccess, ProjectCtx } from '../projects/access.service.js';
 import { AuthorizeOverrideDto, GateDecisionDto, UpdateGateDto } from './dto.js';
 import { IssuesService } from './issues.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 @Injectable()
 export class GatesService {
@@ -15,6 +16,7 @@ export class GatesService {
     private readonly audit: AuditService,
     private readonly access: ProjectAccess,
     private readonly issues: IssuesService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(actor: AuthUser, projectId: string) {
@@ -142,7 +144,7 @@ export class GatesService {
     }
     for (const a of dto.actions ?? []) await this.issues.checkOwner(ctx.tenantId, projectId, a.ownerId);
 
-    return this.audit.tx(
+    const decided = await this.audit.tx(
       actor,
       {
         action: 'gateReview.decide',
@@ -184,6 +186,14 @@ export class GatesService {
         return updated;
       },
     );
+    const members = await this.notifications.projectUsers(ctx.tenantId, projectId);
+    await this.notifications.notify(ctx.tenantId, members, {
+      kind: 'GATE_DECIDED', title: `阶段评审结论：${phase.name} — ${dto.decision}`, body: dto.note, link: `/projects/${projectId}`,
+    }, actor.id);
+    for (const a of dto.actions ?? []) {
+      await this.notifications.notify(ctx.tenantId, [a.ownerId], { kind: 'ACTION_ASSIGNED', title: `新行动项：${a.title}`, body: `${ctx.project.code} 关口评审`, link: `/projects/${projectId}` }, actor.id);
+    }
+    return decided;
   }
 
   private async computeReadiness(

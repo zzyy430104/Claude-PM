@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectAccess, ProjectCtx } from '../projects/access.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { CreateNcDto, NcTransitionDto, UpdateNcDto, UpdateQualityPlanDto } from './quality.dto.js';
 
 /** 项目质量管理（8.1.3.6）：项目质量计划（含质量保证与质量控制活动）与项目不符合项 / 整改（CAR） */
@@ -14,6 +15,7 @@ export class QualityService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly access: ProjectAccess,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ───── 质量计划 ─────
@@ -156,11 +158,15 @@ export class QualityService {
     }
     if (problems.length) throw new BadRequestException({ code: 'NC_INCOMPLETE', message: problems.join('；'), problems });
 
-    return this.audit.tx(
+    const updated = await this.audit.tx(
       actor,
       { action: `nonconformity.${to.toLowerCase()}`, entity: 'Nonconformity', entityId: () => id, before: { status: from }, after: (n) => ({ status: n.status }) },
       (tx) => tx.nonconformity.update({ where: { id }, data }),
     );
+    if (to === NcStatus.ACTION && from === NcStatus.ANALYSIS) {
+      await this.notifications.notify(ctx.tenantId, [nc.actionOwnerId], { kind: 'NC_ACTION', title: `请执行纠正措施 ${nc.code}：${nc.title}`, body: nc.correctiveAction ?? '', link: `/projects/${projectId}` }, actor.id);
+    }
+    return updated;
   }
 
   private async findNc(ctx: ProjectCtx, id: string) {

@@ -1,5 +1,10 @@
 @use '@angular/material' as mat;
 
+// 字体随应用打包，内网私有部署不需要访问外网
+@import '@fontsource/roboto/300.css';
+@import '@fontsource/roboto/400.css';
+@import '@fontsource/roboto/500.css';
+
 html {
   @include mat.theme((
     color: (

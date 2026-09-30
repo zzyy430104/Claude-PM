@@ -1,4 +1,5 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
+import { askText } from '../core/i18n';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
@@ -146,11 +147,11 @@ export class ProjectChanges {
     return this.run(() => this.api.post(`/projects/${this.project().id}/changes/${c.id}/${action}`, body), '操作失败');
   }
   reject(c: ChangeRequest) {
-    const note = window.prompt('驳回原因');
+    const note = askText('驳回原因');
     return note?.trim() ? this.act(c, 'reject', { note }) : Promise.resolve();
   }
   verify(c: ChangeRequest) {
-    const note = window.prompt('有效性验证结论');
+    const note = askText('有效性验证结论');
     return note?.trim() ? this.act(c, 'verify', { note }) : Promise.resolve();
   }
   async toggleHistory(c: ChangeRequest) {

@@ -1,4 +1,5 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
+import { askText } from '../core/i18n';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -130,7 +131,7 @@ export class ProjectQuality {
     return this.run(() => this.api.patch(`/projects/${this.project().id}/nonconformities/${n.id}`, body), '保存失败');
   }
   move(n: Nonconformity, to: string, needNote = false) {
-    const note = to === 'CLOSED' || needNote ? window.prompt(to === 'CLOSED' ? '有效性验证结论' : '退回原因') : undefined;
+    const note = to === 'CLOSED' || needNote ? askText(to === 'CLOSED' ? '有效性验证结论' : '退回原因') : undefined;
     if ((to === 'CLOSED' || needNote) && !note?.trim()) return Promise.resolve();
     return this.run(() => this.api.post(`/projects/${this.project().id}/nonconformities/${n.id}/transition`, { to, note }), '操作失败');
   }

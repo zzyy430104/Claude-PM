@@ -7,6 +7,7 @@ import { ProjectAccess } from '../projects/access.service.js';
 import { CreateProjectReviewDto } from './dto.js';
 import { IssuesService } from './issues.service.js';
 import { MetricsService } from './metrics.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 /** 定期项目评审（8.1.3.11）：对比计划与实际，跟踪此前遗留的问题，并上报更高层 */
 @Injectable()
@@ -17,6 +18,7 @@ export class ReviewsService {
     private readonly access: ProjectAccess,
     private readonly issues: IssuesService,
     private readonly metrics: MetricsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(actor: AuthUser, projectId: string) {
@@ -57,7 +59,7 @@ export class ReviewsService {
     for (const a of dto.actions ?? []) await this.issues.checkOwner(ctx.tenantId, projectId, a.ownerId);
 
     const performance = await this.snapshot(ctx);
-    return this.audit.tx(
+    const created = await this.audit.tx(
       actor,
       {
         action: 'projectReview.create',
@@ -89,6 +91,11 @@ export class ReviewsService {
         return review;
       },
     );
+    for (const a of dto.actions ?? []) {
+      await this.notifications.notify(ctx.tenantId, [a.ownerId], { kind: 'ACTION_ASSIGNED', title: `新行动项：${a.title}`, body: `${ctx.project.code} 项目评审`, link: `/projects/${projectId}` }, actor.id);
+    }
+    await this.notifications.notify(ctx.tenantId, [dto.reportedToId], { kind: 'REVIEW_REPORTED', title: `项目评审报告：${ctx.project.code} ${ctx.project.name}`, body: dto.escalations ?? '', link: `/projects/${projectId}` }, actor.id);
+    return created;
   }
 
   private async snapshot(ctx: Awaited<ReturnType<ProjectAccess['load']>>) {
