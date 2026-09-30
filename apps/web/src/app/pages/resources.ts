@@ -27,7 +27,7 @@ import { ResourceLoad } from '../core/models';
         <label>起始日期 <input type="date" [value]="from()" (change)="from.set($any($event.target).value)" /></label>
         <label>周数
           <select [value]="weeks()" (change)="weeks.set(+$any($event.target).value)">
-            @for (n of [4, 8, 12, 26]; track n) { <option [value]="n">{{ n }} 周</option> }
+            @for (n of [4, 8, 12, 26]; track n) { <option [value]="n" [selected]="n === weeks()">{{ n }} 周</option> }
           </select>
         </label>
         <button mat-flat-button (click)="load()">查询</button>

@@ -34,7 +34,8 @@ const HL: Record<Health, string> = { RED: '告警', AMBER: '关注', GREEN: '正
     .head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid var(--pm-primary); padding-bottom: 8px; margin-bottom: 16px; }
     .head h1 { margin: 0 !important; }
     .tri { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .tri div { border: 1px solid var(--pm-line); border-radius: 8px; padding: 10px 12px; }
+    .tri > div { border: 1px solid var(--pm-line); border-radius: 8px; padding: 10px 12px; }
+    .tri .muted { margin-top: 6px; }
     ul { margin: 4px 0 0; padding-left: 20px; } li { margin: 2px 0; }
     .no-print { margin: 0 0 12px; display: flex; gap: 8px; }
     h2 { margin-top: 22px !important; }
