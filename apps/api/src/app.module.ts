@@ -1,0 +1,30 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { AuditModule } from './audit/audit.module.js';
+import { AuthModule } from './auth/auth.module.js';
+import { BootstrapService } from './bootstrap.service.js';
+import { JwtAuthGuard, RolesGuard } from './common/guards.js';
+import { HealthController } from './health/health.controller.js';
+import { PrismaModule } from './prisma/prisma.module.js';
+import { TenantsModule } from './tenants/tenants.module.js';
+import { UsersModule } from './users/users.module.js';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    AuditModule,
+    TenantsModule,
+    AuthModule,
+    UsersModule,
+  ],
+  controllers: [HealthController],
+  providers: [
+    BootstrapService,
+    // 默认所有接口都需要登录，公开接口显式加 @Public()
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+  ],
+})
+export class AppModule {}
