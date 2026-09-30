@@ -28,8 +28,16 @@ services:
       PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-}
       PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
       PORT: 3000
+    expose:
+      - "3000"
+
+  web:
+    build: ./apps/web
+    restart: unless-stopped
+    depends_on:
+      - api
     ports:
-      - "3000:3000"
+      - "8080:80"
 
 volumes:
   pgdata:

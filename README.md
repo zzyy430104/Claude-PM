@@ -24,12 +24,21 @@ npm run start:dev
 npm run test:e2e                # 需要可连接的 PostgreSQL 测试库，见 vitest.config.e2e.ts
 ```
 
+## 前端开发
+
+```bash
+cd apps/web
+npm install
+npx ng serve                    # http://localhost:4200，/api 代理到 localhost:3000
+npm test
+```
+
 ## Docker 部署
 
 ```bash
 cp .env.example .env            # 修改所有 change-me
 docker compose up -d
-curl localhost:3000/health
+curl localhost:8080/api/health   # 浏览器访问 http://localhost:8080
 ```
 
 ## 批次 A（地基）已实现

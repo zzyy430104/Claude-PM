@@ -1,0 +1,20 @@
+@use '@angular/material' as mat;
+
+html {
+  @include mat.theme((
+    color: (
+      primary: mat.$azure-palette,
+      tertiary: mat.$blue-palette,
+    ),
+    typography: Roboto,
+    density: 0,
+  ));
+}
+
+html, body { height: 100%; margin: 0; }
+body { font-family: Roboto, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--mat-sys-surface); color: var(--mat-sys-on-surface); }
+.page { padding: 24px; max-width: 1100px; margin: 0 auto; }
+.page h1 { margin: 0 0 16px; font: var(--mat-sys-headline-small); }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.error { color: var(--mat-sys-error); margin: 8px 0; }
+table { width: 100%; }
