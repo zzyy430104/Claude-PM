@@ -32,6 +32,12 @@ import { ROLE_LABELS } from '../core/models';
           @if (!auth.hasRole('PLATFORM_ADMIN')) {
             <a mat-list-item routerLink="/projects" routerLinkActive="active">项目</a>
           }
+          @if (auth.hasRole('TENANT_ADMIN', 'TOP_MANAGEMENT', 'PROJECT_MANAGER', 'FUNCTION_MANAGER')) {
+            <a mat-list-item routerLink="/tenders" routerLinkActive="active">投标</a>
+          }
+          @if (!auth.hasRole('PLATFORM_ADMIN')) {
+            <a mat-list-item routerLink="/lessons" routerLinkActive="active">经验教训库</a>
+          }
           @if (auth.hasRole('TENANT_ADMIN')) {
             <a mat-list-item routerLink="/templates" routerLinkActive="active">阶段模板</a>
           }

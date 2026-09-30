@@ -20,6 +20,22 @@ export class Api {
   patch<T>(path: string, body: unknown = {}) {
     return firstValueFrom(this.http.patch<T>(`${API}${path}`, body));
   }
+  /** 下载受保护的文件：带上令牌取回二进制，再交给浏览器保存 */
+  async download(path: string, fileName: string) {
+    const blob = await firstValueFrom(this.http.get(`${API}${path}`, { responseType: 'blob' }));
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    // 需要先挂到页面上再点击，部分浏览器才会采用 download 属性里的文件名
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  upload<T>(path: string, form: FormData) {
+    return firstValueFrom(this.http.post<T>(`${API}${path}`, form));
+  }
   delete(path: string) {
     return firstValueFrom(this.http.delete(`${API}${path}`));
   }
@@ -39,6 +55,10 @@ export function errorMessage(e: unknown, fallback = '操作失败'): string {
     const b = (e.error as { blockers?: { checklist: string[]; workPackages: string[]; deliverables: string[] } }).blockers;
     return `关口准则未满足，不能直接通过（请选择“有条件通过”并制定行动计划）。未通过清单项 ${b?.checklist.length ?? 0} 个，未核验工作包 ${b?.workPackages.length ?? 0} 个，未接受交付物 ${b?.deliverables.length ?? 0} 个`;
   }
+  if (body?.code === 'PROJECT_CLOSE_BLOCKED') return `暂不能关闭项目：${(e.error as { blockers?: string[] }).blockers?.join('；')}`;
+  if (body?.code === 'PBS_INCOMPLETE') return `产品分解结构必须分解到最低可更换单元，以下末级项还未标记：${(e.error as { items?: string[] }).items?.join('、')}`;
+  if (body?.code === 'TENDER_INCOMPLETE') return (e.error as { problems?: string[] }).problems?.join('；') ?? '投标信息不完整';
+  if (e.status === 413) return '文件太大';
   if (body?.code === 'BUDGET_ALLOCATION_EXCEEDED') return '各成本科目预算之和超过了项目预算，如需增加请先走预算变更';
   if (body?.code === 'QUALITY_PLAN_INCOMPLETE') return '质量计划至少要包含一项质量保证（QA）和一项质量控制（QC）活动';
   if (body?.code === 'NC_INCOMPLETE') return (e.error as { problems?: string[] }).problems?.join('；') ?? '信息不完整';

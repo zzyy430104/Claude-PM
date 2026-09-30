@@ -326,3 +326,18 @@ export const COMM_KIND_LABELS = { MEETING: '会议', CUSTOMER: '客户沟通', S
 export interface CommChannel { audience: string; channel: string; frequency: string }
 export interface CommPlan { channels: CommChannel[]; notes: string; version: number }
 export interface TrainingRow { id: string; userId: string; title: string; dueDate: string | null; status: 'PLANNED' | 'DONE' }
+
+export interface DocRow { id: string; folder: string; name: string; currentVersion: number; latest: { fileName: string; size: number; uploadedAt: string; sha256: string } | null }
+export interface DocVersion { id: string; version: number; fileName: string; size: number; sha256: string; comment: string | null; uploadedAt: string }
+export interface Lesson { id: string; kind: 'GOOD_PRACTICE' | 'LESSON'; title: string; description: string; recommendation: string; project?: { code: string; name: string } | null }
+export interface ConfigItemRow { id: string; parentId: string | null; code: string; name: string; kind: string; safetyRelated: boolean; lowestLevel: boolean; revision: string; serialNumber: string | null; batchNumber: string | null }
+export interface BaselineRow { id: string; type: string; name: string; createdAt: string; itemCount: number }
+export interface ConfigStatus { baseline: { name: string } | null; added: string[]; removed: string[]; changed: { code: string; from: string; to: string }[]; safetyRelatedItems: number }
+export type TenderStatus = 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED' | 'WON' | 'LOST';
+export const TENDER_STATUS_LABELS: Record<TenderStatus, string> = { DRAFT: '编制中', IN_REVIEW: '待审批', APPROVED: '已批准', REJECTED: '已驳回', WON: '已中标', LOST: '未中标' };
+export interface Tender {
+  id: string; code: string; title: string; customer: string; status: TenderStatus;
+  requirements: string; riskAssessment: string; riskExposure: string; knowledgeInputs: string;
+  deliverablesPlan: string; estimatedCost: string; offerPrice: string; resourcePlan: string;
+  decisionNote: string | null; convertedProjectId: string | null;
+}

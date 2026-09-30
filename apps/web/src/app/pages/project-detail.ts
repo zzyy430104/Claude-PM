@@ -10,6 +10,9 @@ import { ProjectWbs } from '../components/project-wbs';
 import { ProjectCost } from '../components/project-cost';
 import { ProjectQuality } from '../components/project-quality';
 import { ProjectTeam } from '../components/project-team';
+import { ProjectDocuments } from '../components/project-documents';
+import { ProjectClosure } from '../components/project-closure';
+import { ProjectConfig } from '../components/project-config';
 import { ProjectChanges } from '../components/project-changes';
 import { ProjectGates } from '../components/project-gates';
 import { ProjectIssues } from '../components/project-issues';
@@ -19,7 +22,7 @@ import { ProjectRisks } from '../components/project-risks';
 /** 项目详情：各模块以标签页挂载，后续批次在此追加 */
 @Component({
   selector: 'app-project-detail',
-  imports: [MatTabsModule, ProjectOverview, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam],
+  imports: [MatTabsModule, ProjectOverview, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig],
   template: `
     @if (project(); as p) {
       <div class="page">
@@ -37,6 +40,9 @@ import { ProjectRisks } from '../components/project-risks';
           <mat-tab label="成本"><ng-template matTabContent><app-project-cost [project]="p" /></ng-template></mat-tab>
           <mat-tab label="质量与不符合项"><ng-template matTabContent><app-project-quality [project]="p" /></ng-template></mat-tab>
           <mat-tab label="沟通与培训"><ng-template matTabContent><app-project-team [project]="p" /></ng-template></mat-tab>
+          <mat-tab label="文档"><ng-template matTabContent><app-project-documents [project]="p" /></ng-template></mat-tab>
+          <mat-tab label="配置管理"><ng-template matTabContent><app-project-config [project]="p" /></ng-template></mat-tab>
+          <mat-tab label="经验教训与关闭"><ng-template matTabContent><app-project-closure [project]="p" (changed)="load()" /></ng-template></mat-tab>
           <mat-tab label="交付物"><ng-template matTabContent><app-project-deliverables [project]="p" /></ng-template></mat-tab>
           <mat-tab label="成员"><ng-template matTabContent><app-project-members [project]="p" /></ng-template></mat-tab>
         </mat-tab-group>

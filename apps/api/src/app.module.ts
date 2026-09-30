@@ -5,6 +5,10 @@ import { AuditModule } from './audit/audit.module.js';
 import { CostModule } from './cost/cost.module.js';
 import { QualityModule } from './quality/quality.module.js';
 import { TeamModule } from './team/team.module.js';
+import { ConfigurationModule } from './configuration/config.module.js';
+import { DocumentsModule } from './documents/documents.module.js';
+import { KnowledgeModule } from './knowledge/knowledge.module.js';
+import { TenderModule } from './tenders/tender.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BootstrapService } from './bootstrap.service.js';
 import { JwtAuthGuard, RolesGuard } from './common/guards.js';
@@ -28,6 +32,10 @@ import { UsersModule } from './users/users.module.js';
     CostModule,
     QualityModule,
     TeamModule,
+    DocumentsModule,
+    KnowledgeModule,
+    ConfigurationModule,
+    TenderModule,
   ],
   controllers: [HealthController],
   providers: [

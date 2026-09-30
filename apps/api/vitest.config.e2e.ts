@@ -1,4 +1,6 @@
 import { defineConfig } from 'vitest/config';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
@@ -15,6 +17,7 @@ export default defineConfig({
         'postgresql://pm:pm@localhost:5432/claude_pm_test',
       JWT_SECRET: 'test-secret',
       ALLOW_TENANT_SIGNUP: 'true',
+      STORAGE_DIR: join(tmpdir(), 'claude-pm-test-storage'),
       PLATFORM_ADMIN_EMAIL: 'root@platform.test',
       PLATFORM_ADMIN_PASSWORD: 'platform-pass-1',
     },

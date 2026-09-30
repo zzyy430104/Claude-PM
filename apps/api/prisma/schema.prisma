@@ -162,6 +162,8 @@ model Project {
   customerDeliveryDate DateTime?     @db.Date
   budget               Decimal?      @db.Decimal(14, 2)
   reviewIntervalDays   Int           @default(30)
+  /// 由哪个中标的投标转化而来
+  tenderId             String?       @map("tender_id")
   createdById          String        @map("created_by_id")
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
@@ -665,4 +667,158 @@ model Training {
 
   @@index([tenantId, projectId])
   @@map("trainings")
+}
+
+// ───────── 批次 E：文档、经验教训、配置、投标 ─────────
+
+enum LessonKind {
+  GOOD_PRACTICE
+  LESSON
+}
+
+enum ConfigKind {
+  HARDWARE
+  SOFTWARE
+  DOCUMENT
+  TOOL
+}
+
+enum BaselineType {
+  AS_DESIGNED
+  AS_BUILT
+  AS_MAINTAINED
+}
+
+enum TenderStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  WON
+  LOST
+}
+
+model Document {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  projectId      String   @map("project_id")
+  /// 标准目录之一
+  folder         String
+  name           String
+  description    String?
+  currentVersion Int      @default(1) @map("current_version")
+  createdById    String   @map("created_by_id")
+  createdAt      DateTime @default(now())
+
+  versions DocumentVersion[]
+
+  @@unique([projectId, folder, name])
+  @@index([tenantId, projectId])
+  @@map("documents")
+}
+
+/// 文档版本不可修改、不可删除
+model DocumentVersion {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  documentId   String   @map("document_id")
+  version      Int
+  fileName     String   @map("file_name")
+  mimeType     String   @map("mime_type")
+  size         Int
+  sha256       String
+  storagePath  String   @map("storage_path")
+  comment      String?
+  uploadedById String   @map("uploaded_by_id")
+  uploadedAt   DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+
+  @@unique([documentId, version])
+  @@map("document_versions")
+}
+
+model Lesson {
+  id             String     @id @default(uuid())
+  tenantId       String     @map("tenant_id")
+  projectId      String     @map("project_id")
+  kind           LessonKind
+  title          String
+  description    String
+  recommendation String
+  phaseId        String?    @map("phase_id")
+  createdById    String     @map("created_by_id")
+  createdAt      DateTime   @default(now())
+
+  @@index([tenantId])
+  @@index([projectId])
+  @@map("lessons")
+}
+
+model ConfigItem {
+  id            String     @id @default(uuid())
+  tenantId      String     @map("tenant_id")
+  projectId     String     @map("project_id")
+  parentId      String?    @map("parent_id")
+  code          String
+  name          String
+  kind          ConfigKind
+  safetyRelated Boolean    @default(false) @map("safety_related")
+  /// 最低可更换单元（LLRU）
+  lowestLevel   Boolean    @default(false) @map("lowest_level")
+  revision      String     @default("A")
+  serialNumber  String?    @map("serial_number")
+  batchNumber   String?    @map("batch_number")
+  obsolete      Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([projectId, code])
+  @@index([tenantId, projectId])
+  @@map("config_items")
+}
+
+/// 基线是配置项在某一时刻的只读快照
+model Baseline {
+  id          String       @id @default(uuid())
+  tenantId    String       @map("tenant_id")
+  projectId   String       @map("project_id")
+  type        BaselineType
+  name        String
+  snapshot    Json
+  createdById String       @map("created_by_id")
+  createdAt   DateTime     @default(now())
+
+  @@index([tenantId, projectId])
+  @@map("baselines")
+}
+
+model Tender {
+  id                 String       @id @default(uuid())
+  tenantId           String       @map("tenant_id")
+  code               String
+  title              String
+  customer           String
+  status             TenderStatus @default(DRAFT)
+  requirements       String       @default("")
+  /// 风险与机会评估（含金额）
+  riskAssessment     String       @default("")
+  riskExposure       Decimal      @default(0) @map("risk_exposure") @db.Decimal(14, 2)
+  /// 组织知识输入（经验教训）
+  knowledgeInputs    String       @default("")
+  /// 交付物策划（含成本）
+  deliverablesPlan   String       @default("")
+  estimatedCost      Decimal      @default(0) @map("estimated_cost") @db.Decimal(14, 2)
+  offerPrice         Decimal      @default(0) @map("offer_price") @db.Decimal(14, 2)
+  resourcePlan       String       @default("")
+  createdById        String       @map("created_by_id")
+  decidedById        String?      @map("decided_by_id")
+  decidedAt          DateTime?
+  decisionNote       String?
+  convertedProjectId String?      @map("converted_project_id")
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@unique([tenantId, code])
+  @@map("tenders")
 }
