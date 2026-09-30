@@ -25,7 +25,7 @@ import { NotificationRow, ROLE_LABELS } from '../core/models';
     mat-sidenav a:hover { background: var(--pm-bg); }
     mat-sidenav a.active { background: #dbe5f0; color: var(--pm-primary-strong); }
     .spacer { flex: 1; }
-    .who { font-size: 13px; margin: 0 10px; color: #dbe4ee; }
+    .who { font-size: 13px; margin: 0 10px; color: #dbe4ee; text-decoration: none; padding: 6px 8px; border-radius: 8px; } .who:hover { background: rgba(255,255,255,.08); text-decoration: none; }
     .who em { font-style: normal; background: rgba(255,255,255,.14); padding: 2px 8px; border-radius: 999px; margin-left: 8px; font-size: 12px; }
     .n-title { font-weight: 500; } .n-body { font-size: 12px; color: var(--mat-sys-on-surface-variant); }
     .unread { font-weight: 600; }
@@ -34,7 +34,7 @@ import { NotificationRow, ROLE_LABELS } from '../core/models';
     <mat-toolbar>
       <span class="mark">PM</span><span class="brand">Claude-PM</span>
       <span class="spacer"></span>
-      @if (!auth.hasRole('PLATFORM_ADMIN')) {
+      @if (!auth.hasRole('PLATFORM_ADMIN') && !auth.user()?.mustChangePassword) {
         <button mat-button [matMenuTriggerFor]="menu" (menuOpened)="loadList()" [attr.aria-label]="i18n.t('通知')">
           {{ i18n.t('通知') }} <span [matBadge]="unread()" [matBadgeHidden]="unread() === 0" matBadgeOverlap="false" matBadgeSize="small"></span>
         </button>
@@ -51,7 +51,7 @@ import { NotificationRow, ROLE_LABELS } from '../core/models';
           @if (unread() > 0) { <button mat-menu-item (click)="readAll()">{{ i18n.t('全部已读') }}</button> }
         </mat-menu>
       }
-      <span class="who">{{ auth.user()?.name }}<em>{{ roleLabel() }}</em></span>
+      <a class="who" routerLink="/account" [attr.title]="i18n.t('个人设置')">{{ auth.user()?.name }}<em>{{ roleLabel() }}</em></a>
       <button mat-button (click)="i18n.toggle()" [attr.aria-label]="i18n.t('语言')">{{ i18n.lang() === 'en' ? '中文' : 'EN' }}</button>
       <button mat-button (click)="auth.logout()">{{ i18n.t('退出') }}</button>
     </mat-toolbar>

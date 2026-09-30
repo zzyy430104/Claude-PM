@@ -30,6 +30,8 @@ export interface CurrentUser {
   role: Role;
   email: string;
   name: string;
+  /** 管理员设置或重置的密码，必须先改掉 */
+  mustChangePassword?: boolean;
 }
 
 export interface UserRow {
@@ -38,6 +40,7 @@ export interface UserRow {
   name: string;
   role: Role;
   active: boolean;
+  mustChangePassword?: boolean;
   createdAt: string;
 }
 

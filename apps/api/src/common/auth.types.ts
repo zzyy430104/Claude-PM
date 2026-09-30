@@ -8,6 +8,8 @@ export interface AuthUser {
   role: Role;
   email: string;
   name: string;
+  /** 管理员设置或重置密码后为 true，前端据此强制改密 */
+  mustChangePassword?: boolean;
 }
 
 /** 租户内操作必须有 tenantId；平台管理员不能访问租户业务数据 */

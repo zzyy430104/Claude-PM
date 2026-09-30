@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   UnauthorizedException,
@@ -7,12 +8,13 @@ import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { AuditService } from '../audit/audit.service.js';
-import { verifyPassword } from '../common/password.js';
+import { hashPassword, verifyPassword } from '../common/password.js';
+import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { TenantsService } from '../tenants/tenants.service.js';
 import { withBypass } from '../prisma/tenant-context.js';
 import { limits, RateLimiter } from './rate-limiter.js';
-import { LoginDto, SignupDto } from './dto.js';
+import { ChangePasswordDto, LoginDto, SignupDto } from './dto.js';
 
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 
@@ -135,6 +137,37 @@ export class AuthService {
       record.user.tenantId,
       record.user.role,
     );
+  }
+
+  /** 本人修改密码：校验当前密码，作废所有刷新令牌（其他设备下线），为当前会话签发新令牌 */
+  async changePassword(actor: AuthUser, dto: ChangePasswordDto) {
+    const l = limits();
+    const key = `pwchange|${actor.id}`;
+    this.limiter.assertBelow(key, l.loginPerAccount, l.windowMs);
+    const user = await withBypass(() => this.prisma.user.findUnique({ where: { id: actor.id } }));
+    if (!user || !(await verifyPassword(dto.currentPassword, user.passwordHash))) {
+      this.limiter.record(key, l.windowMs);
+      throw new BadRequestException({ code: 'WRONG_PASSWORD', message: 'Current password is incorrect' });
+    }
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException({ code: 'SAME_PASSWORD', message: 'The new password must differ from the current one' });
+    }
+    const passwordHash = await hashPassword(dto.newPassword);
+    await withBypass(() =>
+      this.prisma.txn(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { passwordHash, mustChangePassword: false, passwordChangedAt: new Date() },
+        });
+        await tx.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+        await this.audit.record(
+          { tenantId: user.tenantId, actorId: user.id, action: 'auth.changePassword', entity: 'User', entityId: user.id },
+          tx,
+        );
+      }),
+    );
+    this.limiter.reset(key);
+    return withBypass(() => this.issueTokens(user.id, user.tenantId, user.role));
   }
 
   async logout(userId: string, tenantId: string | null, refreshToken?: string) {

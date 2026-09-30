@@ -144,11 +144,17 @@ export const EN_PHRASES: [string, string][] = [
   ['：', ': '], ['；', '; '], ['，', ', '], ['。', '. '], ['（', ' ('], ['）', ')'], ['、', ', '], ['！', '!'], ['？', '?'], ['·', '·'], ['→', '→'],
   ['轨道交通项目管理与质量协同平台', 'Railway project management and quality collaboration platform'], ['按 ISO 22163:2023 组织项目策划、关口评审、变更控制和不符合项闭环，审核时一键导出证据包。', 'Organize project planning, gate reviews, change control and nonconformity closure per ISO 22163:2023, and export an evidence pack in one click for audits.'],
   ['使用管理员分配的账号登录', 'Sign in with the account your administrator gave you'], ['创建企业并成为它的管理员', 'Create a company and become its administrator'],
+  ['个人设置', 'Account settings'], ['修改密码', 'Change password'], ['当前密码', 'Current password'], ['新密码（至少 8 位）', 'New password (at least 8 characters)'], ['再次输入新密码', 'Repeat new password'],
+  ['你的密码是管理员设置的，请先修改为只有你自己知道的密码，然后才能继续使用系统。', 'Your password was set by an administrator. Change it to one only you know before continuing.'],
+  ['密码已修改。其他设备上的登录已失效。', 'Password changed. Sessions on other devices have been signed out.'], ['两次输入的新密码不一致', 'The new passwords do not match'],
+  ['重置密码', 'Reset password'], ['确认重置', 'Confirm reset'], ['待本人改密', 'Must change password'], ['新建用户或重置密码后，本人首次登录必须修改密码。', 'After an account is created or its password reset, the user must change the password at next sign-in.'],
+  ['当前密码不正确', 'Current password is incorrect'], ['新密码不能与当前密码相同', 'The new password must differ from the current one'], ['请先修改初始密码', 'Please change your initial password first'], ['尝试次数过多，请稍后再试', 'Too many attempts, please try again later'], ['修改失败', 'Change failed'], ['重置失败', 'Reset failed'],
 ];
 
 /** 动态拼接的句子：优先于逐词替换，捕获数字和名称后重排 */
 export const EN_RULES: [RegExp, string][] = [
   [/^欢迎，(.+)$/, 'Welcome, $1'],
+  [/^已重置 (.+) 的密码。请把临时密码告知本人，对方下次登录后需要修改。$/, 'Password for $1 has been reset. Give the temporary password to the user; they must change it at next sign-in.'],
   [/^总工期 (\d+) 天，预计完成 (\S+)/, 'Total duration $1 days, projected finish $2'],
   [/^项目管理计划（第 (\d+) 版）$/, 'Project management plan (version $1)'],
   [/^项目质量计划（第 (\d+) 版，(已批准|未批准)）$/, 'Project quality plan (version $1, $2)'],

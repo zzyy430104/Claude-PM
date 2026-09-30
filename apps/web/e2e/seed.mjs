@@ -17,7 +17,10 @@ export async function seedTenant(slug) {
   for (const [key, name, role] of [['pm', '李经理', 'PROJECT_MANAGER'], ['pqm', '赵质量', 'PROJECT_QUALITY_MANAGER'], ['member', '王成员', 'MEMBER'], ['top', '钱总', 'TOP_MANAGEMENT']]) {
     const email = `${key}@demo.test`;
     const u = await call('POST', '/users', admin.accessToken, { email, name, password: 'demo-pass-123', role });
-    const l = await call('POST', '/auth/login', null, { tenantSlug: slug, email, password: 'demo-pass-123' });
+    const first = await call('POST', '/auth/login', null, { tenantSlug: slug, email, password: 'demo-pass-123' });
+    // 管理员建的账号必须先改密；测试里改成临时密码再改回来，保持密码不变
+    const tmp = await call('POST', '/auth/change-password', first.accessToken, { currentPassword: 'demo-pass-123', newPassword: 'demo-pass-tmp' });
+    const l = await call('POST', '/auth/change-password', tmp.accessToken, { currentPassword: 'demo-pass-tmp', newPassword: 'demo-pass-123' });
     // access：用于通过接口造数据；slug / password：浏览器里走真实的登录表单
     users[key] = { id: u.id, email, name, access: l.accessToken, slug, password: 'demo-pass-123' };
   }

@@ -40,6 +40,23 @@ export async function login(p, slug, email, password) {
   await p.fill('input[formcontrolname=password]', password);
   await p.click('button:has-text("登录")');
   await p.waitForSelector('mat-toolbar');
+  await p.waitForTimeout(300);
+  // 管理员建的账号首次登录会被带到改密页：改成临时密码再改回原密码，后续脚本照常使用原密码
+  if (p.url().includes('/account')) {
+    await changePassword(p, password, password + '-tmp');
+    await p.waitForURL((u) => !u.pathname.startsWith('/account'));
+    await p.goto(`${WEB}/account`);
+    await changePassword(p, password + '-tmp', password);
+    await p.waitForSelector('text=密码已修改');
+    await p.goto(`${WEB}/`);
+    await p.waitForSelector('mat-toolbar');
+  }
+}
+export async function changePassword(p, current, next) {
+  await p.fill('input[formcontrolname=currentPassword]', current);
+  await p.fill('input[formcontrolname=newPassword]', next);
+  await p.fill('input[formcontrolname=confirm]', next);
+  await p.click('button[type=submit]:has-text("修改密码")');
 }
 export async function logout(p) {
   await p.click('button:has-text("退出")');
@@ -69,7 +86,7 @@ export async function loginAs(p, user) {
   await p.waitForSelector('mat-toolbar');
 }
 export async function openProject(p, code) {
-  await p.click('a:has-text("项目")');
+  await p.click('mat-sidenav a:text-is("项目")');
   await p.click(`a:has-text("${code}")`);
   await p.waitForSelector(`h1:has-text("${code}")`);
 }

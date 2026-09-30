@@ -66,6 +66,10 @@ export function errorMessage(e: unknown, fallback = '操作失败'): string {
   if (body?.code === 'CUSTOMER_AGREEMENT_REQUIRED') return '客户尚未同意，请先记录“客户已同意”';
   if (body?.code === 'TOP_MANAGEMENT_REQUIRED') return '预算增加必须由最高管理层批准';
   if (body?.code === 'CHANGE_INCOMPLETE') return (e.error as { problems?: string[] }).problems?.join('；') ?? '变更申请信息不完整';
+  if (body?.code === 'WRONG_PASSWORD') return '当前密码不正确';
+  if (body?.code === 'SAME_PASSWORD') return '新密码不能与当前密码相同';
+  if (body?.code === 'PASSWORD_CHANGE_REQUIRED') return '请先修改初始密码';
+  if (e.status === 429) return '尝试次数过多，请稍后再试';
   if (e.status === 403) return '没有权限执行此操作';
   if (e.status === 404) return '记录不存在或无权访问';
   const msg = Array.isArray(body?.message) ? body!.message.join('；') : body?.message;

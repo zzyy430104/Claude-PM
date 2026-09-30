@@ -34,6 +34,7 @@ export class TenantsService {
             email: input.adminEmail.toLowerCase(),
             name: input.adminName,
             passwordHash,
+            mustChangePassword: actorId !== null,
             role: Role.TENANT_ADMIN,
           },
         });

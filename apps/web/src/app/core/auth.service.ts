@@ -59,6 +59,15 @@ export class AuthService {
     await firstValueFrom(this.http.post(`${API}/auth/signup`, body));
   }
 
+  /** 修改本人密码：成功后服务端作废其他设备的登录，并为当前会话发新令牌 */
+  async changePassword(currentPassword: string, newPassword: string) {
+    const res = await firstValueFrom(
+      this.http.post<{ accessToken: string }>(`${API}/auth/change-password`, { currentPassword, newPassword }),
+    );
+    this.token = res.accessToken;
+    await this.loadMe();
+  }
+
   /** 多个并发请求同时 401 时只发一次刷新 */
   refresh(): Promise<boolean> {
     if (this.refreshing) return this.refreshing;

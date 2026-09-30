@@ -7,7 +7,7 @@ await addUser(p, '王成员', 'wang@demo.test', 'pm-pass-12345', '成员（只�
 await logout(p);
 
 await login(p, slug, 'pm@demo.test', 'pm-pass-12345'); step('项目经理登录');
-await p.click('a:has-text("项目")');
+await p.click('mat-sidenav a:text-is("项目")');
 await p.fill('input[formcontrolname=code]', 'HSR-001');
 await p.fill('input[formcontrolname=name]', '高铁转向架项目');
 await p.fill('input[formcontrolname=startDate]', '2026-03-02');
@@ -78,7 +78,7 @@ await p.waitForSelector('text=需要先提交并批准变更申请'); step('基�
 await logout(p);
 
 await login(p, slug, 'wang@demo.test', 'pm-pass-12345');
-await p.click('a:has-text("项目")');
+await p.click('mat-sidenav a:text-is("项目")');
 await p.click('a:has-text("HSR-001")');
 await p.waitForSelector('h1:has-text("HSR-001")');
 const hasForm = await p.locator('button:has-text("保存计划")').count();

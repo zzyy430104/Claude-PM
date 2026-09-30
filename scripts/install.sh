@@ -115,7 +115,7 @@ say "部署完成"
 echo "  访问地址：$(getenv APP_URL)      （本机也可用 $BASE）"
 echo "  平台管理员：$(getenv PLATFORM_ADMIN_EMAIL)"
 if [ -n "$CREATED_ADMIN_PASSWORD" ]; then
-  echo "  自动生成的密码：$CREATED_ADMIN_PASSWORD      ← 请现在记下来（当前版本没有修改密码页面）"
+  echo "  自动生成的密码：$CREATED_ADMIN_PASSWORD      ← 请现在记下来，登录后在「个人设置」里修改"
 else
   echo "  密码：你刚才设置的（也保存在 .env 里）"
 fi

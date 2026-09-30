@@ -67,7 +67,10 @@ export interface TestUser {
   token: string;
 }
 
-/** 由租户管理员创建指定角色的用户并登录 */
+/** createUser 建出的用户改密后的密码 */
+export const USER_PASSWORD = 'password-456';
+
+/** 由租户管理员创建指定角色的用户、登录并完成首次改密 */
 export async function createUser(
   app: INestApplication,
   tenant: { slug: string; token: string },
@@ -85,7 +88,13 @@ export async function createUser(
     .post('/auth/login')
     .send({ tenantSlug: tenant.slug, email, password })
     .expect(200);
-  return { id: created.body.id, email, token: login.body.accessToken };
+  // 管理员建的账号首次登录必须改密，改完才能正常使用
+  const changed = await request(app.getHttpServer())
+    .post('/auth/change-password')
+    .set(bearer(login.body.accessToken))
+    .send({ currentPassword: password, newPassword: USER_PASSWORD })
+    .expect(200);
+  return { id: created.body.id, email, token: changed.body.accessToken };
 }
 
 /** 创建一个租户，含项目经理、质量经理和几个普通成员 */

@@ -19,6 +19,7 @@ const publicSelect = {
   name: true,
   role: true,
   active: true,
+  mustChangePassword: true,
   createdAt: true,
 } satisfies Prisma.UserSelect;
 
@@ -70,6 +71,7 @@ export class UsersService {
             name: dto.name,
             passwordHash,
             role: dto.role,
+            mustChangePassword: true,
           },
           select: publicSelect,
         });
@@ -120,7 +122,12 @@ export class UsersService {
       role: dto.role,
       active: dto.active,
     };
-    if (dto.password) data.passwordHash = await hashPassword(dto.password);
+    if (dto.password) {
+      // 管理员重置别人的密码后，对方下次登录必须自己改掉
+      data.passwordHash = await hashPassword(dto.password);
+      data.mustChangePassword = id !== actor.id;
+      data.passwordChangedAt = new Date();
+    }
 
     return this.prisma.txn(async (tx) => {
       const user = await tx.user.update({
@@ -150,7 +157,7 @@ export class UsersService {
             name: user.name,
             role: user.role,
             active: user.active,
-            ...(dto.password ? { passwordChanged: true } : {}),
+            ...(dto.password ? { passwordReset: true } : {}),
           },
         },
         tx,

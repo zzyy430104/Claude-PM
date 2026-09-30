@@ -4,7 +4,7 @@ import { clearRefreshCookie, CSRF_HEADER, CSRF_VALUE, readCookie, REFRESH_COOKIE
 import { CurrentUser, Public } from '../common/decorators.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { AuthService } from './auth.service.js';
-import { LoginDto, SignupDto } from './dto.js';
+import { ChangePasswordDto, LoginDto, SignupDto } from './dto.js';
 
 @Controller()
 export class AuthController {
@@ -48,6 +48,14 @@ export class AuthController {
   async logout(@CurrentUser() user: AuthUser, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     await this.auth.logout(user.id, user.tenantId, readCookie(req, REFRESH_COOKIE));
     clearRefreshCookie(res);
+  }
+
+  @Post('auth/change-password')
+  @HttpCode(200)
+  async changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto, @Res({ passthrough: true }) res: Response) {
+    const { accessToken, refreshToken } = await this.auth.changePassword(user, dto);
+    setRefreshCookie(res, refreshToken);
+    return { accessToken };
   }
 
   @Get('me')

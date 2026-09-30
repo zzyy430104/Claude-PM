@@ -64,6 +64,13 @@ await check('后端健康检查（含数据库连通）', async () => {
 });
 await check('未登录访问受保护接口返回 401', async () => expectStatus(await req('GET', '/projects'), 401));
 
+/** 管理员建的账号首次登录后改密，返回新的访问令牌 */
+async function firstChange(token) {
+  const r = await req('POST', '/auth/change-password', { token, body: { currentPassword: pw, newPassword: pw + '-changed' } });
+  expectStatus(r, 200, '首次改密');
+  return r.json.accessToken;
+}
+
 console.log('\n2. 平台管理员与租户');
 await check('平台管理员登录，刷新令牌通过 httpOnly Cookie 下发', async () => {
   const r = await req('POST', '/auth/login', { body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD } });
@@ -83,9 +90,12 @@ await check('创建测试企业', async () => {
   const r = await req('POST', '/platform/tenants', { token: state.platform, body: { name: `冒烟测试 ${stamp}`, slug, adminEmail: `admin@${slug}.test`, adminName: '冒烟管理员', adminPassword: pw } });
   expectStatus(r, 201); state.tenantId = r.json.id;
 });
-await check('企业管理员登录', async () => {
+await check('企业管理员首次登录必须先改密', async () => {
   const r = await req('POST', '/auth/login', { body: { tenantSlug: slug, email: `admin@${slug}.test`, password: pw } });
-  expectStatus(r, 200); state.admin = r.json.accessToken;
+  expectStatus(r, 200, '登录');
+  expectStatus(await req('GET', '/projects', { token: r.json.accessToken }), 403, '改密前访问业务接口');
+  state.admin = await firstChange(r.json.accessToken);
+  expectStatus(await req('GET', '/projects', { token: state.admin }), 200, '改密后访问业务接口');
 });
 await check('平台管理员不能读取企业业务数据', async () => expectStatus(await req('GET', '/users', { token: state.platform }), 403));
 
@@ -94,7 +104,7 @@ await check('创建项目经理并登录', async () => {
   const u = await req('POST', '/users', { token: state.admin, body: { email: `pm@${slug}.test`, name: '冒烟经理', password: pw, role: 'PROJECT_MANAGER' } });
   expectStatus(u, 201, '创建用户'); state.pmId = u.json.id;
   const l = await req('POST', '/auth/login', { body: { tenantSlug: slug, email: `pm@${slug}.test`, password: pw } });
-  expectStatus(l, 200, '登录'); state.pm = l.json.accessToken;
+  expectStatus(l, 200, '登录'); state.pm = await firstChange(l.json.accessToken);
 });
 await check('创建项目，自动生成 7 个阶段', async () => {
   const r = await req('POST', '/projects', { token: state.pm, body: { code: `S-${stamp}`, name: '冒烟测试项目', riskLevel: 'MEDIUM', startDate: '2026-01-05', endDate: '2026-12-31', budget: 100000 } });
@@ -145,9 +155,10 @@ await check('另一个企业看不到这个项目', async () => {
   const t = await req('POST', '/platform/tenants', { token: state.platform, body: { name: `冒烟测试2 ${stamp}`, slug: slug2, adminEmail: `admin@${slug2}.test`, adminName: 'B', adminPassword: pw } });
   expectStatus(t, 201); state.tenant2 = t.json.id;
   const l = await req('POST', '/auth/login', { body: { tenantSlug: slug2, email: `admin@${slug2}.test`, password: pw } });
-  const r = await req('GET', `/projects/${state.project}`, { token: l.json.accessToken });
+  const token2 = await firstChange(l.json.accessToken);
+  const r = await req('GET', `/projects/${state.project}`, { token: token2 });
   expectStatus(r, 404);
-  const list = await req('GET', '/projects', { token: l.json.accessToken });
+  const list = await req('GET', '/projects', { token: token2 });
   expect(list.json.length === 0, '看到了别的企业的项目');
 });
 

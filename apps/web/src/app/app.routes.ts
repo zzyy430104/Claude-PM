@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, roleGuard } from './core/guards';
+import { authGuard, passwordGuard, roleGuard } from './core/guards';
 
 export const routes: Routes = [
   {
@@ -13,6 +13,7 @@ export const routes: Routes = [
   {
     path: '',
     canActivate: [authGuard],
+    canActivateChild: [passwordGuard],
     loadComponent: () => import('./layout/shell').then((m) => m.Shell),
     children: [
       {
@@ -51,6 +52,10 @@ export const routes: Routes = [
         path: 'audit',
         canActivate: [roleGuard('TENANT_ADMIN', 'TOP_MANAGEMENT')],
         loadComponent: () => import('./pages/audit').then((m) => m.AuditPage),
+      },
+      {
+        path: 'account',
+        loadComponent: () => import('./pages/account').then((m) => m.AccountPage),
       },
       {
         path: 'tenants',

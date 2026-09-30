@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -14,6 +14,10 @@ import { ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../core/models';
 @Component({
   selector: 'app-users',
   imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatSlideToggleModule, MatTableModule],
+  styles: `
+    .reset { display: inline-flex; gap: 8px; align-items: center; }
+    .reset input { height: 32px; border: 1px solid #c5cfdb; border-radius: 6px; padding: 0 10px; font: inherit; width: 200px; }
+  `,
   template: `
     <div class="page">
       <h1>用户管理</h1>
@@ -33,6 +37,8 @@ import { ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../core/models';
         </form>
       }
       @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
+      @if (notice()) { <div class="panel" role="status" style="margin-bottom: 12px">{{ notice() }}</div> }
+      <p class="muted">新建用户或重置密码后，本人首次登录必须修改密码。</p>
 
       <table mat-table [dataSource]="users()">
         <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>姓名</th><td mat-cell *matCellDef="let u">{{ u.name }}</td></ng-container>
@@ -53,6 +59,23 @@ import { ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../core/models';
             <mat-slide-toggle [checked]="u.active" [disabled]="!canEdit() || u.id === me()?.id" (change)="update(u, { active: $event.checked })" aria-label="启用" />
           </td>
         </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let u">
+            @if (canEdit() && u.id !== me()?.id) {
+              @if (resetting() === u.id) {
+                <span class="reset">
+                  <input type="password" [formControl]="resetPw" placeholder="新的临时密码（至少 8 位）" autocomplete="new-password" aria-label="新的临时密码" (keydown.enter)="reset(u)" />
+                  <button mat-flat-button type="button" (click)="reset(u)" [disabled]="resetPw.invalid">确认重置</button>
+                  <button mat-button type="button" (click)="resetting.set(null)">取消</button>
+                </span>
+              } @else {
+                <button mat-button (click)="startReset(u)">重置密码</button>
+              }
+            }
+            @if (u.mustChangePassword) { <span class="muted">待本人改密</span> }
+          </td>
+        </ng-container>
         <tr mat-header-row *matHeaderRowDef="cols"></tr>
         <tr mat-row *matRowDef="let row; columns: cols"></tr>
       </table>
@@ -64,7 +87,10 @@ export class UsersPage {
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder).nonNullable;
 
-  readonly cols = ['name', 'email', 'role', 'active'];
+  readonly cols = ['name', 'email', 'role', 'active', 'actions'];
+  readonly resetting = signal<string | null>(null);
+  readonly resetPw = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(8)] });
+  readonly notice = signal('');
   readonly roles = TENANT_ROLES;
   readonly users = signal<UserRow[]>([]);
   readonly error = signal('');
@@ -113,6 +139,26 @@ export class UsersPage {
       this.error.set(this.message(e, '更新失败'));
     }
     await this.load();
+  }
+
+  startReset(u: UserRow) {
+    this.resetPw.reset('');
+    this.notice.set('');
+    this.resetting.set(u.id);
+  }
+
+  /** 管理员设置临时密码；对方原有登录全部失效，下次登录必须自己改密 */
+  async reset(u: UserRow) {
+    if (this.resetPw.invalid) return;
+    this.error.set('');
+    try {
+      await firstValueFrom(this.http.patch(`${API}/users/${u.id}`, { password: this.resetPw.value }));
+      this.resetting.set(null);
+      this.notice.set(`已重置 ${u.name} 的密码。请把临时密码告知本人，对方下次登录后需要修改。`);
+      await this.load();
+    } catch (e) {
+      this.error.set(this.message(e, '重置失败'));
+    }
   }
 
   private message(e: unknown, fallback: string) {

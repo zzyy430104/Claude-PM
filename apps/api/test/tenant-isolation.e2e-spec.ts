@@ -171,7 +171,9 @@ describe('多租户隔离与用户管理', () => {
     }).expect(201);
     const login = await http().post('/auth/login')
       .send({ tenantSlug: a.slug, email: 'm@dir.test', password: 'password-123' }).expect(200);
-    const dir = await http().get('/users/directory').set(bearer(login.body.accessToken)).expect(200);
+    const changed = await http().post('/auth/change-password').set(bearer(login.body.accessToken))
+      .send({ currentPassword: 'password-123', newPassword: 'password-456' }).expect(200);
+    const dir = await http().get('/users/directory').set(bearer(changed.body.accessToken)).expect(200);
     const emails = dir.body.map((u: { email: string }) => u.email);
     expect(emails).toContain('m@dir.test');
     expect(emails).not.toContain('gone@dir.test');
