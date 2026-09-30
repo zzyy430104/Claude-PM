@@ -142,6 +142,8 @@ export const EN_PHRASES: [string, string][] = [
   ['策划与执行', 'Plan & execute'], ['评审与控制', 'Review & control'], ['成本、质量与记录', 'Cost, quality & records'], ['项目模块', 'Project modules'],
   // 标点收尾（放在最后，使用最短匹配）
   ['：', ': '], ['；', '; '], ['，', ', '], ['。', '. '], ['（', ' ('], ['）', ')'], ['、', ', '], ['！', '!'], ['？', '?'], ['·', '·'], ['→', '→'],
+  ['轨道交通项目管理与质量协同平台', 'Railway project management and quality collaboration platform'], ['按 ISO 22163:2023 组织项目策划、关口评审、变更控制和不符合项闭环，审核时一键导出证据包。', 'Organize project planning, gate reviews, change control and nonconformity closure per ISO 22163:2023, and export an evidence pack in one click for audits.'],
+  ['使用管理员分配的账号登录', 'Sign in with the account your administrator gave you'], ['创建企业并成为它的管理员', 'Create a company and become its administrator'],
 ];
 
 /** 动态拼接的句子：优先于逐词替换，捕获数字和名称后重排 */

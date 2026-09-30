@@ -116,3 +116,51 @@ table { width: 100%; border-collapse: collapse; }
 .auth-form .sub { margin: 0 0 20px; color: var(--pm-muted); }
 .auth-form button[type=submit] { height: 44px; margin-top: 8px; font-size: 15px; }
 @media (max-width: 860px) { .auth { grid-template-columns: 1fr; } .auth-brand { display: none; } }
+
+// ───────── 铺开到全站：项目页面的通用外观 ─────────
+// 选择器前加 html 提高优先级，覆盖各组件里原来的简易样式
+html .page :is(.box, .cr, .phase) { background: var(--pm-card); border: 1px solid var(--pm-line); border-radius: var(--pm-radius); box-shadow: var(--pm-shadow); padding: 16px 20px; margin: 12px 0; }
+html .page .phase.active { border-color: var(--pm-accent); box-shadow: 0 0 0 1px var(--pm-accent), var(--pm-shadow); }
+html .page :is(.meta, .hist, .legend) { color: var(--pm-muted); font-size: 12.5px; }
+html .page :is(.warn, .bad, .high, .over, .crit) { color: var(--pm-red); }
+html .page strong { font-weight: 600; }
+
+// 操作表单：白色面板
+html .page form.row { background: var(--pm-card); border: 1px solid var(--pm-line); border-radius: var(--pm-radius); box-shadow: var(--pm-shadow); padding: 16px 20px 6px; margin: 0 0 16px; align-items: flex-start; }
+html .page form.row .mat-mdc-form-field-subscript-wrapper { min-height: 8px; }
+
+// 普通表格：与 .tbl 同一外观
+html .page table:not(.mat-mdc-table) { background: var(--pm-card); font-size: 13.5px; border-collapse: separate; border-spacing: 0; border: 1px solid var(--pm-line); border-radius: var(--pm-radius); box-shadow: var(--pm-shadow); overflow: hidden; margin: 8px 0 16px; }
+html .page .tbl table:not(.mat-mdc-table) { border: 0; box-shadow: none; margin: 0; }
+html .page table:not(.mat-mdc-table) th { font-weight: 600; font-size: 12px; color: var(--pm-muted); background: #f7f9fb; padding: 10px 14px; border-bottom: 1px solid var(--pm-line); white-space: nowrap; }
+html .page table:not(.mat-mdc-table) td { padding: 10px 14px; border-bottom: 1px solid var(--pm-line); vertical-align: top; }
+html .page table:not(.mat-mdc-table) tr:last-child td { border-bottom: 0; }
+html .page table:not(.mat-mdc-table) tbody tr:hover { background: #f9fafc; }
+
+// Material 表格
+html .page table.mat-mdc-table { background: var(--pm-card); border-collapse: separate; border-spacing: 0; border: 1px solid var(--pm-line); border-radius: var(--pm-radius); box-shadow: var(--pm-shadow); overflow: hidden; margin: 8px 0 16px; }
+html .page .mat-mdc-header-cell { font-weight: 600; font-size: 12px; color: var(--pm-muted); background: #f7f9fb; }
+html .page .mat-mdc-cell { font-size: 13.5px; }
+html .page .mat-mdc-row:hover { background: #f9fafc; }
+html .page .mat-mdc-cell, html .page .mat-mdc-header-cell { border-bottom-color: var(--pm-line); padding: 0 14px; }
+
+// 按钮层级：主按钮深蓝，次要按钮描边
+html .page .mat-mdc-button:not(:disabled) { color: var(--pm-primary); }
+html .page .mat-mdc-outlined-button:not(:disabled) { border-color: #c5cfdb; }
+html .page textarea { min-height: 72px; }
+
+// 看板 / 甘特
+html .page .col { background: #eaeef4; }
+html .page .col .card { background: var(--pm-card); border: 1px solid var(--pm-line); border-radius: 8px; }
+
+// 项目页头与标签导航
+.crumb { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+.crumb .code { color: var(--pm-muted); font-weight: 500; }
+
+// 非 .row 的表单（计划、变更申请等）：同样放进面板，字段之间留间距
+html .page :not(.box):not(.cr):not(.phase):not(.panel) > form:not(.row) { background: var(--pm-card); border: 1px solid var(--pm-line); border-radius: var(--pm-radius); box-shadow: var(--pm-shadow); padding: 16px 20px; margin: 0 0 16px; }
+html .page form:not(.row) > .mat-mdc-form-field { margin-bottom: 4px; }
+html .page form:not(.row) > .mdc-button, html .page form:not(.row) > label + .mdc-button { margin-top: 6px; }
+html .page :not(.row):not(.row-nav) > .mdc-button + .mdc-button { margin-left: 8px; }
+html .page label:has(> input[type=checkbox]) { display: inline-flex; align-items: center; gap: 6px; margin: 0 14px 0 0; }
+html .page input[type=checkbox] { accent-color: var(--pm-primary); }

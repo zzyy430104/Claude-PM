@@ -4,6 +4,19 @@ export const WEB = process.env.WEB_URL ?? 'http://localhost:4200';
 export async function launch() {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox'] });
   const p = await b.newPage({ viewport: { width: 1360, height: 900 }, locale: 'zh-CN' });
+  // 轮廓样式的下拉框，中央被浮动标签覆盖；点击标签会由表单字段容器转给下拉框，真实用户可以正常点开，
+  // 但 Playwright 的命中检测会认为被遮挡，所以对 mat-select 强制点击
+  const click = p.click.bind(p);
+  p.click = async (sel, opts) => {
+    if (/^mat-select/.test(sel)) {
+      await p.waitForSelector('.cdk-overlay-backdrop', { state: 'detached', timeout: 3000 }).catch(() => {});
+      return click(sel, { force: true, ...opts });
+    }
+    const r = await click(sel, opts);
+    // 选完选项后等下拉面板的遮罩消失，避免下一次点击落在正在关闭的遮罩上
+    if (/^mat-option/.test(sel)) await p.waitForSelector('.cdk-overlay-backdrop', { state: 'detached', timeout: 3000 }).catch(() => {});
+    return r;
+  };
   const errors = [];
   p.on('pageerror', e => errors.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/ERR_CERT|401|403|404|409/.test(m.text())) errors.push('console: ' + m.text()); });

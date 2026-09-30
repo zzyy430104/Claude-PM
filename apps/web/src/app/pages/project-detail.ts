@@ -38,18 +38,21 @@ const GROUPS: { title: string; tabs: { key: string; label: string }[] }[] = [
   selector: 'app-project-detail',
   imports: [ProjectOverview, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig],
   styles: `
-    .nav { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 6px 10px; margin: 8px 0 16px; }
-    .row-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 2px 0; }
-    .group { font-size: 12px; color: var(--mat-sys-on-surface-variant); width: 130px; }
-    button[role=tab] { border: 0; background: none; padding: 6px 12px; border-radius: 16px; cursor: pointer; font: inherit; color: var(--mat-sys-on-surface); }
-    button[role=tab]:hover { background: var(--mat-sys-surface-container); }
-    button[role=tab][aria-selected=true] { background: var(--mat-sys-secondary-container); font-weight: 500; }
+    h1 { margin-bottom: 6px !important; }
+    .status { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #dbe5f0; color: var(--pm-primary-strong); font-size: 12px; font-weight: 500; margin: 0 0 16px; }
+    .nav { background: var(--pm-card); border: 1px solid var(--pm-line); border-radius: var(--pm-radius); box-shadow: var(--pm-shadow); padding: 8px 14px; margin: 0 0 20px; }
+    .row-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 5px 0; }
+    .row-nav + .row-nav { border-top: 1px solid var(--pm-line); }
+    .group { font-size: 12px; font-weight: 600; color: var(--pm-muted); width: 130px; }
+    button[role=tab] { border: 0; background: none; padding: 6px 14px; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 500; color: var(--pm-text); }
+    button[role=tab]:hover { background: var(--pm-bg); }
+    button[role=tab][aria-selected=true] { background: var(--pm-primary); color: #fff; }
   `,
   template: `
     @if (project(); as p) {
       <div class="page">
         <h1>{{ p.code }} · {{ p.name }}</h1>
-        <p>{{ statusLabel() }}{{ p.baselined ? ' · 已建立基线' : '' }}</p>
+        <p class="status">{{ statusLabel() }}{{ p.baselined ? ' · 已建立基线' : '' }}</p>
         <nav class="nav" role="tablist" aria-label="项目模块">
           @for (g of groups; track g.title) {
             <div class="row-nav">
