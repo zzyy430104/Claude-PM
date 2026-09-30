@@ -6,7 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Api, errorMessage } from '../core/api';
-import { CostEntryRow, CostSummary, Project } from '../core/models';
+import { CostEntryRow, CostSummary, Project, WbsResponse, WorkPackage } from '../core/models';
 
 @Component({
   selector: 'app-project-cost',
@@ -32,6 +32,9 @@ import { CostEntryRow, CostSummary, Project } from '../core/models';
         <mat-form-field><mat-label>科目</mat-label>
           <mat-select formControlName="accountId">@for (a of s()?.accounts ?? []; track a.id) { <mat-option [value]="a.id">{{ a.code }} {{ a.name }}</mat-option> }</mat-select>
         </mat-form-field>
+        <mat-form-field><mat-label>工作包（可选）</mat-label>
+          <mat-select formControlName="workPackageId"><mat-option value="">不指定</mat-option>@for (w of wps(); track w.id) { <mat-option [value]="w.id">{{ w.code }} {{ w.name }}</mat-option> }</mat-select>
+        </mat-form-field>
         <mat-form-field><mat-label>金额（负数为冲销）</mat-label><input matInput type="number" formControlName="amount" /></mat-form-field>
         <mat-form-field><mat-label>日期</mat-label><input matInput type="date" formControlName="entryDate" /></mat-form-field>
         <mat-form-field style="min-width: 240px"><mat-label>说明</mat-label><input matInput formControlName="description" /></mat-form-field>
@@ -53,8 +56,8 @@ import { CostEntryRow, CostSummary, Project } from '../core/models';
     </table>
     <h3>成本记录（只增不改，更正请录入负数冲销）</h3>
     <table>
-      <thead><tr><th>日期</th><th>说明</th><th>金额</th></tr></thead>
-      <tbody>@for (e of entries(); track e.id) { <tr><td>{{ e.entryDate.slice(0, 10) }}</td><td>{{ e.description }}</td><td>{{ e.amount }}</td></tr> }</tbody>
+      <thead><tr><th>日期</th><th>说明</th><th>工作包</th><th>金额</th></tr></thead>
+      <tbody>@for (e of entries(); track e.id) { <tr><td>{{ e.entryDate.slice(0, 10) }}</td><td>{{ e.description }}</td><td>{{ wpLabel(e.workPackageId) }}</td><td>{{ e.amount }}</td></tr> }</tbody>
     </table>
   `,
 })
@@ -67,8 +70,10 @@ export class ProjectCost {
   readonly error = signal('');
   readonly manage = computed(() => !!this.project().permissions?.manage);
   readonly accountForm = this.fb.group({ code: ['', Validators.required], name: ['', Validators.required], budget: [0, Validators.min(0)] });
+  readonly wps = signal<WorkPackage[]>([]);
+  wpLabel(id: string | null | undefined) { const w = this.wps().find((x) => x.id === id); return w ? `${w.code} ${w.name}` : '—'; }
   readonly entryForm = this.fb.group({
-    accountId: ['', Validators.required], amount: [0, Validators.required],
+    accountId: ['', Validators.required], workPackageId: [''], amount: [0, Validators.required],
     entryDate: [new Date().toISOString().slice(0, 10), Validators.required], description: ['', Validators.required],
   });
 
@@ -76,6 +81,7 @@ export class ProjectCost {
   async load() {
     const id = this.project().id;
     this.s.set(await this.api.get<CostSummary>(`/projects/${id}/cost`));
+    if (!this.wps().length) this.wps.set((await this.api.get<WbsResponse>(`/projects/${id}/wbs`)).items.filter((w) => w.isLeaf));
     this.entries.set(await this.api.get<CostEntryRow[]>(`/projects/${id}/cost/entries`));
   }
   private async run(fn: () => Promise<unknown>, fallback: string) {
@@ -91,7 +97,8 @@ export class ProjectCost {
   }
   addEntry() {
     return this.run(async () => {
-      await this.api.post(`/projects/${this.project().id}/cost/entries`, this.entryForm.getRawValue());
+      const v = this.entryForm.getRawValue();
+      await this.api.post(`/projects/${this.project().id}/cost/entries`, { ...v, workPackageId: v.workPackageId || undefined });
       this.entryForm.patchValue({ amount: 0, description: '' });
     }, '记录失败');
   }

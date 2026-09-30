@@ -160,6 +160,8 @@ model Project {
   status               ProjectStatus @default(PLANNING)
   /// 基线后，范围 / 预算 / 客户交期只能通过已批准的变更申请修改
   baselined            Boolean       @default(false)
+  /// 阶段评审从哪一级 WBS 开始（8.1.3.1.3 c），1 = 顶层
+  gateReviewWbsLevel   Int           @default(1) @map("gate_review_wbs_level")
   startDate            DateTime      @db.Date
   endDate              DateTime      @db.Date
   customerDeliveryDate DateTime?     @db.Date
@@ -263,11 +265,23 @@ model WorkPackage {
   verifiedById    String?   @map("verified_by_id")
   verifiedAt      DateTime?
   budget          Decimal?  @db.Decimal(14, 2)
+  /// 预算归入的成本科目（8.1.3.5 b）
+  costAccountId   String?   @map("cost_account_id")
+  /// 产出的交付物（8.1.3.1.1 d）
+  deliverableId   String?   @map("deliverable_id")
+  /// 估算资源（人天，8.1.3.4 b）
+  resourceDays    Decimal?  @map("resource_days") @db.Decimal(10, 1)
+  /// 外部供方名称：由外部供方完成的工作包（8.1.3.4 d）
+  externalProvider String?  @map("external_provider")
+  /// 长周期物料，需与外部供方共同管理（8.1.3.4 c2）
+  longLead        Boolean   @default(false) @map("long_lead")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   project      Project        @relation(fields: [projectId], references: [id])
   phase        Phase?         @relation(fields: [phaseId], references: [id])
+  costAccount  CostAccount?   @relation(fields: [costAccountId], references: [id])
+  deliverable  Deliverable?   @relation(fields: [deliverableId], references: [id])
   parent       WorkPackage?   @relation("WbsTree", fields: [parentId], references: [id])
   children     WorkPackage[]  @relation("WbsTree")
   predecessors WpDependency[] @relation("Successor")
@@ -307,8 +321,10 @@ model Deliverable {
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id])
-  phase   Phase?  @relation(fields: [phaseId], references: [id])
+  project      Project       @relation(fields: [projectId], references: [id])
+  phase        Phase?        @relation(fields: [phaseId], references: [id])
+  workPackages WorkPackage[]
+  requirements Requirement[]
 
   @@index([tenantId, projectId])
   @@map("deliverables")
@@ -554,7 +570,8 @@ model CostAccount {
   estimateToComplete Decimal? @map("estimate_to_complete") @db.Decimal(14, 2)
   createdAt          DateTime @default(now())
 
-  entries CostEntry[]
+  entries      CostEntry[]
+  workPackages WorkPackage[]
 
   @@unique([projectId, code])
   @@index([tenantId, projectId])
@@ -567,6 +584,8 @@ model CostEntry {
   tenantId    String   @map("tenant_id")
   projectId   String   @map("project_id")
   accountId   String   @map("account_id")
+  /// 发生在哪个工作包（可选），用于按工作包统计实际成本
+  workPackageId String? @map("work_package_id")
   amount      Decimal  @db.Decimal(14, 2)
   entryDate   DateTime @db.Date
   description String
@@ -842,4 +861,63 @@ model Notification {
 
   @@index([tenantId, userId, readAt])
   @@map("notifications")
+}
+
+// ───────── 改进方案第一步：需求与计划批准版本 ─────────
+
+enum RequirementCategory {
+  TIME
+  COMMERCIAL
+  TECHNICAL
+  REGULATORY
+  OTHER
+}
+
+enum RequirementStatus {
+  OPEN
+  VERIFIED
+  NOT_APPLICABLE
+}
+
+/// 项目需求（8.1.3.1.1 a、8.1.3.3 a）：每条需求关联到交付物，便于检查覆盖和验证
+model Requirement {
+  id                 String              @id @default(uuid())
+  tenantId           String              @map("tenant_id")
+  projectId          String              @map("project_id")
+  code               String
+  title              String
+  category           RequirementCategory
+  /// 来源：合同条款、技术规格书章节等
+  source             String              @default("")
+  /// 验证方式：试验、检验、分析、评审等
+  verificationMethod String              @default("") @map("verification_method")
+  deliverableId      String?             @map("deliverable_id")
+  status             RequirementStatus   @default(OPEN)
+  note               String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  deliverable Deliverable? @relation(fields: [deliverableId], references: [id])
+
+  @@unique([projectId, code])
+  @@index([tenantId, projectId])
+  @@map("requirements")
+}
+
+/// 计划批准版本：批准计划和每次实施范围 / 进度 / 预算 / 交期变更时保存的快照，作为计划与实际对比的依据
+model PlanVersion {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  projectId       String   @map("project_id")
+  version         Int
+  changeRequestId String?  @map("change_request_id")
+  note            String
+  /// { project: { startDate, endDate, customerDeliveryDate, budget }, workPackages: [{ id, code, name, start, end, durationDays, budget }] }
+  snapshot        Json
+  createdById     String   @map("created_by_id")
+  createdAt       DateTime @default(now())
+
+  @@unique([projectId, version])
+  @@index([tenantId, projectId])
+  @@map("plan_versions")
 }

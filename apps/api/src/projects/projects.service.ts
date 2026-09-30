@@ -1,3 +1,4 @@
+import { PlanVersionsService } from './plan-versions.service.js';
 import {
   BadRequestException,
   ConflictException,
@@ -33,6 +34,7 @@ export class ProjectsService {
     private readonly audit: AuditService,
     private readonly access: ProjectAccess,
     private readonly guard: ChangeGuard,
+    private readonly planVersions: PlanVersionsService,
   ) {}
 
   // ───── 项目 ─────
@@ -185,7 +187,7 @@ export class ProjectsService {
       where: { projectId: id, projectRole: ProjectRole.PROJECT_MANAGER, active: true },
     });
     if (pm === 0) throw new BadRequestException('Assign a project manager before baselining');
-    return this.audit.tx(
+    const project = await this.audit.tx(
       actor,
       { action: 'project.baseline', entity: 'Project', entityId: () => id },
       async (tx) => {
@@ -199,6 +201,8 @@ export class ProjectsService {
         });
       },
     );
+    await this.planVersions.capture(actor, id, '批准计划');
+    return project;
   }
 
   // ───── 成员 ─────

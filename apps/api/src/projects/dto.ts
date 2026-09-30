@@ -22,6 +22,8 @@ import {
   DeliverableKind,
   DeliverableStatus,
   ProjectRole,
+  RequirementCategory,
+  RequirementStatus,
   RiskLevel,
   WpStatus,
 } from '../generated/prisma/enums.js';
@@ -106,6 +108,11 @@ export class CreateWpDto {
   @IsOptional() @IsUUID() ownerId?: string;
   @IsInt() @Min(1) @Max(3650) durationDays: number;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) budget?: number;
+  @IsOptional() @IsUUID() costAccountId?: string | null;
+  @IsOptional() @IsUUID() deliverableId?: string | null;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 1 }) @Min(0) @Max(100000) resourceDays?: number | null;
+  @IsOptional() @IsString() @MaxLength(200) externalProvider?: string | null;
+  @IsOptional() @IsBoolean() longLead?: boolean;
   @IsOptional() @IsUUID() changeRequestId?: string;
 }
 
@@ -113,13 +120,18 @@ export class UpdateWpDto {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(200) name?: string;
   @IsOptional() @IsString() @MaxLength(2000) description?: string;
   @IsOptional() @IsUUID() ownerId?: string;
-  @IsOptional() @IsUUID() phaseId?: string;
+  @IsOptional() @IsUUID() phaseId?: string | null;
   @IsOptional() @IsInt() @Min(1) @Max(3650) durationDays?: number;
   @IsOptional() @IsInt() @Min(0) @Max(100) percentComplete?: number;
   @IsOptional() @IsEnum(WpStatus) status?: WpStatus;
   @IsOptional() @IsDateString() actualStart?: string;
   @IsOptional() @IsDateString() actualEnd?: string;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) budget?: number;
+  @IsOptional() @IsUUID() costAccountId?: string | null;
+  @IsOptional() @IsUUID() deliverableId?: string | null;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 1 }) @Min(0) @Max(100000) resourceDays?: number | null;
+  @IsOptional() @IsString() @MaxLength(200) externalProvider?: string | null;
+  @IsOptional() @IsBoolean() longLead?: boolean;
 }
 
 export class DeleteWpQuery {
@@ -146,4 +158,25 @@ export class UpdateDeliverableDto {
   @IsOptional() @IsString() @MaxLength(200) supplier?: string;
   @IsOptional() @IsDateString() dueDate?: string;
   @IsOptional() @IsString() @MaxLength(2000) notes?: string;
+}
+
+export class CreateRequirementDto {
+  @Matches(CODE, { message: 'invalid code' }) code: string;
+  @IsString() @MinLength(1) @MaxLength(1000) title: string;
+  @IsEnum(RequirementCategory) category: RequirementCategory;
+  @IsOptional() @IsString() @MaxLength(300) source?: string;
+  @IsOptional() @IsString() @MaxLength(300) verificationMethod?: string;
+  @IsOptional() @IsUUID() deliverableId?: string;
+  @IsOptional() @IsString() @MaxLength(2000) note?: string;
+  @IsOptional() @IsUUID() changeRequestId?: string;
+}
+
+export class UpdateRequirementDto {
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(1000) title?: string;
+  @IsOptional() @IsEnum(RequirementCategory) category?: RequirementCategory;
+  @IsOptional() @IsString() @MaxLength(300) source?: string;
+  @IsOptional() @IsString() @MaxLength(300) verificationMethod?: string;
+  @IsOptional() @IsUUID() deliverableId?: string | null;
+  @IsOptional() @IsEnum(RequirementStatus) status?: RequirementStatus;
+  @IsOptional() @IsString() @MaxLength(2000) note?: string;
 }

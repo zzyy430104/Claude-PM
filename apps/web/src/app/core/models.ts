@@ -157,6 +157,12 @@ export interface WorkPackage {
   endOffsetDays: number;
   critical: boolean;
   totalFloatDays: number | null;
+  budget: string | null;
+  costAccountId: string | null;
+  deliverableId: string | null;
+  resourceDays: string | null;
+  externalProvider: string | null;
+  longLead: boolean;
 }
 
 export interface Dependency {
@@ -274,6 +280,7 @@ export interface ChangeRequest {
   causeAnalysis: string | null;
   impactAnalysis: string | null;
   proposed: { budget?: number; customerDeliveryDate?: string; startDate?: string; endDate?: string } | null;
+  technicalImpact?: { deliveredParts?: string; customerSpec?: string; documents?: string; requirements?: string; revalidation?: string } | null;
   customerNotifiedAt: string | null;
   customerAgreedAt: string | null;
   requestedById: string;
@@ -309,7 +316,7 @@ export interface CostSummary {
   projectBudget: number | null; allocated: number; unallocated: number | null;
   actual: number; eac: number; variance: number | null; overrun: boolean; accounts: CostAccountRow[];
 }
-export interface CostEntryRow { id: string; accountId: string; amount: string; entryDate: string; description: string }
+export interface CostEntryRow { id: string; accountId: string; workPackageId?: string | null; amount: string; entryDate: string; description: string }
 
 export type NcStatus = 'OPEN' | 'ANALYSIS' | 'ACTION' | 'VERIFICATION' | 'CLOSED';
 export const NC_STATUS_LABELS: Record<NcStatus, string> = { OPEN: '已登记', ANALYSIS: '原因分析', ACTION: '措施执行', VERIFICATION: '有效性验证', CLOSED: '已关闭' };
@@ -356,3 +363,21 @@ export interface DashboardProject {
 export interface Dashboard { totals: { projects: number; red: number; amber: number; green: number }; projects: DashboardProject[] }
 export interface Todo { kind: string; title: string; projectId: string; projectCode: string; link: string; dueDate: string | null }
 export interface NotificationRow { id: string; kind: string; title: string; body: string; link: string | null; readAt: string | null; createdAt: string }
+
+export type RequirementCategory = 'TIME' | 'COMMERCIAL' | 'TECHNICAL' | 'REGULATORY' | 'OTHER';
+export type RequirementStatus = 'OPEN' | 'VERIFIED' | 'NOT_APPLICABLE';
+export const REQ_CATEGORY_LABELS: Record<RequirementCategory, string> = {
+  TIME: '时间', COMMERCIAL: '商务', TECHNICAL: '技术', REGULATORY: '法规', OTHER: '其他',
+};
+export const REQ_STATUS_LABELS: Record<RequirementStatus, string> = { OPEN: '未验证', VERIFIED: '已验证', NOT_APPLICABLE: '不适用' };
+export interface Requirement {
+  id: string; code: string; title: string; category: RequirementCategory; source: string;
+  verificationMethod: string; deliverableId: string | null; status: RequirementStatus; note: string | null;
+}
+export interface PlanVersion {
+  id: string; version: number; note: string; changeRequestId: string | null; createdAt: string;
+  snapshot: {
+    project: { startDate: string; endDate: string; customerDeliveryDate: string | null; budget: string | null };
+    workPackages: { id: string; code: string; name: string; start: string; end: string; durationDays: number; budget: string | null; isLeaf: boolean }[];
+  };
+}

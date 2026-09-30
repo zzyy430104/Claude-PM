@@ -4,13 +4,15 @@ import type { AuthUser } from '../common/auth.types.js';
 import { Role } from '../generated/prisma/enums.js';
 import {
   AddDependencyDto, AddMemberDto, CreateDeliverableDto, CreatePhaseTemplateDto, CreateProjectDto,
-  CreateWpDto, DeleteWpQuery, UpdateDeliverableDto, UpdateMemberDto, UpdatePhaseDto, UpdatePlanDto,
+  CreateRequirementDto, CreateWpDto, DeleteWpQuery, UpdateRequirementDto, UpdateDeliverableDto, UpdateMemberDto, UpdatePhaseDto, UpdatePlanDto,
   UpdateProjectDto, UpdateWpDto,
 } from './dto.js';
 import { DeliverablesService } from './deliverables.service.js';
 import { ProjectsService } from './projects.service.js';
 import { TemplatesService } from './templates.service.js';
 import { WbsService } from './wbs.service.js';
+import { PlanVersionsService } from './plan-versions.service.js';
+import { RequirementsService } from './requirements.service.js';
 
 const Id = () => Param('id', ParseUUIDPipe);
 
@@ -21,6 +23,8 @@ export class ProjectsController {
     private readonly wbs: WbsService,
     private readonly templates: TemplatesService,
     private readonly deliverables: DeliverablesService,
+    private readonly planVersions: PlanVersionsService,
+    private readonly requirements: RequirementsService,
   ) {}
 
   // 阶段模板
@@ -36,6 +40,20 @@ export class ProjectsController {
   @Get('projects/:id') get(@CurrentUser() u: AuthUser, @Id() id: string) { return this.projects.get(u, id); }
   @Patch('projects/:id') update(@CurrentUser() u: AuthUser, @Id() id: string, @Body() dto: UpdateProjectDto) { return this.projects.update(u, id, dto); }
   @Post('projects/:id/baseline') @HttpCode(200) baseline(@CurrentUser() u: AuthUser, @Id() id: string) { return this.projects.baseline(u, id); }
+
+  @Get('projects/:id/plan-versions') planVersionList(@CurrentUser() u: AuthUser, @Id() id: string) { return this.planVersions.list(u, id); }
+
+  // 需求
+  @Get('projects/:id/requirements') reqList(@CurrentUser() u: AuthUser, @Id() id: string) { return this.requirements.list(u, id); }
+  @Post('projects/:id/requirements') reqCreate(@CurrentUser() u: AuthUser, @Id() id: string, @Body() dto: CreateRequirementDto) { return this.requirements.create(u, id, dto); }
+  @Patch('projects/:id/requirements/:rid')
+  reqUpdate(@CurrentUser() u: AuthUser, @Id() id: string, @Param('rid', ParseUUIDPipe) rid: string, @Body() dto: UpdateRequirementDto) {
+    return this.requirements.update(u, id, rid, dto);
+  }
+  @Delete('projects/:id/requirements/:rid') @HttpCode(204)
+  reqDelete(@CurrentUser() u: AuthUser, @Id() id: string, @Param('rid', ParseUUIDPipe) rid: string, @Query() q: DeleteWpQuery) {
+    return this.requirements.remove(u, id, rid, q.changeRequestId);
+  }
 
   // 成员
   @Get('projects/:id/members') members(@CurrentUser() u: AuthUser, @Id() id: string) { return this.projects.listMembers(u, id); }

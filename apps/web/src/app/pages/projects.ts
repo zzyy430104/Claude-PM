@@ -52,7 +52,7 @@ import { PROJECT_STATUS_LABELS, PhaseTemplate, Project, RISK_LABELS, RiskLevel, 
       <table mat-table [dataSource]="projects()">
         <ng-container matColumnDef="code"><th mat-header-cell *matHeaderCellDef>编号</th><td mat-cell *matCellDef="let p"><a [routerLink]="['/projects', p.id]">{{ p.code }}</a></td></ng-container>
         <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>名称</th><td mat-cell *matCellDef="let p">{{ p.name }}</td></ng-container>
-        <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef>状态</th><td mat-cell *matCellDef="let p">{{ statusLabel(p) }}{{ p.baselined ? '（已基线）' : '' }}</td></ng-container>
+        <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef>状态</th><td mat-cell *matCellDef="let p">{{ statusLabel(p) }}{{ p.baselined ? '（计划已批准）' : '' }}</td></ng-container>
         <ng-container matColumnDef="risk"><th mat-header-cell *matHeaderCellDef>风险等级</th><td mat-cell *matCellDef="let p">{{ riskLabel(p.riskLevel) }}</td></ng-container>
         <ng-container matColumnDef="dates"><th mat-header-cell *matHeaderCellDef>周期</th><td mat-cell *matCellDef="let p">{{ p.startDate.slice(0, 10) }} → {{ p.endDate.slice(0, 10) }}</td></ng-container>
         <tr mat-header-row *matHeaderRowDef="cols"></tr>

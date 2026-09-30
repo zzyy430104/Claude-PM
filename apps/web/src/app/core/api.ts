@@ -45,7 +45,7 @@ export class Api {
 export function errorMessage(e: unknown, fallback = '操作失败'): string {
   if (!(e instanceof HttpErrorResponse)) return fallback;
   const body = e.error as { code?: string; message?: string | string[] } | null;
-  if (body?.code === 'CHANGE_REQUEST_REQUIRED') return '项目已建立基线，此项修改需要先提交并批准变更申请';
+  if (body?.code === 'CHANGE_REQUEST_REQUIRED') return '项目计划已批准，此项修改需要引用一项已批准的变更申请';
   if (body?.code === 'OPEN_ISSUES') return '此前评审遗留的问题还没关闭，需要先关闭，或由最高管理层授权后才能通过';
   if (body?.code === 'MANDATORY_PARTICIPANTS_MISSING') {
     const missing = (e.error as { missing?: string[] }).missing ?? [];

@@ -104,6 +104,9 @@ export class CostService {
     if (dto.amount === 0) throw new BadRequestException('amount must not be zero');
     const account = await this.prisma.costAccount.findFirst({ where: { id: dto.accountId, projectId, tenantId: ctx.tenantId } });
     if (!account) throw new BadRequestException('Cost account not found in this project');
+    if (dto.workPackageId && !(await this.prisma.workPackage.findFirst({ where: { id: dto.workPackageId, projectId, tenantId: ctx.tenantId } }))) {
+      throw new BadRequestException('Work package not found in this project');
+    }
     const current = await this.prisma.costEntry.aggregate({ where: { accountId: account.id }, _sum: { amount: true } });
     if (Number(current._sum.amount ?? 0) + dto.amount < 0) {
       throw new BadRequestException('A reversal cannot make the account total negative');
@@ -113,7 +116,7 @@ export class CostService {
       { action: 'costEntry.create', entity: 'CostEntry', entityId: (e) => e.id, after: (e) => ({ account: account.code, amount: e.amount.toString() }) },
       (tx) =>
         tx.costEntry.create({
-          data: { tenantId: ctx.tenantId, projectId, accountId: account.id, amount: dto.amount, entryDate: new Date(dto.entryDate), description: dto.description, createdById: actor.id },
+          data: { tenantId: ctx.tenantId, projectId, accountId: account.id, workPackageId: dto.workPackageId, amount: dto.amount, entryDate: new Date(dto.entryDate), description: dto.description, createdById: actor.id },
         }),
     );
   }

@@ -18,8 +18,10 @@ const CLAUSE_MAP: [string, string, string][] = [
   ['8.1.3.1', '阶段与关口评审、项目分类', 'phases.json, gate-reviews.json'],
   ['8.1.3.1.3', '项目文件与评审记录保留', 'documents/, documents.json'],
   ['8.1.3.2', '项目管理计划', 'project-plan.json, members.json'],
+  ['8.1.3.1.1 a、8.1.3.3 a', '项目需求及其与交付物的对应', 'requirements.json'],
   ['8.1.3.3', '范围管理（WBS、工作包核验）', 'work-packages.json'],
   ['8.1.3.4', '进度管理（依赖、关键路径）', 'work-packages.json, progress.json'],
+  ['8.1.3.2 g', '计划批准版本（每次变更实施后的计划快照）', 'plan-versions.json'],
   ['8.1.3.5', '成本管理', 'cost.json'],
   ['8.1.3.6', '项目质量计划与不符合项', 'quality-plan.json, nonconformities.json'],
   ['8.1.3.7', '人力资源（任命、能力、培训）', 'members.json, trainings.json'],
@@ -76,6 +78,10 @@ export class EvidenceService {
       this.prisma.document.findMany({ where: w, orderBy: [{ folder: 'asc' }, { name: 'asc' }] }),
       this.prisma.documentVersion.findMany({ where: { tenantId, document: { projectId } }, orderBy: [{ documentId: 'asc' }, { version: 'asc' }] }),
     ]);
+    const [requirements, planVersions] = await Promise.all([
+      this.prisma.requirement.findMany({ where: w, orderBy: { code: 'asc' } }),
+      this.prisma.planVersion.findMany({ where: w, orderBy: { version: 'asc' } }),
+    ]);
     const [costSummary, costEntries, progress] = await Promise.all([
       this.cost.summary(actor, projectId),
       this.prisma.costEntry.findMany({ where: w, orderBy: { entryDate: 'asc' } }),
@@ -88,7 +94,7 @@ export class EvidenceService {
       ...deliverables.map((x) => x.id), ...gates.map((x) => x.id), ...reviews.map((x) => x.id), ...issues.map((x) => x.id),
       ...changes.map((x) => x.id), ...risks.map((x) => x.id), ...ncs.map((x) => x.id), ...trainings.map((x) => x.id),
       ...cfgItems.map((x) => x.id), ...baselines.map((x) => x.id), ...docs.map((x) => x.id), ...lessons.map((x) => x.id),
-      ...commLogs.map((x) => x.id), ...costEntries.map((x) => x.id),
+      ...commLogs.map((x) => x.id), ...costEntries.map((x) => x.id), ...requirements.map((x) => x.id),
     ];
     const auditLogs = await this.prisma.auditLog.findMany({ where: { tenantId, entityId: { in: entityIds } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
 
@@ -107,13 +113,14 @@ export class EvidenceService {
       ['nonconformities.json', json(ncs)], ['communication-plan.json', json(commPlan)], ['communication-logs.json', json(commLogs)],
       ['trainings.json', json(trainings)], ['cost.json', json({ summary: costSummary, entries: costEntries })],
       ['config-items.json', json(cfgItems)], ['baselines.json', json(baselines)], ['lessons.json', json(lessons)],
+      ['requirements.json', json(requirements)], ['plan-versions.json', json(planVersions)],
       ['documents.json', json({ documents: docs, versions: docVersions.map(({ storagePath: _p, ...v }) => v) })],
       ['audit-logs.json', json({ users, logs: auditLogs })],
     ];
     const index = [
       `# 审核证据包：${project.code} ${project.name}`, '',
       `- 生成时间：${generatedAt.toISOString()}`, `- 生成人：${actor.name}（${actor.email}）`,
-      `- 项目状态：${project.status}${project.baselined ? '，已建立基线' : ''}`,
+      `- 项目状态：${project.status}${project.baselined ? '，计划已批准' : ''}`,
       `- 完整性：MANIFEST.sha256 列出了包内每个文件的 SHA-256，可用 \`sha256sum -c MANIFEST.sha256\` 校验`, '',
       '## 标准条款与证据文件（ISO 22163:2023）', '', '| 条款 | 内容 | 证据文件 |', '| --- | --- | --- |',
       ...CLAUSE_MAP.map(([c, d, f]) => `| ${c} | ${d} | ${f} |`), '',

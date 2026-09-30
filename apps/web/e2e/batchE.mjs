@@ -70,6 +70,6 @@ await p.click('.box button:has-text("标记中标")');
 await p.waitForSelector('.box:has-text("已中标")');
 await p.click('.box button:has-text("转为项目")');
 await p.waitForSelector('h1:has-text("动车组转向架投标")'); step('中标转为项目');
-await p.waitForSelector('dd:has-text("8000000")'); step('项目预算取自投标成本测算');
+await p.waitForSelector('dd:has-text("8,000,000")'); step('项目预算取自投标成本测算');
 console.log('浏览器错误:', errors.length ? errors : '无');
 await b.close();

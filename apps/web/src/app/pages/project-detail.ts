@@ -10,6 +10,7 @@ import { ProjectDocuments } from '../components/project-documents';
 import { ProjectGates } from '../components/project-gates';
 import { ProjectIssues } from '../components/project-issues';
 import { ProjectMembers } from '../components/project-members';
+import { ProjectRequirements } from '../components/project-requirements';
 import { ProjectOverview } from '../components/project-overview';
 import { ProjectPhases } from '../components/project-phases';
 import { ProjectQuality } from '../components/project-quality';
@@ -21,7 +22,7 @@ import { ProjectWbs } from '../components/project-wbs';
 /** 项目模块导航：按用途分三行，功能多时也不会被挤到看不见的位置 */
 const GROUPS: { title: string; tabs: { key: string; label: string }[] }[] = [
   { title: '策划与执行', tabs: [
-    { key: 'overview', label: '概览与计划' }, { key: 'phases', label: '阶段' }, { key: 'wbs', label: 'WBS 与进度' },
+    { key: 'overview', label: '概览与计划' }, { key: 'requirements', label: '需求' }, { key: 'phases', label: '阶段' }, { key: 'wbs', label: 'WBS 与进度' },
     { key: 'deliverables', label: '交付物' }, { key: 'members', label: '成员' },
   ] },
   { title: '评审与控制', tabs: [
@@ -36,7 +37,7 @@ const GROUPS: { title: string; tabs: { key: string; label: string }[] }[] = [
 
 @Component({
   selector: 'app-project-detail',
-  imports: [ProjectOverview, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig],
+  imports: [ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig],
   styles: `
     h1 { margin-bottom: 6px !important; }
     .status { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #dbe5f0; color: var(--pm-primary-strong); font-size: 12px; font-weight: 500; margin: 0 0 16px; }
@@ -52,7 +53,7 @@ const GROUPS: { title: string; tabs: { key: string; label: string }[] }[] = [
     @if (project(); as p) {
       <div class="page">
         <h1>{{ p.code }} · {{ p.name }}</h1>
-        <p class="status">{{ statusLabel() }}{{ p.baselined ? ' · 已建立基线' : '' }}</p>
+        <p class="status">{{ statusLabel() }}{{ p.baselined ? ' · 计划已批准' : '' }}</p>
         <nav class="nav" role="tablist" aria-label="项目模块">
           @for (g of groups; track g.title) {
             <div class="row-nav">
@@ -65,6 +66,7 @@ const GROUPS: { title: string; tabs: { key: string; label: string }[] }[] = [
         </nav>
         @switch (tab()) {
           @case ('overview') { <app-project-overview [project]="p" (changed)="load()" /> }
+          @case ('requirements') { <app-project-requirements [project]="p" /> }
           @case ('phases') { <app-project-phases [project]="p" /> }
           @case ('wbs') { <app-project-wbs [project]="p" /> }
           @case ('deliverables') { <app-project-deliverables [project]="p" /> }

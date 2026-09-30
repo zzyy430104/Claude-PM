@@ -132,7 +132,7 @@ html .page form.row .mat-mdc-form-field-subscript-wrapper { min-height: 8px; }
 // 普通表格：与 .tbl 同一外观
 html .page table:not(.mat-mdc-table) { background: var(--pm-card); font-size: 13.5px; border-collapse: separate; border-spacing: 0; border: 1px solid var(--pm-line); border-radius: var(--pm-radius); box-shadow: var(--pm-shadow); overflow: hidden; margin: 8px 0 16px; }
 html .page .tbl table:not(.mat-mdc-table) { border: 0; box-shadow: none; margin: 0; }
-html .page table:not(.mat-mdc-table) th { font-weight: 600; font-size: 12px; color: var(--pm-muted); background: #f7f9fb; padding: 10px 14px; border-bottom: 1px solid var(--pm-line); white-space: nowrap; }
+html .page table:not(.mat-mdc-table) th { text-align: left; font-weight: 600; font-size: 12px; color: var(--pm-muted); background: #f7f9fb; padding: 10px 14px; border-bottom: 1px solid var(--pm-line); white-space: nowrap; }
 html .page table:not(.mat-mdc-table) td { padding: 10px 14px; border-bottom: 1px solid var(--pm-line); vertical-align: top; }
 html .page table:not(.mat-mdc-table) tr:last-child td { border-bottom: 0; }
 html .page table:not(.mat-mdc-table) tbody tr:hover { background: #f9fafc; }

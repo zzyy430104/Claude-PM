@@ -51,7 +51,7 @@ await p.waitForSelector('.cr:has-text("已关闭")'); step('关闭变更');
 await p.click('.cr button:has-text("变更记录")');
 await p.waitForSelector('.hist:has-text("changeRequest.close")'); step('变更记录完整');
 await tab(p, '概览');
-await p.waitForSelector('dd:has-text("1200000")'); step('预算已更新为 1200000');
+await p.waitForSelector('dd:has-text("1,200,000")'); step('预算已更新为 1200000');
 
 // 3. 风险、问题、项目评审
 await tab(p, '风险与机会');

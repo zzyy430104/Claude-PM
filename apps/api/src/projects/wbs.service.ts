@@ -110,7 +110,7 @@ export class WbsService {
         throw new ConflictException('Parent has dependencies: move them to leaf work packages first');
       }
     }
-    await this.checkRefs(ctx, dto.phaseId, dto.ownerId);
+    await this.checkRefs(ctx, dto.phaseId, dto.ownerId, dto);
     try {
       return await this.audit.tx(
         actor,
@@ -133,6 +133,11 @@ export class WbsService {
               ownerId: dto.ownerId,
               durationDays: dto.durationDays,
               budget: dto.budget,
+              costAccountId: dto.costAccountId,
+              deliverableId: dto.deliverableId,
+              resourceDays: dto.resourceDays,
+              externalProvider: dto.externalProvider?.trim() || null,
+              longLead: dto.longLead ?? false,
             },
           }),
       );
@@ -157,9 +162,11 @@ export class WbsService {
     // 负责人只能更新进度，结构与分配由项目经理管理
     const managerOnly = dto.name !== undefined || dto.description !== undefined ||
       dto.ownerId !== undefined || dto.phaseId !== undefined ||
-      dto.durationDays !== undefined || dto.budget !== undefined;
+      dto.durationDays !== undefined || dto.budget !== undefined ||
+      dto.costAccountId !== undefined || dto.deliverableId !== undefined || dto.resourceDays !== undefined ||
+      dto.externalProvider !== undefined || dto.longLead !== undefined;
     if (managerOnly && !ctx.isManager) throw new ForbiddenException('Project manager required');
-    await this.checkRefs(ctx, dto.phaseId, dto.ownerId);
+    await this.checkRefs(ctx, dto.phaseId ?? undefined, dto.ownerId, dto);
 
     const status =
       dto.status ??
@@ -187,6 +194,11 @@ export class WbsService {
             phaseId: dto.phaseId,
             durationDays: dto.durationDays,
             budget: dto.budget,
+            costAccountId: dto.costAccountId,
+            deliverableId: dto.deliverableId,
+            resourceDays: dto.resourceDays,
+            externalProvider: dto.externalProvider === undefined ? undefined : dto.externalProvider?.trim() || null,
+            longLead: dto.longLead,
             percentComplete: dto.percentComplete,
             status,
             actualStart: dto.actualStart ? new Date(dto.actualStart) : undefined,
@@ -309,7 +321,17 @@ export class WbsService {
     return wp;
   }
 
-  private async checkRefs(ctx: ProjectCtx, phaseId?: string, ownerId?: string) {
+  private async checkRefs(
+    ctx: ProjectCtx, phaseId?: string, ownerId?: string,
+    refs: { costAccountId?: string | null; deliverableId?: string | null } = {},
+  ) {
+    const where = { projectId: ctx.project.id, tenantId: ctx.tenantId };
+    if (refs.costAccountId && !(await this.prisma.costAccount.findFirst({ where: { id: refs.costAccountId, ...where } }))) {
+      throw new BadRequestException('Cost account not found in this project');
+    }
+    if (refs.deliverableId && !(await this.prisma.deliverable.findFirst({ where: { id: refs.deliverableId, ...where } }))) {
+      throw new BadRequestException('Deliverable not found in this project');
+    }
     if (phaseId) {
       const ph = await this.prisma.phase.findFirst({
         where: { id: phaseId, projectId: ctx.project.id, tenantId: ctx.tenantId },

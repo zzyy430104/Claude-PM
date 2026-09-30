@@ -17,8 +17,8 @@ interface HistoryRow { id: string; action: string; createdAt: string; actorId: s
   imports: [ReactiveFormsModule, DatePipe, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   styles: `.cr { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 12px 16px; margin: 12px 0; } h3 { margin: 0 0 4px; } .meta { color: var(--mat-sys-on-surface-variant); font-size: 13px; } .hist { font-size: 12px; color: var(--mat-sys-on-surface-variant); }`,
   template: `
-    <h2>提交变更申请</h2>
-    <form [formGroup]="form" (ngSubmit)="create()">
+    <h2>{{ editingId() ? '编辑草稿 ' + editingCode() : '提交变更申请' }}</h2>
+    <form [formGroup]="form" (ngSubmit)="save()">
       <div class="row">
         <mat-form-field><mat-label>类型</mat-label>
           <mat-select formControlName="type">@for (t of types; track t) { <mat-option [value]="t">{{ typeLabels[t] }}</mat-option> }</mat-select>
@@ -42,7 +42,8 @@ interface HistoryRow { id: string; action: string; createdAt: string; actorId: s
           <mat-form-field><mat-label>再验证活动</mat-label><input matInput formControlName="revalidation" /></mat-form-field>
         </div>
       }
-      <button mat-flat-button type="submit" [disabled]="form.invalid">保存为草稿</button>
+      <button mat-flat-button type="submit" [disabled]="form.invalid">{{ editingId() ? '保存草稿' : '保存为草稿' }}</button>
+      @if (editingId()) { <button mat-button type="button" (click)="cancelEdit()">取消编辑</button> }
     </form>
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
 
@@ -59,7 +60,7 @@ interface HistoryRow { id: string; action: string; createdAt: string; actorId: s
         @if (c.decisionNote) { <div class="meta">审批意见：{{ c.decisionNote }}</div> }
         @if (c.effectivenessNote) { <div class="meta">有效性验证：{{ c.effectivenessNote }}</div> }
         <div>
-          @if (c.status === 'DRAFT' && (c.requestedById === me()?.id || manage())) { <button mat-button (click)="act(c, 'submit')">提交审批</button> }
+          @if (c.status === 'DRAFT' && (c.requestedById === me()?.id || manage())) { <button mat-button (click)="edit(c)">编辑</button><button mat-button (click)="act(c, 'submit')">提交审批</button> }
           @if (c.status === 'SUBMITTED' || c.status === 'APPROVED') {
             @if (manage() && c.type === 'DELIVERY_DATE') {
               <button mat-button (click)="act(c, 'customer-contact', {})">记录已通知客户</button>
@@ -97,6 +98,8 @@ export class ProjectChanges {
   readonly me = this.auth.user;
   readonly manage = computed(() => !!this.project().permissions?.manage);
   readonly quality = computed(() => !!this.project().permissions?.quality);
+  readonly editingId = signal<string | null>(null);
+  readonly editingCode = signal('');
   readonly form = this.fb.group({
     type: ['SCOPE' as ChangeType], title: ['', [Validators.required, Validators.minLength(2)]],
     description: ['', Validators.required], reason: ['', Validators.required],
@@ -123,7 +126,30 @@ export class ProjectChanges {
     await this.load();
   }
 
-  create() {
+  private readonly blank = { type: 'SCOPE' as ChangeType, title: '', description: '', reason: '', impactAnalysis: '', causeAnalysis: '', triggeredByFailure: false, budget: null as number | null, customerDeliveryDate: '', endDate: '', deliveredParts: '', customerSpec: '', documents: '', requirements: '', revalidation: '' };
+
+  /** 草稿提交前可以修改；类型不能改（改类型请另建申请） */
+  edit(c: ChangeRequest) {
+    const t = c.technicalImpact ?? {};
+    this.editingId.set(c.id);
+    this.editingCode.set(c.code);
+    this.form.reset({
+      type: c.type, title: c.title, description: c.description, reason: c.reason,
+      impactAnalysis: c.impactAnalysis ?? '', causeAnalysis: c.causeAnalysis ?? '', triggeredByFailure: c.triggeredByFailure,
+      budget: c.proposed?.budget ?? null, customerDeliveryDate: c.proposed?.customerDeliveryDate ?? '', endDate: c.proposed?.endDate ?? '',
+      deliveredParts: t.deliveredParts ?? '', customerSpec: t.customerSpec ?? '', documents: t.documents ?? '', requirements: t.requirements ?? '', revalidation: t.revalidation ?? '',
+    });
+    this.form.controls.type.disable();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  cancelEdit() {
+    this.editingId.set(null);
+    this.form.controls.type.enable();
+    this.form.reset(this.blank);
+  }
+
+  save() {
     const v = this.form.getRawValue();
     const proposed = {
       ...(v.type === 'BUDGET' && v.budget !== null ? { budget: v.budget } : {}),
@@ -133,13 +159,16 @@ export class ProjectChanges {
     const technicalImpact = v.type === 'TECHNICAL'
       ? { deliveredParts: v.deliveredParts, customerSpec: v.customerSpec, documents: v.documents, requirements: v.requirements, revalidation: v.revalidation }
       : undefined;
+    const body = {
+      title: v.title, description: v.description, reason: v.reason,
+      impactAnalysis: v.impactAnalysis || undefined, causeAnalysis: v.causeAnalysis || undefined,
+      triggeredByFailure: v.triggeredByFailure, proposed: Object.keys(proposed).length ? proposed : undefined, technicalImpact,
+    };
+    const id = this.editingId();
     return this.run(async () => {
-      await this.api.post(`/projects/${this.project().id}/changes`, {
-        type: v.type, title: v.title, description: v.description, reason: v.reason,
-        impactAnalysis: v.impactAnalysis || undefined, causeAnalysis: v.causeAnalysis || undefined,
-        triggeredByFailure: v.triggeredByFailure, proposed: Object.keys(proposed).length ? proposed : undefined, technicalImpact,
-      });
-      this.form.reset({ type: 'SCOPE', title: '', description: '', reason: '', impactAnalysis: '', causeAnalysis: '', triggeredByFailure: false, budget: null, customerDeliveryDate: '', endDate: '', deliveredParts: '', customerSpec: '', documents: '', requirements: '', revalidation: '' });
+      if (id) await this.api.patch(`/projects/${this.project().id}/changes/${id}`, body);
+      else await this.api.post(`/projects/${this.project().id}/changes`, { ...body, type: v.type });
+      this.cancelEdit();
     }, '保存失败');
   }
 

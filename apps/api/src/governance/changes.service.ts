@@ -6,6 +6,7 @@ import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectAccess, ProjectCtx } from '../projects/access.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { PlanVersionsService } from '../projects/plan-versions.service.js';
 import { ChangeNoteDto, CreateChangeDto, CustomerContactDto, RequiredNoteDto, UpdateChangeDto } from './dto.js';
 
 type Proposed = { budget?: number; customerDeliveryDate?: string; startDate?: string; endDate?: string };
@@ -18,6 +19,7 @@ export class ChangesService {
     private readonly audit: AuditService,
     private readonly access: ProjectAccess,
     private readonly notifications: NotificationsService,
+    private readonly planVersions: PlanVersionsService,
   ) {}
 
   async list(actor: AuthUser, projectId: string) {
@@ -187,7 +189,7 @@ export class ChangesService {
       throw new ConflictException({ code: 'CUSTOMER_AGREEMENT_REQUIRED', message: 'The customer must agree before the delivery date is changed' });
     }
     const p = (cr.proposed ?? {}) as Proposed;
-    return this.audit.tx(
+    const result = await this.audit.tx(
       actor,
       { action: 'changeRequest.implement', entity: 'ChangeRequest', entityId: () => id, after: () => ({ applied: p as Prisma.InputJsonValue }) },
       async (tx) => {
@@ -211,6 +213,12 @@ export class ChangesService {
         });
       },
     );
+    // 范围、进度、预算、交期变更实施后保存新一版计划，供计划与实际对比
+    const planChanging: ChangeType[] = [ChangeType.SCOPE, ChangeType.SCHEDULE, ChangeType.BUDGET, ChangeType.DELIVERY_DATE];
+    if (ctx.project.baselined && planChanging.includes(cr.type)) {
+      await this.planVersions.capture(actor, projectId, `实施变更 ${cr.code} ${cr.title}`, cr.id);
+    }
+    return result;
   }
 
   /** 有效性验证：验证人不能是实施人本人 */

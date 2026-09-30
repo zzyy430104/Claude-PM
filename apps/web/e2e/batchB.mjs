@@ -67,14 +67,17 @@ await p.click('[role=tab]:has-text("概览")');
 await p.fill('textarea >> nth=0', '按期交付合格的转向架');
 await p.click('button:has-text("保存计划")');
 await p.waitForSelector('text=已保存'); step('保存项目管理计划');
-await p.click('button:has-text("建立基线并启动项目")');
-await p.waitForSelector('text=已建立基线'); step('建立基线');
+await p.click('button:has-text("批准计划并启动项目")');
+await p.waitForSelector('text=批准不能撤销');
+await p.click('button:has-text("确认批准")');
+await p.waitForSelector('text=计划已批准');
+await p.waitForSelector('td:has-text("第 1 版")'); step('批准计划并保存第 1 版快照');
 
 await p.click('[role=tab]:has-text("WBS")');
 await p.fill('input[formcontrolname=code]', '3');
 await p.fill('input[formcontrolname=name]', '新增范围');
 await p.click('button:has-text("添加工作包")');
-await p.waitForSelector('text=需要先提交并批准变更申请'); step('基线后新增范围被拦截并提示需要变更申请');
+await p.waitForSelector('text=需要引用一项已批准的变更申请'); step('计划批准后新增范围被拦截并提示需要变更申请');
 await logout(p);
 
 await login(p, slug, 'wang@demo.test', 'pm-pass-12345');

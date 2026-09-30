@@ -18,7 +18,7 @@ const STATUS = { PLANNED: '未开始', ACTIVE: '进行中', CLOSED: '已关闭' 
   styles: `.phase { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 12px 16px; margin: 12px 0; } .phase.active { border-color: var(--mat-sys-primary); } .warn { color: var(--mat-sys-error); } h3 { margin: 0 0 6px; } ul { margin: 4px 0; } .meta { font-size: 13px; color: var(--mat-sys-on-surface-variant); }`,
   template: `
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
-    @if (!project().baselined) { <p>项目建立基线并启动后，才能进行阶段关口评审。</p> }
+    @if (!project().baselined) { <p>项目计划批准并启动后，才能进行阶段关口评审。</p> }
     @for (p of phases(); track p.id) {
       <div class="phase" [class.active]="p.status === 'ACTIVE'">
         <h3>{{ p.order }}. {{ p.name }} · {{ status[p.status] }}</h3>

@@ -120,8 +120,8 @@ await check('WBS 与关键路径', async () => {
   const g = await req('GET', `/projects/${state.project}/wbs`, { token: state.pm });
   expect(g.json.projectDurationDays === 7, `总工期 ${g.json.projectDurationDays}`);
 });
-await check('建立基线后，直接修改预算被拦截（需变更控制）', async () => {
-  expectStatus(await req('POST', `/projects/${state.project}/baseline`, { token: state.pm }), 200, '基线');
+await check('批准计划后，直接修改预算被拦截（需变更控制）', async () => {
+  expectStatus(await req('POST', `/projects/${state.project}/baseline`, { token: state.pm }), 200, '批准计划');
   const r = await req('PATCH', `/projects/${state.project}`, { token: state.pm, body: { budget: 1 } });
   expectStatus(r, 409); expect(r.json.code === 'CHANGE_REQUEST_REQUIRED', JSON.stringify(r.json));
 });
