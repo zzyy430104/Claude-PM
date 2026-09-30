@@ -11,15 +11,12 @@ const HEALTH = { RED: '告警', AMBER: '关注', GREEN: '正常' } as const;
   selector: 'app-home',
   imports: [RouterLink],
   styles: `
-    .cards { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0 24px; }
-    .card { padding: 12px 20px; border-radius: 8px; background: var(--mat-sys-surface-container); min-width: 110px; }
-    .card b { display: block; font-size: 24px; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--mat-sys-outline-variant); vertical-align: top; }
-    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
-    .RED { background: #d93025; } .AMBER { background: #f9ab00; } .GREEN { background: #1e8e3e; }
-    .reasons { font-size: 12px; color: var(--mat-sys-on-surface-variant); }
-    ul { padding-left: 18px; }
+    .reasons { font-size: 12px; color: var(--pm-muted); margin-top: 4px; }
+    .todo { list-style: none; margin: 0; padding: 0; }
+    .todo li { padding: 10px 0; border-bottom: 1px solid var(--pm-line); }
+    .todo li:last-child { border-bottom: 0; }
+    .bar { height: 6px; background: #e4e9f0; border-radius: 3px; width: 90px; margin-top: 6px; overflow: hidden; }
+    .bar i { display: block; height: 100%; background: var(--pm-accent); }
   `,
   template: `
     <div class="page">
@@ -27,35 +24,39 @@ const HEALTH = { RED: '告警', AMBER: '关注', GREEN: '正常' } as const;
       @if (!auth.hasRole('PLATFORM_ADMIN')) {
         @if (todos().length) {
           <h2>{{ i18n.t('我的待办') }}</h2>
-          <ul>
-            @for (t of todos(); track $index) {
-              <li><a [routerLink]="t.link">{{ t.projectCode }}</a> · {{ t.title }}{{ t.dueDate ? ' · ' + t.dueDate : '' }}</li>
-            }
-          </ul>
+          <div class="panel">
+            <ul class="todo">
+              @for (t of todos(); track $index) {
+                <li><a [routerLink]="t.link">{{ t.projectCode }}</a> · {{ t.title }}{{ t.dueDate ? ' · ' + t.dueDate : '' }}</li>
+              }
+            </ul>
+          </div>
         }
         @if (data(); as d) {
           <h2>{{ i18n.t('项目组合') }}</h2>
-          <div class="cards">
-            <div class="card"><b>{{ d.totals.projects }}</b>{{ i18n.t('项目') }}</div>
-            <div class="card"><b>{{ d.totals.red }}</b><span class="dot RED"></span>{{ i18n.t('告警') }}</div>
-            <div class="card"><b>{{ d.totals.amber }}</b><span class="dot AMBER"></span>{{ i18n.t('关注') }}</div>
-            <div class="card"><b>{{ d.totals.green }}</b><span class="dot GREEN"></span>{{ i18n.t('正常') }}</div>
+          <div class="stats">
+            <div class="stat"><b>{{ d.totals.projects }}</b><span>{{ i18n.t('项目') }}</span></div>
+            <div class="stat red"><b>{{ d.totals.red }}</b><span>{{ i18n.t('告警') }}</span></div>
+            <div class="stat amber"><b>{{ d.totals.amber }}</b><span>{{ i18n.t('关注') }}</span></div>
+            <div class="stat green"><b>{{ d.totals.green }}</b><span>{{ i18n.t('正常') }}</span></div>
           </div>
+          <div class="tbl">
           <table>
             <thead><tr><th>{{ i18n.t('健康度') }}</th><th>{{ i18n.t('项目') }}</th><th>{{ i18n.t('当前阶段') }}</th><th>{{ i18n.t('进度') }}</th><th>{{ i18n.t('预计完工') }}</th><th>{{ i18n.t('未关闭问题') }}</th></tr></thead>
             <tbody>
               @for (p of d.projects; track p.id) {
                 <tr>
-                  <td><span class="dot" [class]="'dot ' + p.health"></span>{{ i18n.t(healthLabel[p.health]) }}<div class="reasons">{{ reasonText(p.reasons) }}</div></td>
+                  <td><span [class]="'badge ' + p.health">{{ i18n.t(healthLabel[p.health]) }}</span><div class="reasons">{{ reasonText(p.reasons) }}</div></td>
                   <td><a [routerLink]="['/projects', p.id]">{{ p.code }}</a> {{ p.name }}</td>
                   <td>{{ p.activePhase ? i18n.t(p.activePhase) : '—' }}</td>
-                  <td>{{ p.progress.actual }}% / {{ p.progress.planned }}%</td>
+                  <td>{{ p.progress.actual }}% / {{ p.progress.planned }}%<div class="bar"><i [style.width.%]="p.progress.actual"></i></div></td>
                   <td>{{ p.progress.projectedEnd }}</td>
                   <td>{{ p.openIssues }}</td>
                 </tr>
               }
             </tbody>
           </table>
+          </div>
           @if (d.projects.length === 0) { <p>{{ i18n.t('暂无可见的项目。') }}</p> }
         }
       }

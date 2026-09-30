@@ -2,7 +2,6 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatButtonModule } from '@angular/material/button';
-import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -13,19 +12,27 @@ import { NotificationRow, ROLE_LABELS } from '../core/models';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatBadgeModule, MatButtonModule, MatListModule, MatMenuModule, MatSidenavModule, MatToolbarModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatBadgeModule, MatButtonModule, MatMenuModule, MatSidenavModule, MatToolbarModule],
   styles: `
     :host { display: flex; flex-direction: column; height: 100%; }
-    mat-sidenav-container { flex: 1; min-height: 0; }
-    mat-sidenav { width: 220px; }
+    mat-toolbar { background: var(--pm-nav); color: #fff; height: 56px; padding: 0 20px; gap: 4px; }
+    mat-toolbar .mark { width: 30px; height: 30px; font-size: 13px; margin-right: 10px; }
+    mat-toolbar .brand { font-weight: 600; font-size: 16px; }
+    mat-toolbar button { color: #dbe4ee; }
+    mat-sidenav-container { flex: 1; min-height: 0; background: var(--pm-bg); }
+    mat-sidenav { border-radius: 0; width: 208px; background: var(--pm-card); border-right: 1px solid var(--pm-line); padding-top: 8px; }
+    mat-sidenav a { display: block; margin: 2px 10px; padding: 9px 14px; border-radius: 8px; color: var(--pm-text); text-decoration: none; font-weight: 500; }
+    mat-sidenav a:hover { background: var(--pm-bg); }
+    mat-sidenav a.active { background: #dbe5f0; color: var(--pm-primary-strong); }
     .spacer { flex: 1; }
-    .who { font-size: 14px; margin: 0 8px; }
+    .who { font-size: 13px; margin: 0 10px; color: #dbe4ee; }
+    .who em { font-style: normal; background: rgba(255,255,255,.14); padding: 2px 8px; border-radius: 999px; margin-left: 8px; font-size: 12px; }
     .n-title { font-weight: 500; } .n-body { font-size: 12px; color: var(--mat-sys-on-surface-variant); }
     .unread { font-weight: 600; }
   `,
   template: `
     <mat-toolbar>
-      <span>Claude-PM</span>
+      <span class="mark">PM</span><span class="brand">Claude-PM</span>
       <span class="spacer"></span>
       @if (!auth.hasRole('PLATFORM_ADMIN')) {
         <button mat-button [matMenuTriggerFor]="menu" (menuOpened)="loadList()" [attr.aria-label]="i18n.t('通知')">
@@ -44,34 +51,34 @@ import { NotificationRow, ROLE_LABELS } from '../core/models';
           @if (unread() > 0) { <button mat-menu-item (click)="readAll()">{{ i18n.t('全部已读') }}</button> }
         </mat-menu>
       }
-      <span class="who">{{ auth.user()?.name }}（{{ roleLabel() }}）</span>
+      <span class="who">{{ auth.user()?.name }}<em>{{ roleLabel() }}</em></span>
       <button mat-button (click)="i18n.toggle()" [attr.aria-label]="i18n.t('语言')">{{ i18n.lang() === 'en' ? '中文' : 'EN' }}</button>
       <button mat-button (click)="auth.logout()">{{ i18n.t('退出') }}</button>
     </mat-toolbar>
     <mat-sidenav-container>
       <mat-sidenav mode="side" opened>
-        <mat-nav-list>
-          <a mat-list-item routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">首页</a>
+        <nav>
+          <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">首页</a>
           @if (!auth.hasRole('PLATFORM_ADMIN')) {
-            <a mat-list-item routerLink="/projects" routerLinkActive="active">项目</a>
+            <a routerLink="/projects" routerLinkActive="active">项目</a>
           }
           @if (auth.hasRole('TENANT_ADMIN', 'TOP_MANAGEMENT', 'PROJECT_MANAGER', 'FUNCTION_MANAGER')) {
-            <a mat-list-item routerLink="/tenders" routerLinkActive="active">投标</a>
+            <a routerLink="/tenders" routerLinkActive="active">投标</a>
           }
           @if (!auth.hasRole('PLATFORM_ADMIN')) {
-            <a mat-list-item routerLink="/lessons" routerLinkActive="active">经验教训库</a>
+            <a routerLink="/lessons" routerLinkActive="active">经验教训库</a>
           }
           @if (auth.hasRole('TENANT_ADMIN')) {
-            <a mat-list-item routerLink="/templates" routerLinkActive="active">阶段模板</a>
+            <a routerLink="/templates" routerLinkActive="active">阶段模板</a>
           }
           @if (auth.hasRole('TENANT_ADMIN', 'TOP_MANAGEMENT')) {
-            <a mat-list-item routerLink="/users" routerLinkActive="active">用户管理</a>
-            <a mat-list-item routerLink="/audit" routerLinkActive="active">审计日志</a>
+            <a routerLink="/users" routerLinkActive="active">用户管理</a>
+            <a routerLink="/audit" routerLinkActive="active">审计日志</a>
           }
           @if (auth.hasRole('PLATFORM_ADMIN')) {
-            <a mat-list-item routerLink="/tenants" routerLinkActive="active">租户管理</a>
+            <a routerLink="/tenants" routerLinkActive="active">租户管理</a>
           }
-        </mat-nav-list>
+        </nav>
       </mat-sidenav>
       <mat-sidenav-content><router-outlet /></mat-sidenav-content>
     </mat-sidenav-container>

@@ -3,30 +3,32 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { AuthService } from '../core/auth.service';
 
 @Component({
   selector: 'app-signup',
-  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule],
-  styles: `
-    .wrap { min-height: 100%; display: grid; place-items: center; padding: 16px; }
-    mat-card { width: 100%; max-width: 440px; padding: 16px; }
-    form { display: flex; flex-direction: column; gap: 4px; }
-  `,
+  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule],
   template: `
-    <div class="wrap">
-      <mat-card>
-        <mat-card-header><mat-card-title>注册新企业</mat-card-title></mat-card-header>
-        <mat-card-content>
+    <div class="auth">
+      <section class="auth-brand">
+        <div class="logo"><span class="mark">PM</span>Claude-PM</div>
+        <div>
+          <h2>轨道交通项目管理与质量协同平台</h2>
+          <p>按 ISO 22163:2023 组织项目策划、关口评审、变更控制和不符合项闭环，审核时一键导出证据包。</p>
+        </div>
+        <small>ISO 22163:2023</small>
+      </section>
+      <section class="auth-form">
           <form [formGroup]="form" (ngSubmit)="submit()">
-            <mat-form-field>
+            <h1>注册新企业</h1>
+            <p class="sub">创建企业并成为它的管理员</p>
+            <mat-form-field appearance="outline">
               <mat-label>企业名称</mat-label>
               <input matInput formControlName="tenantName" />
             </mat-form-field>
-            <mat-form-field>
+            <mat-form-field appearance="outline">
               <mat-label>企业标识</mat-label>
               <input matInput formControlName="tenantSlug" />
               <mat-hint>3–40 位小写字母、数字或连字符，登录时使用</mat-hint>
@@ -34,15 +36,15 @@ import { AuthService } from '../core/auth.service';
                 <mat-error>格式不正确</mat-error>
               }
             </mat-form-field>
-            <mat-form-field>
+            <mat-form-field appearance="outline">
               <mat-label>管理员姓名</mat-label>
               <input matInput formControlName="adminName" />
             </mat-form-field>
-            <mat-form-field>
+            <mat-form-field appearance="outline">
               <mat-label>管理员邮箱</mat-label>
               <input matInput type="email" formControlName="adminEmail" autocomplete="username" />
             </mat-form-field>
-            <mat-form-field>
+            <mat-form-field appearance="outline">
               <mat-label>密码（至少 8 位）</mat-label>
               <input matInput type="password" formControlName="password" autocomplete="new-password" />
             </mat-form-field>
@@ -50,8 +52,7 @@ import { AuthService } from '../core/auth.service';
             <button mat-flat-button type="submit" [disabled]="form.invalid || busy()">创建企业并登录</button>
             <a mat-button routerLink="/login">已有账号，去登录</a>
           </form>
-        </mat-card-content>
-      </mat-card>
+      </section>
     </div>
   `,
 })
