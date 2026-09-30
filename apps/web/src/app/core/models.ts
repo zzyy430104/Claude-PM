@@ -297,3 +297,32 @@ export interface RiskRow {
   closedActions: number;
 }
 export const RISK_STATUS_LABELS = { OPEN: '未处理', MITIGATING: '应对中', OCCURRED: '已发生', CLOSED: '已关闭' } as const;
+
+export interface CostAccountRow {
+  id: string; code: string; name: string; budget: number; actual: number; etc: number;
+  etcIsManual: boolean; eac: number; variance: number; overrun: boolean;
+}
+export interface CostSummary {
+  projectBudget: number | null; allocated: number; unallocated: number | null;
+  actual: number; eac: number; variance: number | null; overrun: boolean; accounts: CostAccountRow[];
+}
+export interface CostEntryRow { id: string; accountId: string; amount: string; entryDate: string; description: string }
+
+export type NcStatus = 'OPEN' | 'ANALYSIS' | 'ACTION' | 'VERIFICATION' | 'CLOSED';
+export const NC_STATUS_LABELS: Record<NcStatus, string> = { OPEN: '已登记', ANALYSIS: '原因分析', ACTION: '措施执行', VERIFICATION: '有效性验证', CLOSED: '已关闭' };
+export const NC_SEVERITY_LABELS = { MINOR: '轻微', MAJOR: '重大', CRITICAL: '严重' } as const;
+export const NC_SOURCE_LABELS = { INSPECTION: '检验', AUDIT: '审核', CUSTOMER: '客户', SUPPLIER: '供方', OTHER: '其他' } as const;
+export interface Nonconformity {
+  id: string; code: string; title: string; description: string;
+  severity: keyof typeof NC_SEVERITY_LABELS; source: keyof typeof NC_SOURCE_LABELS; status: NcStatus;
+  containment: string | null; rootCause: string | null; correctiveAction: string | null; preventiveAction: string | null;
+  actionOwnerId: string | null; actionDueDate: string | null; effectivenessNote: string | null;
+}
+export interface QualityActivity { kind: 'QA' | 'QC'; name: string; method?: string; frequency?: string }
+export interface QualityPlan { objectives: string; procedures: string; activities: QualityActivity[]; version: number; approvedAt: string | null }
+
+export interface CommLog { id: string; kind: 'MEETING' | 'CUSTOMER' | 'SUPPLIER' | 'INTERNAL'; logDate: string; subject: string; participants: string; summary: string }
+export const COMM_KIND_LABELS = { MEETING: '会议', CUSTOMER: '客户沟通', SUPPLIER: '供方沟通', INTERNAL: '内部沟通' } as const;
+export interface CommChannel { audience: string; channel: string; frequency: string }
+export interface CommPlan { channels: CommChannel[]; notes: string; version: number }
+export interface TrainingRow { id: string; userId: string; title: string; dueDate: string | null; status: 'PLANNED' | 'DONE' }

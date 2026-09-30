@@ -123,8 +123,9 @@ export class GatesService {
         checklist: ready.checklistFailed,
         workPackages: ready.pendingWorkPackages.map((w) => w.code),
         deliverables: ready.pendingDeliverables.map((d) => d.name),
+        nonconformities: ready.openNonconformities.map((n) => n.code),
       };
-      if (blockers.checklist.length || blockers.workPackages.length || blockers.deliverables.length) {
+      if (blockers.checklist.length || blockers.workPackages.length || blockers.deliverables.length || blockers.nonconformities.length) {
         throw new ConflictException({ code: 'GATE_CRITERIA_NOT_MET', message: 'Gate criteria not met: use conditional acceptance with an action plan', blockers });
       }
     }
@@ -199,6 +200,10 @@ export class GatesService {
     const parents = new Set(
       (await this.prisma.workPackage.findMany({ where: { projectId, parentId: { not: null } }, select: { parentId: true } })).map((w) => w.parentId),
     );
+    const openNonconformities = await this.prisma.nonconformity.findMany({
+      where: { projectId, tenantId: ctx.tenantId, status: { not: 'CLOSED' }, severity: { in: ['MAJOR', 'CRITICAL'] } },
+      select: { id: true, code: true, title: true, severity: true },
+    });
     const priorOpenIssues = await this.prisma.issue.findMany({
       where: { projectId, tenantId: ctx.tenantId, status: IssueStatus.OPEN, source: 'GATE', phaseId: { in: earlier.map((p) => p.id) } },
     });
@@ -209,6 +214,7 @@ export class GatesService {
       pendingWorkPackages: wps.filter((w) => !parents.has(w.id) && w.status !== WpStatus.VERIFIED).map((w) => ({ id: w.id, code: w.code, name: w.name, status: w.status })),
       pendingDeliverables: deliverables.filter((d) => d.status !== 'ACCEPTED').map((d) => ({ id: d.id, name: d.name, status: d.status })),
       priorOpenIssues,
+      openNonconformities,
     };
   }
 

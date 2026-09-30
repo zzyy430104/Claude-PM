@@ -501,3 +501,168 @@ model Risk {
   @@index([tenantId, projectId])
   @@map("risks")
 }
+
+// ───────── 批次 D：成本、质量、沟通与培训 ─────────
+
+enum NcSeverity {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum NcStatus {
+  OPEN
+  ANALYSIS
+  ACTION
+  VERIFICATION
+  CLOSED
+}
+
+enum NcSource {
+  INSPECTION
+  AUDIT
+  CUSTOMER
+  SUPPLIER
+  OTHER
+}
+
+enum CommKind {
+  MEETING
+  CUSTOMER
+  SUPPLIER
+  INTERNAL
+}
+
+enum TrainingStatus {
+  PLANNED
+  DONE
+}
+
+model CostAccount {
+  id                 String   @id @default(uuid())
+  tenantId           String   @map("tenant_id")
+  projectId          String   @map("project_id")
+  code               String
+  name               String
+  budget             Decimal  @db.Decimal(14, 2)
+  /// 人工估算的完工尚需成本（ETC）；为空则按 预算 − 已发生 推算
+  estimateToComplete Decimal? @map("estimate_to_complete") @db.Decimal(14, 2)
+  createdAt          DateTime @default(now())
+
+  entries CostEntry[]
+
+  @@unique([projectId, code])
+  @@index([tenantId, projectId])
+  @@map("cost_accounts")
+}
+
+/// 成本记录只增不改：更正通过录入负数冲销
+model CostEntry {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  projectId   String   @map("project_id")
+  accountId   String   @map("account_id")
+  amount      Decimal  @db.Decimal(14, 2)
+  entryDate   DateTime @db.Date
+  description String
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now())
+
+  account CostAccount @relation(fields: [accountId], references: [id])
+
+  @@index([tenantId, projectId])
+  @@map("cost_entries")
+}
+
+model QualityPlan {
+  projectId    String    @id @map("project_id")
+  tenantId     String    @map("tenant_id")
+  objectives   String    @default("")
+  procedures   String    @default("")
+  /// [{ kind: 'QA' | 'QC', name, phaseId?, method, frequency, responsibleId? }]
+  activities   Json      @default("[]")
+  version      Int       @default(1)
+  approvedById String?   @map("approved_by_id")
+  approvedAt   DateTime?
+  updatedById  String    @map("updated_by_id")
+  updatedAt    DateTime  @updatedAt
+
+  @@map("quality_plans")
+}
+
+model Nonconformity {
+  id                String     @id @default(uuid())
+  tenantId          String     @map("tenant_id")
+  projectId         String     @map("project_id")
+  code              String
+  title             String
+  description       String
+  severity          NcSeverity
+  source            NcSource
+  status            NcStatus   @default(OPEN)
+  phaseId           String?    @map("phase_id")
+  workPackageId     String?    @map("work_package_id")
+  detectedById      String     @map("detected_by_id")
+  detectedAt        DateTime   @default(now())
+  containment       String?
+  rootCause         String?
+  correctiveAction  String?
+  preventiveAction  String?
+  actionOwnerId     String?    @map("action_owner_id")
+  actionDueDate     DateTime?  @db.Date
+  actionCompletedAt DateTime?
+  effectivenessNote String?
+  changeRequestId   String?    @map("change_request_id")
+  verifiedById      String?    @map("verified_by_id")
+  closedAt          DateTime?
+  createdAt         DateTime   @default(now())
+
+  @@unique([projectId, code])
+  @@index([tenantId, projectId, status])
+  @@map("nonconformities")
+}
+
+model CommunicationPlan {
+  projectId   String   @id @map("project_id")
+  tenantId    String   @map("tenant_id")
+  /// [{ audience, channel, frequency, ownerId? }]
+  channels    Json     @default("[]")
+  notes       String   @default("")
+  version     Int      @default(1)
+  updatedById String   @map("updated_by_id")
+  updatedAt   DateTime @updatedAt
+
+  @@map("communication_plans")
+}
+
+model CommunicationLog {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  projectId    String   @map("project_id")
+  kind         CommKind
+  logDate      DateTime @map("log_date") @db.Date
+  subject      String
+  participants String   @default("")
+  summary      String
+  createdById  String   @map("created_by_id")
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId, projectId])
+  @@map("communication_logs")
+}
+
+model Training {
+  id          String         @id @default(uuid())
+  tenantId    String         @map("tenant_id")
+  projectId   String         @map("project_id")
+  userId      String         @map("user_id")
+  title       String
+  dueDate     DateTime?      @db.Date
+  status      TrainingStatus @default(PLANNED)
+  completedAt DateTime?
+  createdById String         @map("created_by_id")
+  createdAt   DateTime       @default(now())
+
+  @@index([tenantId, projectId])
+  @@map("trainings")
+}
