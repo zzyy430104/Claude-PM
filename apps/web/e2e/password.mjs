@@ -38,7 +38,7 @@ await p.waitForSelector('text=企业标识、邮箱或密码不正确'); step('�
 
 await loginForm('admin@demo.test', 'demo-pass-123');
 await p.waitForSelector('text=欢迎，张管理');
-await p.click('a:has-text("用户管理")');
+await p.click('a:has-text("用户与角色")');
 await p.click('tr:has-text("周工") >> button:has-text("重置密码")');
 await p.fill('input[aria-label=新的临时密码]', 'temp-pass-99');
 await p.click('button:has-text("确认重置")');

@@ -23,14 +23,14 @@ async function scan(label) {
 const userData = ['李经理', '评审演示项目', '演示企业', '张管理', '赵质量', '王成员', '钱总', '设计', '制造', '交付'];
 await scan('home');
 await p.click('a:has-text("Projects")'); await scan('projects');
-await p.click(`a:has-text("${proj.code}")`); await p.waitForSelector('nav[role=tablist]');
-for (const t of ['Overview', 'Phases', 'WBS', 'Deliverables', 'Gate', 'Project reviews', 'Change', 'Risks', 'Issues', 'Cost', 'Quality', 'Communication', 'Documents', 'Configuration', 'Lessons', 'Members']) {
-  const tabEl = p.locator('[role=tab]', { hasText: t }).first();
-  if (await tabEl.count()) { await tabEl.click(); await p.waitForTimeout(500); await scan('tab:' + t); }
-  else left.set('(找不到标签页 ' + t + ')', 'nav');
+await p.click(`a:has-text("${proj.code}")`); await p.waitForSelector('.gtabs');
+for (let g = 0; g < await p.locator('.gtabs [role=tab]').count(); g++) {
+  await p.locator('.gtabs [role=tab]').nth(g).click(); await p.waitForTimeout(400);
+  const subs = await p.locator('.stabs [role=tab]').count();
+  if (!subs) { await scan('group:' + g); continue; }
+  for (let s = 0; s < subs; s++) { await p.locator('.stabs [role=tab]').nth(s).click(); await p.waitForTimeout(500); await scan(`tab:${g}.${s}`); }
 }
-await p.click('a:has-text("Tenders")'); await scan('tenders');
-await p.click('a:has-text("Lessons learned")'); await scan('lessons');
+await p.click('mat-sidenav a:has-text("Lesson")'); await scan('lessons');
 console.log('剩余中文（去掉用户数据）：');
 for (const [t, where] of left) if (!userData.some((d) => t === d || t.includes(d) && t.length <= d.length + 6)) console.log(`  [${where}] ${t}`);
 await b.close();

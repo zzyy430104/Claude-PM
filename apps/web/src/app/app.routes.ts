@@ -34,11 +34,6 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/project-detail').then((m) => m.ProjectDetailPage),
       },
       {
-        path: 'tenders',
-        canActivate: [roleGuard('TENANT_ADMIN', 'TOP_MANAGEMENT', 'PROJECT_MANAGER', 'FUNCTION_MANAGER')],
-        loadComponent: () => import('./pages/tenders').then((m) => m.TendersPage),
-      },
-      {
         path: 'lessons',
         loadComponent: () => import('./pages/knowledge').then((m) => m.KnowledgePage),
       },

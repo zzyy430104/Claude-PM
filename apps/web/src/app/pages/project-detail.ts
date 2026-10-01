@@ -1,4 +1,6 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Api } from '../core/api';
 import { PROJECT_STATUS_LABELS, Project } from '../core/models';
 import { ProjectChanges } from '../components/project-changes';
@@ -19,59 +21,58 @@ import { ProjectRisks } from '../components/project-risks';
 import { ProjectTeam } from '../components/project-team';
 import { ProjectWbs } from '../components/project-wbs';
 
-/** 项目模块导航：按用途分三行，功能多时也不会被挤到看不见的位置 */
-const GROUPS: { title: string; tabs: { key: string; label: string }[] }[] = [
-  { title: '策划与执行', tabs: [
-    { key: 'overview', label: '概览与计划' }, { key: 'requirements', label: '需求' }, { key: 'phases', label: '阶段' }, { key: 'wbs', label: 'WBS 与进度' },
-    { key: 'deliverables', label: '交付物' }, { key: 'members', label: '成员' },
-  ] },
-  { title: '评审与控制', tabs: [
-    { key: 'gates', label: '关口评审' }, { key: 'reviews', label: '项目评审' }, { key: 'changes', label: '变更控制' },
-    { key: 'risks', label: '风险与机会' }, { key: 'issues', label: '问题与行动' },
-  ] },
-  { title: '成本、质量与记录', tabs: [
-    { key: 'cost', label: '成本' }, { key: 'quality', label: '质量与不符合项' }, { key: 'team', label: '沟通与培训' },
-    { key: 'documents', label: '文档' }, { key: 'config', label: '配置管理' }, { key: 'closure', label: '经验教训与关闭' },
-  ] },
+/** 项目内按工作顺序分 7 组，每组下面再分子页；组和子页记在网址里（?g=组&s=子页），刷新和分享链接都回到同一页 */
+const GROUPS: { key: string; label: string; subs: { key: string; label: string }[] }[] = [
+  { key: 'overview', label: '总览', subs: [{ key: 'overview', label: '总览' }] },
+  { key: 'plan', label: '计划', subs: [{ key: 'requirements', label: '项目要求与需求' }, { key: 'wbs', label: 'WBS 与进度' }, { key: 'members', label: '团队与职责' }] },
+  { key: 'exec', label: '执行', subs: [{ key: 'phases', label: '阶段与评审' }, { key: 'deliverables', label: '交付物' }] },
+  { key: 'ctrl', label: '控制', subs: [{ key: 'issues', label: '问题与行动' }, { key: 'changes', label: '变更' }, { key: 'risks', label: '风险与机会' }, { key: 'cost', label: '成本' }] },
+  { key: 'qual', label: '质量', subs: [{ key: 'quality', label: '不符合项' }, { key: 'documents', label: '文档与配置' }] },
+  { key: 'comm', label: '沟通', subs: [{ key: 'reviews', label: '项目评审' }, { key: 'team', label: '沟通计划与干系人' }] },
+  { key: 'close', label: '收尾', subs: [{ key: 'closure', label: '总结与关闭' }] },
 ];
+/** 每组默认打开的子页 */
+const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs', exec: 'phases', ctrl: 'issues', qual: 'quality', comm: 'reviews', close: 'closure' };
 
 @Component({
   selector: 'app-project-detail',
-  imports: [ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig],
+  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig],
   styles: `
+    .crumb { font-size: 13px; color: var(--pm-muted); margin: 0 0 4px; }
+    .crumb a { color: var(--pm-muted); }
     h1 { margin-bottom: 6px !important; }
-    .status { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #dbe5f0; color: var(--pm-primary-strong); font-size: 12px; font-weight: 500; margin: 0 0 16px; }
-    .nav { background: var(--pm-card); border: 1px solid var(--pm-line); border-radius: var(--pm-radius); box-shadow: var(--pm-shadow); padding: 8px 14px; margin: 0 0 20px; }
-    .row-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 5px 0; }
-    .row-nav + .row-nav { border-top: 1px solid var(--pm-line); }
-    .group { font-size: 12px; font-weight: 600; color: var(--pm-muted); width: 130px; }
-    button[role=tab] { border: 0; background: none; padding: 6px 14px; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 500; color: var(--pm-text); }
-    button[role=tab]:hover { background: var(--pm-bg); }
-    button[role=tab][aria-selected=true] { background: var(--pm-primary); color: #fff; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--pm-muted); font-size: 14px; margin: 0 0 18px; }
+    .stack > * + * { display: block; margin-top: 20px; }
   `,
   template: `
     @if (project(); as p) {
       <div class="page">
-        <h1>{{ p.code }} · {{ p.name }}</h1>
-        <p class="status">{{ statusLabel() }}{{ p.baselined ? ' · 计划已批准' : '' }}</p>
-        <nav class="nav" role="tablist" aria-label="项目模块">
-          @for (g of groups; track g.title) {
-            <div class="row-nav">
-              <span class="group">{{ g.title }}</span>
-              @for (t of g.tabs; track t.key) {
-                <button type="button" role="tab" [attr.aria-selected]="tab() === t.key" (click)="tab.set(t.key)">{{ t.label }}</button>
-              }
-            </div>
+        <div class="crumb"><a routerLink="/projects">项目</a> / {{ p.name }}</div>
+        <h1>{{ p.name }}</h1>
+        <div class="meta">
+          <span class="pill" [class.green]="p.status === 'ACTIVE'" [class.amber]="p.status === 'PLANNING'">{{ statusLabel() }}</span>
+          @if (p.baselined) { <span class="pill blue">计划已批准</span> }
+          <span>编号 {{ p.code }}</span>
+        </div>
+        <nav class="gtabs" role="tablist" aria-label="项目分组">
+          @for (g of groups; track g.key) {
+            <button type="button" role="tab" [attr.aria-selected]="group() === g.key" (click)="go(g.key)">{{ g.label }}</button>
           }
         </nav>
+        @if (subs().length > 1) {
+          <nav class="stabs" role="tablist" aria-label="子页面">
+            @for (t of subs(); track t.key) {
+              <button type="button" role="tab" [attr.aria-selected]="tab() === t.key" (click)="go(group(), t.key)">{{ t.label }}</button>
+            }
+          </nav>
+        }
         @switch (tab()) {
           @case ('overview') { <app-project-overview [project]="p" (changed)="load()" /> }
           @case ('requirements') { <app-project-requirements [project]="p" /> }
-          @case ('phases') { <app-project-phases [project]="p" /> }
+          @case ('phases') { <div class="stack"><app-project-phases [project]="p" /><app-project-gates [project]="p" /></div> }
           @case ('wbs') { <app-project-wbs [project]="p" /> }
           @case ('deliverables') { <app-project-deliverables [project]="p" /> }
           @case ('members') { <app-project-members [project]="p" /> }
-          @case ('gates') { <app-project-gates [project]="p" /> }
           @case ('reviews') { <app-project-reviews [project]="p" /> }
           @case ('changes') { <app-project-changes [project]="p" /> }
           @case ('risks') { <app-project-risks [project]="p" /> }
@@ -79,8 +80,7 @@ const GROUPS: { title: string; tabs: { key: string; label: string }[] }[] = [
           @case ('cost') { <app-project-cost [project]="p" /> }
           @case ('quality') { <app-project-quality [project]="p" /> }
           @case ('team') { <app-project-team [project]="p" /> }
-          @case ('documents') { <app-project-documents [project]="p" /> }
-          @case ('config') { <app-project-config [project]="p" /> }
+          @case ('documents') { <div class="stack"><app-project-documents [project]="p" /><app-project-config [project]="p" /></div> }
           @case ('closure') { <app-project-closure [project]="p" (changed)="load()" /> }
         }
       </div>
@@ -89,11 +89,22 @@ const GROUPS: { title: string; tabs: { key: string; label: string }[] }[] = [
 })
 export class ProjectDetailPage {
   private readonly api = inject(Api);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   /** 来自路由参数 :id（withComponentInputBinding） */
   readonly id = input.required<string>();
   readonly project = signal<Project | null>(null);
-  readonly tab = signal('overview');
   readonly groups = GROUPS;
+  private readonly query = toSignal(this.route.queryParamMap);
+  readonly group = computed(() => {
+    const g = this.query()?.get('g') ?? 'overview';
+    return GROUPS.some((x) => x.key === g) ? g : 'overview';
+  });
+  readonly subs = computed(() => GROUPS.find((x) => x.key === this.group())!.subs);
+  readonly tab = computed(() => {
+    const s = this.query()?.get('s');
+    return this.subs().some((x) => x.key === s) ? s! : DEFAULT_SUB[this.group()];
+  });
   readonly statusLabel = computed(() => {
     const p = this.project();
     return p ? PROJECT_STATUS_LABELS[p.status] : '';
@@ -101,6 +112,10 @@ export class ProjectDetailPage {
 
   ngOnInit() {
     void this.load();
+  }
+
+  go(g: string, s?: string) {
+    void this.router.navigate([], { relativeTo: this.route, queryParams: { g, s: s ?? DEFAULT_SUB[g] }, replaceUrl: true });
   }
 
   async load() {

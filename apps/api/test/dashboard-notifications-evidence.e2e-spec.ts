@@ -127,7 +127,7 @@ describe('通知', () => {
     expect(await unread(t.member.token)).toBe(0);
   });
 
-  it('行动项、培训、关口结论、投标审批都会通知相关人，且不跨企业', async () => {
+  it('行动项、培训、关口结论都会通知相关人，且不跨企业', async () => {
     const t = await setupTenant(app, 'nt2');
     const other = await setupTenant(app, 'nt2b');
     const p = await gateProject(app, t);
@@ -145,14 +145,6 @@ describe('通知', () => {
     expect(await unread(other.admin.token)).toBe(0);
     expect(await unread(other.pm.token)).toBe(0);
 
-    const tender = (await http(app).post('/tenders').set(bearer(t.pm.token)).send({ code: 'T-N1', title: '通知测试投标', customer: 'c' }).expect(201)).body;
-    await http(app).patch(`/tenders/${tender.id}`).set(bearer(t.pm.token)).send({
-      requirements: 'r', riskAssessment: 'a', riskExposure: 1, knowledgeInputs: 'k', deliverablesPlan: 'd', estimatedCost: 1, offerPrice: 2, resourcePlan: 'p',
-    }).expect(200);
-    await http(app).post(`/tenders/${tender.id}/submit`).set(bearer(t.pm.token)).expect(200);
-    expect((await http(app).get('/notifications').set(bearer(t.top.token)).expect(200)).body.map((n: { kind: string }) => n.kind)).toContain('TENDER_SUBMITTED');
-    await http(app).post(`/tenders/${tender.id}/approve`).set(bearer(t.top.token)).send({ note: '同意' }).expect(200);
-    expect((await http(app).get('/notifications').set(bearer(t.pm.token)).expect(200)).body.map((n: { kind: string }) => n.kind)).toContain('TENDER_DECIDED');
   });
 });
 

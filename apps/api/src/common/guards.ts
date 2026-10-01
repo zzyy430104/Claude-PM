@@ -25,7 +25,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 }
 
-const PASSWORD_CHANGE_ALLOWED = new Set(['/me', '/auth/change-password', '/auth/logout', '/notifications/count']);
+const PASSWORD_CHANGE_ALLOWED = new Set(['/me', '/auth/change-password', '/auth/logout', '/notifications/count', '/branding']);
 
 @Injectable()
 export class RolesGuard implements CanActivate {

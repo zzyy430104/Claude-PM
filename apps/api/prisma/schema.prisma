@@ -34,6 +34,8 @@ model Tenant {
   workWeek      Int[]  @default([1, 2, 3, 4, 5]) @map("work_week")
   holidays      Json   @default("[]")
   extraWorkdays Json   @default("[]") @map("extra_workdays")
+  /// 顶栏和工作台显示的系统名称，企业可以改
+  systemName    String @default("Claude-PM") @map("system_name")
   users     User[]
   auditLogs AuditLog[]
 
@@ -50,6 +52,8 @@ model User {
   mustChangePassword Boolean @default(false) @map("must_change_password")
   passwordChangedAt  DateTime? @map("password_changed_at")
   role         Role
+  /// 职能角色（企业自定义名称，如 工艺、质量、采购），用于模板和计划里按角色指定责任人
+  functionalRoleId String? @map("functional_role_id")
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -174,8 +178,6 @@ model Project {
   customerDeliveryDate DateTime?     @db.Date
   budget               Decimal?      @db.Decimal(14, 2)
   reviewIntervalDays   Int           @default(30)
-  /// 由哪个中标的投标转化而来
-  tenderId             String?       @map("tender_id")
   createdById          String        @map("created_by_id")
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
@@ -728,14 +730,6 @@ enum BaselineType {
   AS_MAINTAINED
 }
 
-enum TenderStatus {
-  DRAFT
-  IN_REVIEW
-  APPROVED
-  REJECTED
-  WON
-  LOST
-}
 
 model Document {
   id             String   @id @default(uuid())
@@ -832,35 +826,6 @@ model Baseline {
   @@map("baselines")
 }
 
-model Tender {
-  id                 String       @id @default(uuid())
-  tenantId           String       @map("tenant_id")
-  code               String
-  title              String
-  customer           String
-  status             TenderStatus @default(DRAFT)
-  requirements       String       @default("")
-  /// 风险与机会评估（含金额）
-  riskAssessment     String       @default("")
-  riskExposure       Decimal      @default(0) @map("risk_exposure") @db.Decimal(14, 2)
-  /// 组织知识输入（经验教训）
-  knowledgeInputs    String       @default("")
-  /// 交付物策划（含成本）
-  deliverablesPlan   String       @default("")
-  estimatedCost      Decimal      @default(0) @map("estimated_cost") @db.Decimal(14, 2)
-  offerPrice         Decimal      @default(0) @map("offer_price") @db.Decimal(14, 2)
-  resourcePlan       String       @default("")
-  createdById        String       @map("created_by_id")
-  decidedById        String?      @map("decided_by_id")
-  decidedAt          DateTime?
-  decisionNote       String?
-  convertedProjectId String?      @map("converted_project_id")
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-
-  @@unique([tenantId, code])
-  @@map("tenders")
-}
 
 // ───────── 批次 F：通知 ─────────
 
@@ -1013,4 +978,18 @@ model Stakeholder {
 
   @@index([tenantId, projectId])
   @@map("stakeholders")
+}
+
+/// 职能角色字典：模板和项目引用角色本身，改名后各处同步显示新名称
+model FunctionalRole {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  sortOrder Int      @default(0) @map("sort_order")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("functional_roles")
 }

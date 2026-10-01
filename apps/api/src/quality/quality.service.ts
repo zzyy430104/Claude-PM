@@ -164,7 +164,7 @@ export class QualityService {
       (tx) => tx.nonconformity.update({ where: { id }, data }),
     );
     if (to === NcStatus.ACTION && from === NcStatus.ANALYSIS) {
-      await this.notifications.notify(ctx.tenantId, [nc.actionOwnerId], { kind: 'NC_ACTION', title: `请执行纠正措施 ${nc.code}：${nc.title}`, body: nc.correctiveAction ?? '', link: `/projects/${projectId}` }, actor.id);
+      await this.notifications.notify(ctx.tenantId, [nc.actionOwnerId], { kind: 'NC_ACTION', title: `请执行纠正措施 ${nc.code}：${nc.title}`, body: nc.correctiveAction ?? '', link: `/projects/${projectId}?g=qual&s=quality` }, actor.id);
     }
     return updated;
   }

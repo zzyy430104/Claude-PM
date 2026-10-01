@@ -34,11 +34,13 @@ export interface CurrentUser {
   mustChangePassword?: boolean;
 }
 
+export interface FunctionalRole { id: string; name: string; sortOrder: number; active: boolean }
 export interface UserRow {
   id: string;
   email: string;
   name: string;
   role: Role;
+  functionalRoleId?: string | null;
   active: boolean;
   mustChangePassword?: boolean;
   createdAt: string;
@@ -355,15 +357,6 @@ export interface Lesson { id: string; kind: 'GOOD_PRACTICE' | 'LESSON'; title: s
 export interface ConfigItemRow { id: string; parentId: string | null; code: string; name: string; kind: string; safetyRelated: boolean; lowestLevel: boolean; revision: string; serialNumber: string | null; batchNumber: string | null }
 export interface BaselineRow { id: string; type: string; name: string; createdAt: string; itemCount: number }
 export interface ConfigStatus { baseline: { name: string } | null; added: string[]; removed: string[]; changed: { code: string; from: string; to: string }[]; safetyRelatedItems: number }
-export type TenderStatus = 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED' | 'WON' | 'LOST';
-export const TENDER_STATUS_LABELS: Record<TenderStatus, string> = { DRAFT: '编制中', IN_REVIEW: '待审批', APPROVED: '已批准', REJECTED: '已驳回', WON: '已中标', LOST: '未中标' };
-export interface Tender {
-  id: string; code: string; title: string; customer: string; status: TenderStatus;
-  requirements: string; riskAssessment: string; riskExposure: string; knowledgeInputs: string;
-  deliverablesPlan: string; estimatedCost: string; offerPrice: string; resourcePlan: string;
-  decisionNote: string | null; convertedProjectId: string | null;
-}
-
 export interface DashboardProject {
   id: string; code: string; name: string; status: string; riskLevel: RiskLevel; activePhase: string | null;
   health: 'RED' | 'AMBER' | 'GREEN'; reasons: string[];
@@ -418,7 +411,7 @@ export interface ResourceLoad {
   weeks: { start: string; capacity: number }[];
   people: { userId: string; name: string; load: number[]; overloadedWeeks: number; items: { project: string; code: string; name: string; days: number }[] }[];
 }
-export interface CalendarSettings { evmAmber: number; evmRed: number; workWeek: number[]; holidays: string[]; extraWorkdays: string[] }
+export interface CalendarSettings { systemName: string; companyName: string; evmAmber: number; evmRed: number; workWeek: number[]; holidays: string[]; extraWorkdays: string[] }
 
 export interface SwotReview { id: string; reviewDate: string; participants: string; strengths: string; weaknesses: string; opportunities: string; threats: string; actions: string }
 export interface DeviationNotice { id: string; dimension: 'QUALITY' | 'SCHEDULE' | 'COST'; noticeDate: string; audience: string; impact: string; countermeasures: string }

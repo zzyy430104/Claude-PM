@@ -71,7 +71,7 @@ export async function logout(p) {
   await p.waitForURL('**/login');
 }
 export async function addUser(p, name, email, password, roleLabel) {
-  await p.click('a:has-text("用户管理")');
+  await p.click('a:has-text("用户与角色")');
   await p.fill('input[formcontrolname=name]', name);
   await p.fill('input[formcontrolname=email]', email);
   await p.fill('input[formcontrolname=password]', password);
@@ -96,10 +96,24 @@ export async function loginAs(p, user) {
 export async function openProject(p, code) {
   await p.click('mat-sidenav a:text-is("项目")');
   await p.click(`a:has-text("${code}")`);
-  await p.waitForSelector(`h1:has-text("${code}")`);
+  await p.waitForSelector(`.meta:has-text("编号 ${code}")`);
 }
+/** 原来的标签页名称 → 现在的“分组 / 子页”（项目页按工作顺序分 7 组） */
+export const TABS = {
+  '概览': ['总览'], '需求': ['计划', '项目要求与需求'], 'WBS': ['计划', 'WBS 与进度'], '成员': ['计划', '团队与职责'],
+  '阶段': ['执行', '阶段与评审'], '关口评审': ['执行', '阶段与评审'], '交付物': ['执行', '交付物'],
+  '问题与行动': ['控制', '问题与行动'], '变更控制': ['控制', '变更'], '风险与机会': ['控制', '风险与机会'], '成本': ['控制', '成本'],
+  '质量与不符合项': ['质量', '不符合项'], '文档': ['质量', '文档与配置'], '配置管理': ['质量', '文档与配置'],
+  '项目评审': ['沟通', '项目评审'], '沟通与培训': ['沟通', '沟通计划与干系人'], '经验教训与关闭': ['收尾'],
+};
+const selected = (p, scope, text) => p.waitForFunction(([s, t]) => [...document.querySelectorAll(s + ' [role=tab]')].some((x) => x.textContent.trim() === t && x.getAttribute('aria-selected') === 'true'), [scope, text]);
 export async function tab(p, label) {
-  await p.click(`[role=tab]:has-text("${label}")`);
-  await p.waitForFunction((l) => [...document.querySelectorAll('[role=tab]')].some((t) => t.textContent.includes(l) && t.getAttribute('aria-selected') === 'true'), label);
+  const [group, sub] = TABS[label] ?? [label];
+  await p.click(`.gtabs [role=tab]:text-is("${group}")`);
+  await selected(p, '.gtabs', group);
+  if (sub) {
+    await p.click(`.stabs [role=tab]:text-is("${sub}")`);
+    await selected(p, '.stabs', sub);
+  }
   await p.waitForTimeout(300);
 }

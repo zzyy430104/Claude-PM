@@ -72,7 +72,7 @@ export class TeamService {
       { action: 'training.create', entity: 'Training', entityId: (t) => t.id, after: (t) => ({ userId: t.userId, title: t.title }) },
       (tx) => tx.training.create({ data: { tenantId: ctx.tenantId, projectId, userId: dto.userId, title: dto.title, dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined, createdById: actor.id } }),
     );
-    await this.notifications.notify(ctx.tenantId, [dto.userId], { kind: 'TRAINING', title: `培训安排：${dto.title}`, body: ctx.project.code, link: `/projects/${projectId}` }, actor.id);
+    await this.notifications.notify(ctx.tenantId, [dto.userId], { kind: 'TRAINING', title: `培训安排：${dto.title}`, body: ctx.project.code, link: `/projects/${projectId}?g=comm&s=team` }, actor.id);
     return created;
   }
 

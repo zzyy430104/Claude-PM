@@ -10,7 +10,7 @@ import { Lesson } from '../core/models';
   styles: `.box { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 8px 16px; margin: 8px 0; } .meta { font-size: 13px; color: var(--mat-sys-on-surface-variant); }`,
   template: `
     <div class="page">
-      <h1>经验教训库</h1>
+      <h1>经验教训</h1>
       <p>汇总本企业所有项目的经验教训与良好实践，供投标和新项目策划参考。</p>
       <mat-form-field style="width: 100%"><mat-label>搜索</mat-label><input matInput (input)="search($any($event.target).value)" /></mat-form-field>
       @for (l of rows(); track l.id) {

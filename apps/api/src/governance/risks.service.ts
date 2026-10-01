@@ -98,7 +98,7 @@ export class RisksService {
       { action: 'risk.addAction', entity: 'Risk', entityId: () => id, after: () => ({ title: dto.title }) },
       (tx) => this.issues.insert(tx, ctx.tenantId, projectId, actor.id, { kind: 'ACTION', title: dto.title, ownerId: dto.ownerId, dueDate: dto.dueDate, source: 'RISK', riskId: id }),
     );
-    await this.notifications.notify(ctx.tenantId, [dto.ownerId], { kind: 'ACTION_ASSIGNED', title: `新行动项：${dto.title}`, body: `${ctx.project.code} 风险应对`, link: `/projects/${projectId}` }, actor.id);
+    await this.notifications.notify(ctx.tenantId, [dto.ownerId], { kind: 'ACTION_ASSIGNED', title: `新行动项：${dto.title}`, body: `${ctx.project.code} 风险应对`, link: `/projects/${projectId}?g=ctrl&s=risks` }, actor.id);
     return created;
   }
 }

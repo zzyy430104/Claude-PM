@@ -48,7 +48,7 @@ export class IssuesService {
       { action: 'issue.create', entity: 'Issue', entityId: (i) => i.id, after: (i) => ({ title: i.title, kind: i.kind }) },
       (tx) => this.insert(tx, ctx.tenantId, projectId, actor.id, { ...dto, kind: dto.kind ?? 'ISSUE', source: 'MANUAL' }),
     );
-    await this.notifications.notify(ctx.tenantId, [dto.ownerId], { kind: 'ISSUE_ASSIGNED', title: `${created.kind === 'ISSUE' ? '问题' : '行动项'}已分配给你：${created.title}`, body: ctx.project.code, link: `/projects/${projectId}` }, actor.id);
+    await this.notifications.notify(ctx.tenantId, [dto.ownerId], { kind: 'ISSUE_ASSIGNED', title: `${created.kind === 'ISSUE' ? '问题' : '行动项'}已分配给你：${created.title}`, body: ctx.project.code, link: `/projects/${projectId}?g=ctrl&s=issues` }, actor.id);
     return created;
   }
 

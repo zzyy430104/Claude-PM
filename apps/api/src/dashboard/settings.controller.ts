@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Patch } from '@nestjs/common';
-import { ArrayMaxSize, IsArray, IsInt, IsNumber, IsOptional, Matches, Max, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuditService } from '../audit/audit.service.js';
 import { CurrentUser, Roles } from '../common/decorators.js';
 import { requireTenantId } from '../common/auth.types.js';
@@ -8,6 +8,10 @@ import { Role } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export class UpdateTenantSettingsDto {
+  /** 顶栏和工作台显示的系统名称 */
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(40) systemName?: string;
+  /** 企业名称 */
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(100) companyName?: string;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.5) @Max(1) evmAmber?: number;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.5) @Max(1) evmRed?: number;
   /** 每周上班的日子：1 = 周一 … 7 = 周日 */
@@ -16,16 +20,27 @@ export class UpdateTenantSettingsDto {
   @IsOptional() @IsArray() @ArrayMaxSize(500) @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true }) extraWorkdays?: string[];
 }
 
-/** 企业设置：挣值预警阈值（SPI / CPI 低于黄线为黄，低于红线为红）与工作日历 */
+/** 品牌：企业内所有人都能读，用于顶栏显示 */
+@Controller('branding')
+export class BrandingController {
+  constructor(private readonly prisma: PrismaService) {}
+  @Get() async get(@CurrentUser() u: AuthUser) {
+    const t = await this.prisma.tenant.findUniqueOrThrow({ where: { id: requireTenantId(u) }, select: { systemName: true, name: true } });
+    return { systemName: t.systemName, companyName: t.name };
+  }
+}
+
+/** 企业设置：品牌、挣值预警阈值（SPI / CPI 低于黄线为黄，低于红线为红）与工作日历 */
 @Controller('tenant-settings')
 export class SettingsController {
   constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
 
   @Get() async get(@CurrentUser() u: AuthUser) {
     const t = await this.prisma.tenant.findUniqueOrThrow({
-      where: { id: requireTenantId(u) }, select: { evmAmber: true, evmRed: true, workWeek: true, holidays: true, extraWorkdays: true },
+      where: { id: requireTenantId(u) }, select: { systemName: true, name: true, evmAmber: true, evmRed: true, workWeek: true, holidays: true, extraWorkdays: true },
     });
     return {
+      systemName: t.systemName, companyName: t.name,
       evmAmber: Number(t.evmAmber), evmRed: Number(t.evmRed), workWeek: t.workWeek,
       holidays: (t.holidays as string[]) ?? [], extraWorkdays: (t.extraWorkdays as string[]) ?? [],
     };
@@ -37,6 +52,7 @@ export class SettingsController {
     const cur = await this.get(u);
     const uniqSorted = (xs: string[]) => [...new Set(xs)].sort();
     const next = {
+      systemName: dto.systemName?.trim() || cur.systemName, companyName: dto.companyName?.trim() || cur.companyName,
       evmAmber: dto.evmAmber ?? cur.evmAmber, evmRed: dto.evmRed ?? cur.evmRed,
       workWeek: dto.workWeek ? [...new Set(dto.workWeek)].sort() : cur.workWeek,
       holidays: dto.holidays ? uniqSorted(dto.holidays) : cur.holidays,
@@ -47,7 +63,7 @@ export class SettingsController {
     await this.audit.tx(
       u,
       { action: 'tenant.settings', entity: 'Tenant', entityId: () => id, before: cur, after: () => next },
-      (tx) => tx.tenant.update({ where: { id }, data: next }),
+      (tx) => { const { companyName, ...rest } = next; return tx.tenant.update({ where: { id }, data: { ...rest, name: companyName } }); },
     );
     return next;
   }

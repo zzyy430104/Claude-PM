@@ -14,8 +14,8 @@ describe('项目、成员与访问控制', () => {
     const t = await setupTenant(app, 'proj1');
     const p = await createProject(app, t.pm.token);
     const phases = await http().get(`/projects/${p.id}/phases`).set(bearer(t.pm.token)).expect(200);
-    expect(phases.body).toHaveLength(7);
-    expect(phases.body[0].name).toBe('投标');
+    expect(phases.body).toHaveLength(6);
+    expect(phases.body.map((x: { name: string }) => x.name)).toEqual(['项目策划', '技术准备', 'FAI 首件鉴定', '量产', '交付', '项目总结']);
     const members = await http().get(`/projects/${p.id}/members`).set(bearer(t.pm.token)).expect(200);
     expect(members.body).toHaveLength(1);
     expect(members.body[0].projectRole).toBe('PROJECT_MANAGER');

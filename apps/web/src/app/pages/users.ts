@@ -9,18 +9,50 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTableModule } from '@angular/material/table';
 import { firstValueFrom } from 'rxjs';
 import { API, AuthService } from '../core/auth.service';
-import { ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../core/models';
+import { FunctionalRole, ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../core/models';
 
 @Component({
   selector: 'app-users',
   imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatSlideToggleModule, MatTableModule],
   styles: `
     .reset { display: inline-flex; gap: 8px; align-items: center; }
-    .reset input { height: 32px; border: 1px solid #c5cfdb; border-radius: 6px; padding: 0 10px; font: inherit; width: 200px; }
+    .reset input, .rname { height: 32px; border: 1px solid var(--pm-line); border-radius: 8px; padding: 0 10px; font: inherit; width: 200px; background: var(--pm-card); }
+    .rname.off { color: var(--pm-muted); text-decoration: line-through; }
+    .roles td { vertical-align: middle !important; }
   `,
   template: `
     <div class="page">
-      <h1>用户管理</h1>
+      <h1>用户与角色</h1>
+      <nav class="stabs" role="tablist" aria-label="用户与角色">
+        <button type="button" role="tab" [attr.aria-selected]="view() === 'users'" (click)="view.set('users')">用户</button>
+        <button type="button" role="tab" [attr.aria-selected]="view() === 'roles'" (click)="view.set('roles')">职能角色</button>
+      </nav>
+      @if (view() === 'roles') {
+        <p class="muted">职能角色用于模板和计划里按角色指定责任人。模板和项目引用的是角色本身，改名后各处同步显示新名称。停用的角色不能再分配给用户。</p>
+        @if (canEdit()) {
+          <form class="row" (submit)="$event.preventDefault(); addRole()">
+            <mat-form-field><mat-label>新角色名称</mat-label><input matInput [formControl]="newRole" maxlength="30" /></mat-form-field>
+            <button mat-flat-button type="submit" [disabled]="newRole.invalid">新增角色</button>
+          </form>
+        }
+        @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
+        <table class="roles">
+          <thead><tr><th>角色名称</th><th>用户数</th><th>状态</th></tr></thead>
+          <tbody>
+            @for (r of fRoles(); track r.id) {
+              <tr>
+                <td>
+                  @if (canEdit()) {
+                    <input class="rname" [class.off]="!r.active" [value]="r.name" maxlength="30" [attr.aria-label]="'角色名称 ' + r.name" (change)="renameRole(r, $any($event.target).value)" />
+                  } @else { {{ r.name }} }
+                </td>
+                <td>{{ countOf(r.id) }}</td>
+                <td><mat-slide-toggle [checked]="r.active" [disabled]="!canEdit()" (change)="patchRole(r, { active: $event.checked })" [attr.aria-label]="'启用 ' + r.name">{{ r.active ? '启用' : '停用' }}</mat-slide-toggle></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
 
       @if (canEdit()) {
         <form class="row" [formGroup]="form" (ngSubmit)="create()">
@@ -31,6 +63,13 @@ import { ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../core/models';
             <mat-label>角色</mat-label>
             <mat-select formControlName="role">
               @for (r of roles; track r) { <mat-option [value]="r">{{ label(r) }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>职能角色</mat-label>
+            <mat-select formControlName="functionalRoleId">
+              <mat-option value="">不指定</mat-option>
+              @for (r of activeRoles(); track r.id) { <mat-option [value]="r.id">{{ r.name }}</mat-option> }
             </mat-select>
           </mat-form-field>
           <button mat-flat-button type="submit" [disabled]="form.invalid || busy()">添加用户</button>
@@ -51,6 +90,17 @@ import { ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../core/models';
                 @for (r of roles; track r) { <mat-option [value]="r">{{ label(r) }}</mat-option> }
               </mat-select>
             } @else { {{ label(u.role) }} }
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="frole">
+          <th mat-header-cell *matHeaderCellDef>职能角色</th>
+          <td mat-cell *matCellDef="let u">
+            @if (canEdit()) {
+              <mat-select [value]="u.functionalRoleId ?? ''" (selectionChange)="update(u, { functionalRoleId: $event.value || null })" aria-label="职能角色">
+                <mat-option value="">不指定</mat-option>
+                @for (r of fRoles(); track r.id) { <mat-option [value]="r.id" [disabled]="!r.active">{{ r.name }}</mat-option> }
+              </mat-select>
+            } @else { {{ roleName(u.functionalRoleId) }} }
           </td>
         </ng-container>
         <ng-container matColumnDef="active">
@@ -79,6 +129,7 @@ import { ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../core/models';
         <tr mat-header-row *matHeaderRowDef="cols"></tr>
         <tr mat-row *matRowDef="let row; columns: cols"></tr>
       </table>
+      }
     </div>
   `,
 })
@@ -87,7 +138,11 @@ export class UsersPage {
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder).nonNullable;
 
-  readonly cols = ['name', 'email', 'role', 'active', 'actions'];
+  readonly cols = ['name', 'email', 'role', 'frole', 'active', 'actions'];
+  readonly view = signal<'users' | 'roles'>('users');
+  readonly fRoles = signal<FunctionalRole[]>([]);
+  readonly activeRoles = computed(() => this.fRoles().filter((r) => r.active));
+  readonly newRole = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(30)] });
   readonly resetting = signal<string | null>(null);
   readonly resetPw = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(8)] });
   readonly notice = signal('');
@@ -102,6 +157,7 @@ export class UsersPage {
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(8)]],
     role: ['MEMBER' as Role, Validators.required],
+    functionalRoleId: [''],
   });
 
   constructor() {
@@ -113,7 +169,44 @@ export class UsersPage {
   }
 
   async load() {
-    this.users.set(await firstValueFrom(this.http.get<UserRow[]>(`${API}/users`)));
+    const [users, roles] = await Promise.all([
+      firstValueFrom(this.http.get<UserRow[]>(`${API}/users`)),
+      firstValueFrom(this.http.get<FunctionalRole[]>(`${API}/functional-roles`)),
+    ]);
+    this.users.set(users);
+    this.fRoles.set(roles);
+  }
+
+  roleName(id: string | null | undefined) {
+    return this.fRoles().find((r) => r.id === id)?.name ?? '—';
+  }
+  countOf(id: string) {
+    return this.users().filter((u) => u.functionalRoleId === id).length;
+  }
+  async addRole() {
+    if (this.newRole.invalid) return;
+    this.error.set('');
+    try {
+      await firstValueFrom(this.http.post(`${API}/functional-roles`, { name: this.newRole.value.trim() }));
+      this.newRole.reset('');
+      await this.load();
+    } catch (e) {
+      this.error.set(this.message(e, '新增失败', '已有同名角色'));
+    }
+  }
+  async renameRole(r: FunctionalRole, name: string) {
+    name = name.trim();
+    if (!name || name === r.name) return this.load();
+    await this.patchRole(r, { name });
+  }
+  async patchRole(r: FunctionalRole, patch: Partial<Pick<FunctionalRole, 'name' | 'active'>>) {
+    this.error.set('');
+    try {
+      await firstValueFrom(this.http.patch(`${API}/functional-roles/${r.id}`, patch));
+    } catch (e) {
+      this.error.set(this.message(e, '保存失败', '已有同名角色'));
+    }
+    await this.load();
   }
 
   async create() {
@@ -121,8 +214,9 @@ export class UsersPage {
     this.busy.set(true);
     this.error.set('');
     try {
-      await firstValueFrom(this.http.post(`${API}/users`, this.form.getRawValue()));
-      this.form.reset({ name: '', email: '', password: '', role: 'MEMBER' });
+      const v = this.form.getRawValue();
+      await firstValueFrom(this.http.post(`${API}/users`, { ...v, functionalRoleId: v.functionalRoleId || undefined }));
+      this.form.reset({ name: '', email: '', password: '', role: 'MEMBER', functionalRoleId: '' });
       await this.load();
     } catch (e) {
       this.error.set(this.message(e, '添加失败'));
@@ -131,7 +225,7 @@ export class UsersPage {
     }
   }
 
-  async update(u: UserRow, patch: Partial<Pick<UserRow, 'role' | 'active'>>) {
+  async update(u: UserRow, patch: Partial<Pick<UserRow, 'role' | 'active' | 'functionalRoleId'>>) {
     this.error.set('');
     try {
       await firstValueFrom(this.http.patch(`${API}/users/${u.id}`, patch));
@@ -161,9 +255,9 @@ export class UsersPage {
     }
   }
 
-  private message(e: unknown, fallback: string) {
+  private message(e: unknown, fallback: string, conflict = '该邮箱已存在') {
     if (e instanceof HttpErrorResponse) {
-      if (e.status === 409) return '该邮箱已存在';
+      if (e.status === 409) return conflict;
       if (e.status === 403) return '没有权限执行此操作';
     }
     return fallback;

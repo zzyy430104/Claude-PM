@@ -8,13 +8,12 @@ import { CreatePhaseTemplateDto } from './dto.js';
 
 /** 未选择模板时使用的轨道交通典型阶段 */
 export const DEFAULT_PHASES = [
-  { name: '投标', checklist: ['投标文件已评审', '风险与机会已评估', '报价已批准'], mandatoryRoles: ['PROJECT_MANAGER'] },
-  { name: '设计与开发', checklist: ['设计输入已确认', '设计评审已完成', '设计输出已受控'], mandatoryRoles: ['PROJECT_MANAGER', 'PROJECT_QUALITY_MANAGER'] },
-  { name: '采购', checklist: ['供方已评价', '采购合同已签订'], mandatoryRoles: ['PROJECT_MANAGER', 'FUNCTION_MANAGER'] },
-  { name: '制造', checklist: ['首件检验已通过', '过程控制计划已执行'], mandatoryRoles: ['PROJECT_MANAGER', 'PROJECT_QUALITY_MANAGER'] },
-  { name: '调试与验证', checklist: ['型式试验已完成', '调试记录已归档'], mandatoryRoles: ['PROJECT_MANAGER', 'PROJECT_QUALITY_MANAGER'] },
-  { name: '交付', checklist: ['客户验收点已确认', '交付文件已移交'], mandatoryRoles: ['PROJECT_MANAGER', 'PROJECT_QUALITY_MANAGER'] },
-  { name: '质保期', checklist: ['质保期问题已关闭', '经验教训已登记'], mandatoryRoles: ['PROJECT_MANAGER'] },
+  { name: '项目策划', checklist: ['项目要求已分解为需求清单', '计划已批准', '风险与机会已识别'], mandatoryRoles: ['PROJECT_MANAGER', 'TOP_MANAGEMENT'] },
+  { name: '技术准备', checklist: ['客户图纸与技术文件已评审', 'PFMEA 与控制计划已完成', '工艺文件与工装检具已就绪'], mandatoryRoles: ['PROJECT_MANAGER', 'PROJECT_QUALITY_MANAGER'] },
+  { name: 'FAI 首件鉴定', checklist: ['首件检验已完成', 'FAI 报告已出具', '遗留问题已关闭或已有计划'], mandatoryRoles: ['PROJECT_MANAGER', 'PROJECT_QUALITY_MANAGER'] },
+  { name: '量产', checklist: ['采购计划已批准', '长周期物料已下单', '批量生产与出厂检验已完成'], mandatoryRoles: ['PROJECT_MANAGER', 'PROJECT_QUALITY_MANAGER'] },
+  { name: '交付', checklist: ['交付文件已准备', '客户已验收'], mandatoryRoles: ['PROJECT_MANAGER', 'PROJECT_QUALITY_MANAGER'] },
+  { name: '项目总结', checklist: ['项目要求达成情况已评价', '经验教训已登记', '售后交接已完成'], mandatoryRoles: ['PROJECT_MANAGER'] },
 ] as const;
 
 @Injectable()

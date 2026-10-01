@@ -6,14 +6,14 @@ await p.goto((process.env.WEB_URL ?? 'http://localhost:4200') + '/');
 await p.waitForURL('**/login'); step('未登录被重定向到登录页');
 await signup(p, slug); step('注册企业并自动登录');
 await addUser(p, '李经理', 'pm@demo.test', 'pm-pass-12345', '项目经理'); step('添加项目经理');
-await p.click('a:has-text("审计日志")');
+await p.click('a:text-is("审计")');
 await p.waitForSelector('td:has-text("user.create")'); step('审计日志出现 user.create，且显示操作人姓名');
 await p.reload(); await p.waitForSelector('td:has-text("user.create")'); step('刷新页面后保持登录');
 await logout(p); step('退出登录');
 
 await login(p, slug, 'pm@demo.test', 'pm-pass-12345');
 const nav = await p.locator('mat-sidenav').innerText();
-if (nav.includes('用户管理') || nav.includes('审计日志')) throw new Error('项目经理不应看到管理菜单: ' + nav);
+if (nav.includes('用户与角色') || nav.includes('审计')) throw new Error('项目经理不应看到管理菜单: ' + nav);
 step('项目经理看不到管理菜单');
 await p.goto((process.env.WEB_URL ?? 'http://localhost:4200') + '/users');
 await p.waitForSelector('mat-toolbar'); 

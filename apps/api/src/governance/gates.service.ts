@@ -219,10 +219,10 @@ export class GatesService {
     );
     const members = await this.notifications.projectUsers(ctx.tenantId, projectId);
     await this.notifications.notify(ctx.tenantId, members, {
-      kind: 'GATE_DECIDED', title: `阶段评审结论：${phase.name} — ${dto.decision}`, body: dto.note, link: `/projects/${projectId}`,
+      kind: 'GATE_DECIDED', title: `阶段评审结论：${phase.name} — ${dto.decision}`, body: dto.note, link: `/projects/${projectId}?g=exec&s=phases`,
     }, actor.id);
     for (const a of dto.actions ?? []) {
-      await this.notifications.notify(ctx.tenantId, [a.ownerId], { kind: 'ACTION_ASSIGNED', title: `新行动项：${a.title}`, body: `${ctx.project.code} 关口评审`, link: `/projects/${projectId}` }, actor.id);
+      await this.notifications.notify(ctx.tenantId, [a.ownerId], { kind: 'ACTION_ASSIGNED', title: `新行动项：${a.title}`, body: `${ctx.project.code} 关口评审`, link: `/projects/${projectId}?g=exec&s=phases` }, actor.id);
     }
     return decided;
   }

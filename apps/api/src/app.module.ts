@@ -9,7 +9,6 @@ import { TeamModule } from './team/team.module.js';
 import { ConfigurationModule } from './configuration/config.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
 import { KnowledgeModule } from './knowledge/knowledge.module.js';
-import { TenderModule } from './tenders/tender.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { EvidenceModule } from './evidence/evidence.module.js';
@@ -40,7 +39,6 @@ import { UsersModule } from './users/users.module.js';
     DocumentsModule,
     KnowledgeModule,
     ConfigurationModule,
-    TenderModule,
     NotificationsModule,
     DashboardModule,
     EvidenceModule,

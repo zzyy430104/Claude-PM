@@ -5,6 +5,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { Api, errorMessage } from '../core/api';
+import { Brand } from '../core/brand';
 import { CalendarSettings } from '../core/models';
 
 const DAYS = [
@@ -13,7 +14,7 @@ const DAYS = [
 ];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** 企业设置：挣值预警阈值、工作日历 */
+/** 企业设置：品牌、挣值预警阈值、工作日历 */
 @Component({
   selector: 'app-settings',
   imports: [ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule],
@@ -27,6 +28,14 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
     <div class="page">
       <h1>企业设置</h1>
       <form [formGroup]="form" (ngSubmit)="save()">
+        <section>
+          <h2>品牌</h2>
+          <p class="muted">系统名称显示在顶栏和浏览器标签上；企业名称显示在系统名称旁边。</p>
+          <div class="row">
+            <mat-form-field><mat-label>系统名称</mat-label><input matInput formControlName="systemName" maxlength="40" /></mat-form-field>
+            <mat-form-field style="min-width: 280px"><mat-label>企业名称</mat-label><input matInput formControlName="companyName" maxlength="100" /></mat-form-field>
+          </div>
+        </section>
         <section>
           <h2>挣值预警阈值</h2>
           <p class="muted">
@@ -68,7 +77,10 @@ export class SettingsPage {
   readonly error = signal('');
   readonly saved = signal(false);
   readonly week = signal<number[]>([1, 2, 3, 4, 5]);
+  private readonly brand = inject(Brand);
   readonly form = this.fb.group({
+    systemName: ['', [Validators.required, Validators.maxLength(40)]],
+    companyName: ['', [Validators.required, Validators.maxLength(100)]],
     evmAmber: [0.95, [Validators.required, Validators.min(0.5), Validators.max(1)]],
     evmRed: [0.9, [Validators.required, Validators.min(0.5), Validators.max(1)]],
     holidays: [''],
@@ -78,7 +90,7 @@ export class SettingsPage {
   async ngOnInit() {
     const s = await this.api.get<CalendarSettings>('/tenant-settings');
     this.week.set(s.workWeek);
-    this.form.patchValue({ evmAmber: s.evmAmber, evmRed: s.evmRed, holidays: s.holidays.join('\n'), extraWorkdays: s.extraWorkdays.join('\n') });
+    this.form.patchValue({ systemName: s.systemName, companyName: s.companyName, evmAmber: s.evmAmber, evmRed: s.evmRed, holidays: s.holidays.join('\n'), extraWorkdays: s.extraWorkdays.join('\n') });
   }
 
   toggleDay(n: number, on: boolean) {
@@ -103,8 +115,10 @@ export class SettingsPage {
     if (!holidays || !extraWorkdays) return;
     try {
       const s = await this.api.patch<CalendarSettings>('/tenant-settings', {
+        systemName: v.systemName.trim(), companyName: v.companyName.trim(),
         evmAmber: v.evmAmber, evmRed: v.evmRed, workWeek: this.week(), holidays, extraWorkdays,
       });
+      this.brand.set(s.systemName, s.companyName);
       this.week.set(s.workWeek);
       this.form.patchValue({ holidays: s.holidays.join('\n'), extraWorkdays: s.extraWorkdays.join('\n') });
       this.saved.set(true);

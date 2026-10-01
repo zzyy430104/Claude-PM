@@ -1,4 +1,4 @@
-import { launch, step, signup, login, logout, addUser } from './lib.mjs';
+import { launch, step, signup, login, logout, addUser, tab } from './lib.mjs';
 const slug = 'b-' + Date.now().toString(36);
 const { b, p, errors } = await launch();
 await signup(p, slug); step('注册企业');
@@ -14,19 +14,19 @@ await p.fill('input[formcontrolname=startDate]', '2026-03-02');
 await p.fill('input[formcontrolname=endDate]', '2026-12-31');
 await p.fill('input[formcontrolname=budget]', '5000000');
 await p.click('button:has-text("创建项目")');
-await p.waitForSelector('h1:has-text("HSR-001")'); step('创建项目并进入详情');
+await p.waitForSelector('.meta:has-text("编号 HSR-001")'); step('创建项目并进入详情');
 
-await p.click('[role=tab]:has-text("阶段")');
-await p.waitForSelector('text=1. 投标'); step('阶段页显示 7 个默认阶段');
-if (await p.locator('.phase').count() !== 7) throw new Error('阶段数量不对');
+await tab(p, '阶段');
+await p.waitForSelector('text=1. 项目策划'); step('阶段页显示 6 个默认阶段');
+if (await p.locator('app-project-phases .phase').count() !== 6) throw new Error('阶段数量不对');
 
-await p.click('[role=tab]:has-text("成员")');
+await tab(p, '成员');
 await p.click('mat-select[formcontrolname=userId]');
 await p.click('mat-option:has-text("王成员")');
 await p.click('button:has-text("添加成员")');
 await p.waitForSelector('td:has-text("王成员")'); step('添加项目成员');
 
-await p.click('[role=tab]:has-text("WBS")');
+await tab(p, 'WBS');
 async function addWp(code, name, days, parent) {
   await p.fill('input[formcontrolname=code]', code);
   await p.fill('input[formcontrolname=name]', name);
@@ -63,7 +63,7 @@ await p.screenshot({ path: `${process.env.SHOT_DIR ?? '/tmp'}/gantt.png` }); ste
 await p.click('mat-button-toggle:has-text("看板")');
 await p.waitForSelector('.board'); step('看板视图');
 
-await p.click('[role=tab]:has-text("概览")');
+await tab(p, '概览');
 await p.fill('textarea >> nth=0', '按期交付合格的转向架');
 await p.click('button:has-text("保存计划")');
 await p.waitForSelector('text=已保存'); step('保存项目管理计划');
@@ -73,7 +73,7 @@ await p.click('button:has-text("确认批准")');
 await p.waitForSelector('text=计划已批准');
 await p.waitForSelector('td:has-text("第 1 版")'); step('批准计划并保存第 1 版快照');
 
-await p.click('[role=tab]:has-text("WBS")');
+await tab(p, 'WBS');
 await p.fill('input[formcontrolname=code]', '3');
 await p.fill('input[formcontrolname=name]', '新增范围');
 await p.click('button:has-text("添加工作包")');
@@ -83,7 +83,7 @@ await logout(p);
 await login(p, slug, 'wang@demo.test', 'pm-pass-12345');
 await p.click('mat-sidenav a:text-is("项目")');
 await p.click('a:has-text("HSR-001")');
-await p.waitForSelector('h1:has-text("HSR-001")');
+await p.waitForSelector('.meta:has-text("编号 HSR-001")');
 const hasForm = await p.locator('button:has-text("保存计划")').count();
 if (hasForm) throw new Error('成员不应看到保存计划按钮');
 step('普通成员能看项目但看不到编辑入口');

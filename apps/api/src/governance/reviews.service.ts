@@ -94,9 +94,9 @@ export class ReviewsService {
       },
     );
     for (const a of dto.actions ?? []) {
-      await this.notifications.notify(ctx.tenantId, [a.ownerId], { kind: 'ACTION_ASSIGNED', title: `新行动项：${a.title}`, body: `${ctx.project.code} 项目评审`, link: `/projects/${projectId}` }, actor.id);
+      await this.notifications.notify(ctx.tenantId, [a.ownerId], { kind: 'ACTION_ASSIGNED', title: `新行动项：${a.title}`, body: `${ctx.project.code} 项目评审`, link: `/projects/${projectId}?g=ctrl&s=issues` }, actor.id);
     }
-    await this.notifications.notify(ctx.tenantId, [dto.reportedToId], { kind: 'REVIEW_REPORTED', title: `项目评审报告：${ctx.project.code} ${ctx.project.name}`, body: dto.escalations ?? '', link: `/projects/${projectId}` }, actor.id);
+    await this.notifications.notify(ctx.tenantId, [dto.reportedToId], { kind: 'REVIEW_REPORTED', title: `项目评审报告：${ctx.project.code} ${ctx.project.name}`, body: dto.escalations ?? '', link: `/projects/${projectId}?g=comm&s=reviews` }, actor.id);
     return created;
   }
 

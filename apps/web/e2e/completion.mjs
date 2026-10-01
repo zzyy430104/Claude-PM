@@ -99,7 +99,7 @@ await p.waitForSelector('h1:has-text("项目周报")');
 await p.waitForSelector('li:has-text("向客户项目经理通报进度偏离")'); step('项目周报（含偏离通报）');
 
 // 资源负荷
-await p.click('mat-sidenav a:has-text("资源负荷")');
+await p.click('mat-sidenav a:text-is("资源")');
 await p.fill('input[type=date]', '2026-09-28');
 await p.click('button:has-text("查询")');
 await p.waitForSelector('tr:has-text("王成员")'); step('资源负荷按人按周显示');

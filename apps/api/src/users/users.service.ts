@@ -18,6 +18,7 @@ const publicSelect = {
   email: true,
   name: true,
   role: true,
+  functionalRoleId: true,
   active: true,
   mustChangePassword: true,
   createdAt: true,
@@ -42,7 +43,7 @@ export class UsersService {
   directory(actor: AuthUser) {
     return this.prisma.user.findMany({
       where: { tenantId: requireTenantId(actor), active: true },
-      select: { id: true, name: true, email: true, role: true },
+      select: { id: true, name: true, email: true, role: true, functionalRoleId: true },
       orderBy: { name: 'asc' },
     });
   }
@@ -61,6 +62,7 @@ export class UsersService {
     if (dto.role === Role.PLATFORM_ADMIN) {
       throw new BadRequestException('Role not allowed in a tenant');
     }
+    await this.assertFunctionalRole(tenantId, dto.functionalRoleId);
     const passwordHash = await hashPassword(dto.password);
     try {
       return await this.prisma.txn(async (tx) => {
@@ -71,6 +73,7 @@ export class UsersService {
             name: dto.name,
             passwordHash,
             role: dto.role,
+            functionalRoleId: dto.functionalRoleId ?? null,
             mustChangePassword: true,
           },
           select: publicSelect,
@@ -99,6 +102,13 @@ export class UsersService {
     }
   }
 
+  /** 职能角色必须属于本企业且在用 */
+  private async assertFunctionalRole(tenantId: string, id: string | null | undefined) {
+    if (!id) return;
+    const r = await this.prisma.functionalRole.findFirst({ where: { id, tenantId, active: true } });
+    if (!r) throw new BadRequestException('Functional role not found');
+  }
+
   async update(actor: AuthUser, id: string, dto: UpdateUserDto) {
     const tenantId = requireTenantId(actor);
     if (dto.role === Role.PLATFORM_ADMIN) {
@@ -116,11 +126,13 @@ export class UsersService {
       select: publicSelect,
     });
     if (!existing) throw new NotFoundException('User not found');
+    await this.assertFunctionalRole(tenantId, dto.functionalRoleId);
 
     const data: Prisma.UserUpdateInput = {
       name: dto.name,
       role: dto.role,
       active: dto.active,
+      functionalRoleId: dto.functionalRoleId,
     };
     if (dto.password) {
       // 管理员重置别人的密码后，对方下次登录必须自己改掉
@@ -152,11 +164,13 @@ export class UsersService {
             name: existing.name,
             role: existing.role,
             active: existing.active,
+            functionalRoleId: existing.functionalRoleId,
           },
           after: {
             name: user.name,
             role: user.role,
             active: user.active,
+            functionalRoleId: user.functionalRoleId,
             ...(dto.password ? { passwordReset: true } : {}),
           },
         },

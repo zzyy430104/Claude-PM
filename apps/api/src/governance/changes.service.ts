@@ -124,7 +124,7 @@ export class ChangesService {
     const ccb = await this.notifications.projectUsers(ctx.tenantId, projectId, { isCcb: true });
     const tops = await this.notifications.tenantUsersWithRole(ctx.tenantId, 'TOP_MANAGEMENT');
     await this.notifications.notify(ctx.tenantId, [...ccb, ...tops], {
-      kind: 'CHANGE_SUBMITTED', title: `待审批变更 ${cr.code}：${cr.title}`, body: `${ctx.project.code} ${ctx.project.name}`, link: `/projects/${projectId}`,
+      kind: 'CHANGE_SUBMITTED', title: `待审批变更 ${cr.code}：${cr.title}`, body: `${ctx.project.code} ${ctx.project.name}`, link: `/projects/${projectId}?g=ctrl&s=changes`,
     }, cr.requestedById);
     return submitted;
   }
@@ -162,7 +162,7 @@ export class ChangesService {
     const approved = await this.transition(actor, id, 'changeRequest.approve', {
       status: ChangeStatus.APPROVED, decidedById: actor.id, decidedAt: new Date(), decisionNote: dto.note,
     });
-    await this.notifications.notify(ctx.tenantId, [cr.requestedById], { kind: 'CHANGE_DECIDED', title: `变更 ${cr.code} 已批准`, body: dto.note ?? '', link: `/projects/${projectId}` });
+    await this.notifications.notify(ctx.tenantId, [cr.requestedById], { kind: 'CHANGE_DECIDED', title: `变更 ${cr.code} 已批准`, body: dto.note ?? '', link: `/projects/${projectId}?g=ctrl&s=changes` });
     return approved;
   }
 
@@ -174,7 +174,7 @@ export class ChangesService {
     const rejected = await this.transition(actor, id, 'changeRequest.reject', {
       status: ChangeStatus.REJECTED, decidedById: actor.id, decidedAt: new Date(), decisionNote: dto.note,
     });
-    await this.notifications.notify(ctx.tenantId, [cr.requestedById], { kind: 'CHANGE_DECIDED', title: `变更 ${cr.code} 被驳回`, body: dto.note, link: `/projects/${projectId}` });
+    await this.notifications.notify(ctx.tenantId, [cr.requestedById], { kind: 'CHANGE_DECIDED', title: `变更 ${cr.code} 被驳回`, body: dto.note, link: `/projects/${projectId}?g=ctrl&s=changes` });
     return rejected;
   }
 

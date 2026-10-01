@@ -11,7 +11,7 @@ import { PhaseTemplate, PROJECT_ROLES, PROJECT_ROLE_LABELS, ProjectRole, WbsTemp
   imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
   template: `
     <div class="page">
-      <h1>阶段模板</h1>
+      <h1>模板</h1>
       <p>未选择模板的项目使用默认的轨道交通 7 个阶段。每行一个阶段，格式：<code>阶段名 | 关口清单项1；清单项2 | 必选：项目经理、项目质量经理 | 可选：职能经理</code>。后两段可省略，省略时必选参与者为项目经理。</p>
       <form [formGroup]="form" (ngSubmit)="create()">
         <mat-form-field style="width: 100%"><mat-label>模板名称</mat-label><input matInput formControlName="name" /></mat-form-field>
