@@ -100,6 +100,8 @@ export async function createUser(
 /** 创建一个租户，含项目经理、质量经理和几个普通成员 */
 export async function setupTenant(app: INestApplication, label: string) {
   const admin = await signupTenant(app, label);
+  // 老测试直接建项目：打开“小项目免立项”（立项流程见 initiation.e2e-spec.ts）
+  await request(app.getHttpServer()).patch('/tenant-settings').set(bearer(admin.token)).send({ allowDirectProject: true }).expect(200);
   const pm = await createUser(app, admin, 'PROJECT_MANAGER', 'pm');
   const pqm = await createUser(app, admin, 'PROJECT_QUALITY_MANAGER', 'pqm');
   const member = await createUser(app, admin, 'MEMBER', 'member');

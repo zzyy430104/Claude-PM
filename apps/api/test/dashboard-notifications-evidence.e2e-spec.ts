@@ -115,7 +115,7 @@ describe('通知', () => {
     await http(app).post(`/projects/${p.id}/changes/${cr.id}/approve`).set(bearer(t.pm.token)).send({ note: '同意' }).expect(200);
     const mine = (await http(app).get('/notifications?unread=true').set(bearer(t.member.token)).expect(200)).body;
     expect(mine).toHaveLength(1);
-    expect(mine[0]).toMatchObject({ kind: 'CHANGE_DECIDED', link: `/projects/${p.id}` });
+    expect(mine[0]).toMatchObject({ kind: 'CHANGE_DECIDED', link: `/projects/${p.id}?g=ctrl&s=changes` });
 
     // 已读只影响自己；不能标记别人的通知
     const pmList = (await http(app).get('/notifications').set(bearer(t.pm.token)).expect(200)).body;

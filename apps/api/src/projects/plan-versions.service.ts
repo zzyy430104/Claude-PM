@@ -24,9 +24,12 @@ export class PlanVersionsService {
     private readonly wbs: WbsService,
   ) {}
 
-  async capture(actor: AuthUser, projectId: string, note: string, changeRequestId?: string) {
-    const ctx = await this.access.load(actor, projectId);
-    const schedule = await this.wbs.get(actor, projectId);
+  /** tenantId 已知时（计划批准人不一定是项目成员）跳过项目权限检查，由调用方负责 */
+  async capture(actor: AuthUser, projectId: string, note: string, changeRequestId?: string, tenantId?: string) {
+    const ctx = tenantId
+      ? { tenantId, project: await this.prisma.project.findFirstOrThrow({ where: { id: projectId, tenantId } }) }
+      : await this.access.load(actor, projectId);
+    const schedule = await this.wbs.scheduleOf(ctx.tenantId, ctx.project);
     const p = ctx.project;
     const snapshot: PlanSnapshot = {
       project: {

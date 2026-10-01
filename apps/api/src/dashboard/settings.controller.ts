@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Patch } from '@nestjs/common';
-import { ArrayMaxSize, IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuditService } from '../audit/audit.service.js';
 import { CurrentUser, Roles } from '../common/decorators.js';
 import { requireTenantId } from '../common/auth.types.js';
@@ -12,6 +12,10 @@ export class UpdateTenantSettingsDto {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(40) systemName?: string;
   /** 企业名称 */
   @IsOptional() @IsString() @MinLength(1) @MaxLength(100) companyName?: string;
+  /** 立项需要会签 */
+  @IsOptional() @IsBoolean() requireCosign?: boolean;
+  /** 小项目免立项：项目经理可直接建项目 */
+  @IsOptional() @IsBoolean() allowDirectProject?: boolean;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.5) @Max(1) evmAmber?: number;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.5) @Max(1) evmRed?: number;
   /** 每周上班的日子：1 = 周一 … 7 = 周日 */
@@ -25,8 +29,8 @@ export class UpdateTenantSettingsDto {
 export class BrandingController {
   constructor(private readonly prisma: PrismaService) {}
   @Get() async get(@CurrentUser() u: AuthUser) {
-    const t = await this.prisma.tenant.findUniqueOrThrow({ where: { id: requireTenantId(u) }, select: { systemName: true, name: true } });
-    return { systemName: t.systemName, companyName: t.name };
+    const t = await this.prisma.tenant.findUniqueOrThrow({ where: { id: requireTenantId(u) }, select: { systemName: true, name: true, allowDirectProject: true } });
+    return { systemName: t.systemName, companyName: t.name, allowDirectProject: t.allowDirectProject };
   }
 }
 
@@ -37,10 +41,10 @@ export class SettingsController {
 
   @Get() async get(@CurrentUser() u: AuthUser) {
     const t = await this.prisma.tenant.findUniqueOrThrow({
-      where: { id: requireTenantId(u) }, select: { systemName: true, name: true, evmAmber: true, evmRed: true, workWeek: true, holidays: true, extraWorkdays: true },
+      where: { id: requireTenantId(u) }, select: { systemName: true, name: true, requireCosign: true, allowDirectProject: true, evmAmber: true, evmRed: true, workWeek: true, holidays: true, extraWorkdays: true },
     });
     return {
-      systemName: t.systemName, companyName: t.name,
+      systemName: t.systemName, companyName: t.name, requireCosign: t.requireCosign, allowDirectProject: t.allowDirectProject,
       evmAmber: Number(t.evmAmber), evmRed: Number(t.evmRed), workWeek: t.workWeek,
       holidays: (t.holidays as string[]) ?? [], extraWorkdays: (t.extraWorkdays as string[]) ?? [],
     };
@@ -53,6 +57,7 @@ export class SettingsController {
     const uniqSorted = (xs: string[]) => [...new Set(xs)].sort();
     const next = {
       systemName: dto.systemName?.trim() || cur.systemName, companyName: dto.companyName?.trim() || cur.companyName,
+      requireCosign: dto.requireCosign ?? cur.requireCosign, allowDirectProject: dto.allowDirectProject ?? cur.allowDirectProject,
       evmAmber: dto.evmAmber ?? cur.evmAmber, evmRed: dto.evmRed ?? cur.evmRed,
       workWeek: dto.workWeek ? [...new Set(dto.workWeek)].sort() : cur.workWeek,
       holidays: dto.holidays ? uniqSorted(dto.holidays) : cur.holidays,

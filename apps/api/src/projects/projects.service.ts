@@ -69,6 +69,11 @@ export class ProjectsService {
     if (actor.role !== Role.TENANT_ADMIN && actor.role !== Role.PROJECT_MANAGER) {
       throw new ForbiddenException('Only tenant admin or project manager can create projects');
     }
+    // 项目由立项批准后生成；只有企业开启“小项目免立项”时才能直接建
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { allowDirectProject: true } });
+    if (!tenant.allowDirectProject) {
+      throw new ForbiddenException({ code: 'INITIATION_REQUIRED', message: 'Projects are created by approving an initiation' });
+    }
     if (day(dto.endDate) < day(dto.startDate)) {
       throw new BadRequestException('endDate must not be before startDate');
     }
@@ -101,6 +106,7 @@ export class ProjectsService {
               name: dto.name,
               description: dto.description,
               riskLevel: dto.riskLevel,
+              type: dto.type,
               startDate: day(dto.startDate),
               endDate: day(dto.endDate),
               customerDeliveryDate: dto.customerDeliveryDate ? day(dto.customerDeliveryDate) : undefined,
@@ -185,6 +191,8 @@ export class ProjectsService {
     const ctx = await this.access.load(actor, id);
     this.access.requireManager(ctx);
     if (ctx.project.baselined) throw new ConflictException('Already baselined');
+    // 由立项生成的项目：项目经理提交、计划批准人批准（见 PlanningService）
+    if (ctx.project.initiationId) throw new ConflictException({ code: 'PLAN_APPROVAL_REQUIRED', message: 'Submit the plan for approval instead' });
     const pm = await this.prisma.projectMember.count({
       where: { projectId: id, projectRole: ProjectRole.PROJECT_MANAGER, active: true },
     });

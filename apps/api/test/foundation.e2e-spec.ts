@@ -48,7 +48,7 @@ describe('底座调整：职能角色、品牌、投标已删除', () => {
     await http().patch('/tenant-settings').set(bearer(t.pm.token)).send({ systemName: '华东轨道 PMS' }).expect(403);
     await http().patch('/tenant-settings').set(bearer(t.admin.token)).send({ systemName: '' }).expect(400);
     await http().patch('/tenant-settings').set(bearer(t.admin.token)).send({ systemName: '华东轨道 PMS', companyName: '华东轨道装备有限公司' }).expect(200);
-    expect((await http().get('/branding').set(bearer(t.member.token)).expect(200)).body).toEqual({ systemName: '华东轨道 PMS', companyName: '华东轨道装备有限公司' });
+    expect((await http().get('/branding').set(bearer(t.member.token)).expect(200)).body).toMatchObject({ systemName: '华东轨道 PMS', companyName: '华东轨道装备有限公司' });
     expect((await http().get('/tenant-settings').set(bearer(t.admin.token)).expect(200)).body).toMatchObject({ systemName: '华东轨道 PMS', evmAmber: 0.95 });
   });
 

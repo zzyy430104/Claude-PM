@@ -4,6 +4,7 @@ import { Role } from '../generated/prisma/enums.js';
 import { AuditService } from '../audit/audit.service.js';
 import { hashPassword } from '../common/password.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { DEFAULT_LIBRARY } from '../initiations/plan-templates.js';
 
 /** 新企业默认的职能角色，企业可以改名、增加或停用 */
 export const DEFAULT_FUNCTIONAL_ROLES = ['项目经理', '技术', '设计', '工艺', '质量', '生产', '采购', '计划', '物流', '仓库', '售后'];
@@ -34,6 +35,7 @@ export class TenantsService {
         await tx.functionalRole.createMany({
           data: DEFAULT_FUNCTIONAL_ROLES.map((name, i) => ({ tenantId: tenant.id, name, sortOrder: i + 1 })),
         });
+        await tx.optionalWorkPackage.createMany({ data: DEFAULT_LIBRARY.map((l) => ({ ...l, tenantId: tenant.id })) });
         const admin = await tx.user.create({
           data: {
             tenantId: tenant.id,

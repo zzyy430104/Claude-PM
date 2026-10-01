@@ -28,35 +28,39 @@ model Tenant {
   createdAt DateTime @default(now())
 
   /// 挣值预警阈值：SPI / CPI 低于 amber 为黄，低于 red 为红
-  evmAmber  Decimal  @default(0.95) @map("evm_amber") @db.Decimal(4, 2)
-  evmRed    Decimal  @default(0.90) @map("evm_red") @db.Decimal(4, 2)
+  evmAmber           Decimal    @default(0.95) @map("evm_amber") @db.Decimal(4, 2)
+  evmRed             Decimal    @default(0.90) @map("evm_red") @db.Decimal(4, 2)
   /// 工作日历：每周上班的日子（1 = 周一 … 7 = 周日）、放假日、调休上班日
-  workWeek      Int[]  @default([1, 2, 3, 4, 5]) @map("work_week")
-  holidays      Json   @default("[]")
-  extraWorkdays Json   @default("[]") @map("extra_workdays")
+  workWeek           Int[]      @default([1, 2, 3, 4, 5]) @map("work_week")
+  holidays           Json       @default("[]")
+  extraWorkdays      Json       @default("[]") @map("extra_workdays")
   /// 顶栏和工作台显示的系统名称，企业可以改
-  systemName    String @default("Claude-PM") @map("system_name")
-  users     User[]
-  auditLogs AuditLog[]
+  systemName         String     @default("Claude-PM") @map("system_name")
+  /// 立项需要会签（质量、财务等先给意见）
+  requireCosign      Boolean    @default(false) @map("require_cosign")
+  /// 小项目免立项：项目经理可直接建项目
+  allowDirectProject Boolean    @default(false) @map("allow_direct_project")
+  users              User[]
+  auditLogs          AuditLog[]
 
   @@map("tenants")
 }
 
 model User {
-  id           String   @id @default(uuid())
-  tenantId     String?  @map("tenant_id")
-  email        String
-  name         String
-  passwordHash String   @map("password_hash")
+  id                 String    @id @default(uuid())
+  tenantId           String?   @map("tenant_id")
+  email              String
+  name               String
+  passwordHash       String    @map("password_hash")
   /// 管理员设置或重置的密码，本人下次登录后必须修改
-  mustChangePassword Boolean @default(false) @map("must_change_password")
+  mustChangePassword Boolean   @default(false) @map("must_change_password")
   passwordChangedAt  DateTime? @map("password_changed_at")
-  role         Role
+  role               Role
   /// 职能角色（企业自定义名称，如 工艺、质量、采购），用于模板和计划里按角色指定责任人
-  functionalRoleId String? @map("functional_role_id")
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  functionalRoleId   String?   @map("functional_role_id")
+  active             Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   tenant        Tenant?        @relation(fields: [tenantId], references: [id])
   refreshTokens RefreshToken[]
@@ -169,6 +173,16 @@ model Project {
   description          String?
   riskLevel            RiskLevel     @default(MEDIUM)
   status               ProjectStatus @default(PLANNING)
+  /// 项目类型：A 含产品设计开发；B 基于客户合同；C 按库存计划
+  type                 ProjectType   @default(B)
+  /// 由哪份立项申请批准生成；为空表示直接建立（小项目免立项）
+  initiationId         String?       @map("initiation_id")
+  /// 当前生效的项目要求版本（0 = 没有项目要求）
+  requirementVersion   Int           @default(0) @map("requirement_version")
+  /// 项目要求变更后、计划重新批准前为 true
+  planOutdated         Boolean       @default(false) @map("plan_outdated")
+  /// 项目经理提交计划批准的时间（批准或退回后清空）
+  planSubmittedAt      DateTime?     @map("plan_submitted_at")
   /// 基线后，范围 / 预算 / 客户交期只能通过已批准的变更申请修改
   baselined            Boolean       @default(false)
   /// 阶段评审从哪一级 WBS 开始（8.1.3.1.3 c），1 = 顶层
@@ -259,37 +273,41 @@ model Phase {
 }
 
 model WorkPackage {
-  id              String    @id @default(uuid())
-  tenantId        String    @map("tenant_id")
-  projectId       String    @map("project_id")
-  parentId        String?   @map("parent_id")
-  phaseId         String?   @map("phase_id")
-  code            String
-  name            String
-  description     String?
-  ownerId         String?   @map("owner_id")
-  durationDays    Int       @default(1) @map("duration_days")
-  actualStart     DateTime? @db.Date
-  actualEnd       DateTime? @db.Date
-  percentComplete Int       @default(0) @map("percent_complete")
-  status          WpStatus  @default(NOT_STARTED)
-  verifiedById    String?   @map("verified_by_id")
-  verifiedAt      DateTime?
-  budget          Decimal?  @db.Decimal(14, 2)
+  id               String    @id @default(uuid())
+  tenantId         String    @map("tenant_id")
+  projectId        String    @map("project_id")
+  parentId         String?   @map("parent_id")
+  phaseId          String?   @map("phase_id")
+  code             String
+  name             String
+  description      String?
+  ownerId          String?   @map("owner_id")
+  durationDays     Int       @default(1) @map("duration_days")
+  actualStart      DateTime? @db.Date
+  actualEnd        DateTime? @db.Date
+  percentComplete  Int       @default(0) @map("percent_complete")
+  status           WpStatus  @default(NOT_STARTED)
+  verifiedById     String?   @map("verified_by_id")
+  verifiedAt       DateTime?
+  budget           Decimal?  @db.Decimal(14, 2)
   /// 预算归入的成本科目（8.1.3.5 b）
-  costAccountId   String?   @map("cost_account_id")
+  costAccountId    String?   @map("cost_account_id")
   /// 产出的交付物（8.1.3.1.1 d）
-  deliverableId   String?   @map("deliverable_id")
+  deliverableId    String?   @map("deliverable_id")
   /// 估算资源（人天，8.1.3.4 b）
-  resourceDays    Decimal?  @map("resource_days") @db.Decimal(10, 1)
+  resourceDays     Decimal?  @map("resource_days") @db.Decimal(10, 1)
   /// 外部供方名称：由外部供方完成的工作包（8.1.3.4 d）
-  externalProvider String?  @map("external_provider")
+  externalProvider String?   @map("external_provider")
   /// 长周期物料，需与外部供方共同管理（8.1.3.4 c2）
-  longLead        Boolean   @default(false) @map("long_lead")
+  longLead         Boolean   @default(false) @map("long_lead")
   /// 里程碑：工期为 0 的节点（客户验收点、关口等）
-  isMilestone     Boolean   @default(false) @map("is_milestone")
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  isMilestone      Boolean   @default(false) @map("is_milestone")
+  /// 责任角色（职能角色字典），按角色批量指定责任人
+  functionalRoleId String?   @map("functional_role_id")
+  /// 采购工作包：采购是跨阶段的工作线
+  isPurchase       Boolean   @default(false) @map("is_purchase")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   project      Project        @relation(fields: [projectId], references: [id])
   phase        Phase?         @relation(fields: [phaseId], references: [id])
@@ -599,17 +617,17 @@ model CostAccount {
 
 /// 成本记录只增不改：更正通过录入负数冲销
 model CostEntry {
-  id          String   @id @default(uuid())
-  tenantId    String   @map("tenant_id")
-  projectId   String   @map("project_id")
-  accountId   String   @map("account_id")
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  projectId     String   @map("project_id")
+  accountId     String   @map("account_id")
   /// 发生在哪个工作包（可选），用于按工作包统计实际成本
-  workPackageId String? @map("work_package_id")
-  amount      Decimal  @db.Decimal(14, 2)
-  entryDate   DateTime @db.Date
-  description String
-  createdById String   @map("created_by_id")
-  createdAt   DateTime @default(now())
+  workPackageId String?  @map("work_package_id")
+  amount        Decimal  @db.Decimal(14, 2)
+  entryDate     DateTime @db.Date
+  description   String
+  createdById   String   @map("created_by_id")
+  createdAt     DateTime @default(now())
 
   account CostAccount @relation(fields: [accountId], references: [id])
 
@@ -730,7 +748,6 @@ enum BaselineType {
   AS_MAINTAINED
 }
 
-
 model Document {
   id             String   @id @default(uuid())
   tenantId       String   @map("tenant_id")
@@ -825,7 +842,6 @@ model Baseline {
   @@index([tenantId, projectId])
   @@map("baselines")
 }
-
 
 // ───────── 批次 F：通知 ─────────
 
@@ -946,16 +962,16 @@ enum DeviationDimension {
 
 /// 偏离通报：即将偏离项目目标时，向客户和相关方通报影响与对策（8.1.3.8、8.1.3.11）
 model DeviationNotice {
-  id             String             @id @default(uuid())
-  tenantId       String             @map("tenant_id")
-  projectId      String             @map("project_id")
-  dimension      DeviationDimension
-  noticeDate     DateTime           @map("notice_date") @db.Date
-  audience       String
-  impact         String
+  id              String             @id @default(uuid())
+  tenantId        String             @map("tenant_id")
+  projectId       String             @map("project_id")
+  dimension       DeviationDimension
+  noticeDate      DateTime           @map("notice_date") @db.Date
+  audience        String
+  impact          String
   countermeasures String
-  createdById    String             @map("created_by_id")
-  createdAt      DateTime           @default(now())
+  createdById     String             @map("created_by_id")
+  createdAt       DateTime           @default(now())
 
   @@index([tenantId, projectId])
   @@map("deviation_notices")
@@ -992,4 +1008,172 @@ model FunctionalRole {
   @@unique([tenantId, name])
   @@index([tenantId])
   @@map("functional_roles")
+}
+
+enum ProjectType {
+  A
+  B
+  C
+}
+
+enum InitiationStatus {
+  DRAFT
+  COSIGN
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ApprovalRoleKind {
+  INITIATOR
+  APPROVER
+  COSIGNER
+  PLAN_APPROVER
+}
+
+enum RequirementChangeStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// 立项与审批角色：谁能提立项申请、谁批准、谁会签、谁批准计划；附授权依据和有效期
+model ApprovalAssignment {
+  id        String           @id @default(uuid())
+  tenantId  String           @map("tenant_id")
+  kind      ApprovalRoleKind
+  userId    String           @map("user_id")
+  /// 授权依据，如授权书编号
+  basis     String           @default("")
+  validFrom DateTime?        @map("valid_from") @db.Date
+  validTo   DateTime?        @map("valid_to") @db.Date
+  createdAt DateTime         @default(now())
+
+  @@unique([tenantId, kind, userId])
+  @@index([tenantId])
+  @@map("approval_assignments")
+}
+
+/// 立项申请：批准后生成项目和项目要求第 1 版
+model Initiation {
+  id             String           @id @default(uuid())
+  tenantId       String           @map("tenant_id")
+  code           String
+  projectCode    String           @default("") @map("project_code")
+  name           String
+  type           ProjectType      @default(B)
+  riskLevel      RiskLevel        @default(MEDIUM) @map("risk_level")
+  productFamily  String           @default("") @map("product_family")
+  proposedPmId   String?          @map("proposed_pm_id")
+  customer       String           @default("")
+  contractNo     String           @default("") @map("contract_no")
+  contractAmount Decimal?         @map("contract_amount") @db.Decimal(14, 2)
+  startDate      DateTime?        @map("start_date") @db.Date
+  /// 项目要求：时间、交付物、质量、成本、初步风险（见 initiations/requirements.ts）
+  requirements   Json             @default("{}")
+  status         InitiationStatus @default(DRAFT)
+  applicantId    String           @map("applicant_id")
+  submittedAt    DateTime?        @map("submitted_at")
+  decidedById    String?          @map("decided_by_id")
+  decidedAt      DateTime?        @map("decided_at")
+  decisionNote   String?          @map("decision_note")
+  projectId      String?          @map("project_id")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  opinions InitiationOpinion[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("initiations")
+}
+
+/// 会签意见
+model InitiationOpinion {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  initiationId String   @map("initiation_id")
+  userId       String   @map("user_id")
+  agree        Boolean
+  opinion      String
+  createdAt    DateTime @default(now())
+
+  initiation Initiation @relation(fields: [initiationId], references: [id])
+
+  @@unique([initiationId, userId])
+  @@index([tenantId])
+  @@map("initiation_opinions")
+}
+
+/// 项目要求的各个版本：第 1 版来自立项，以后每版来自一次批准的项目要求变更
+model ProjectRequirementVersion {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  projectId    String   @map("project_id")
+  version      Int
+  data         Json
+  reason       String
+  approvedById String   @map("approved_by_id")
+  approvedAt   DateTime @default(now()) @map("approved_at")
+  changeId     String?  @map("change_id")
+
+  @@unique([projectId, version])
+  @@index([tenantId, projectId])
+  @@map("project_requirement_versions")
+}
+
+/// 项目要求变更：独立于项目内变更，由立项批准人审批
+model RequirementChange {
+  id           String                  @id @default(uuid())
+  tenantId     String                  @map("tenant_id")
+  projectId    String                  @map("project_id")
+  code         String
+  reason       String
+  /// 变更后的完整项目要求
+  data         Json
+  fromVersion  Int                     @map("from_version")
+  status       RequirementChangeStatus @default(DRAFT)
+  applicantId  String                  @map("applicant_id")
+  submittedAt  DateTime?               @map("submitted_at")
+  decidedById  String?                 @map("decided_by_id")
+  decidedAt    DateTime?               @map("decided_at")
+  decisionNote String?                 @map("decision_note")
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId, projectId])
+  @@map("requirement_changes")
+}
+
+/// 可选工作包库：不是每个项目都有的环节，策划时勾选加入
+model OptionalWorkPackage {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  name           String
+  durationDays   Int      @map("duration_days")
+  suggestedPhase String   @default("") @map("suggested_phase")
+  roleName       String   @default("") @map("role_name")
+  deliverable    String   @default("")
+  types          String[] @default([])
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("optional_work_packages")
+}
+
+/// 企业改过的 A/B/C 计划模板；没有改过时使用系统默认模板
+model PlanTypeTemplate {
+  id        String      @id @default(uuid())
+  tenantId  String      @map("tenant_id")
+  type      ProjectType
+  items     Json
+  updatedAt DateTime    @updatedAt
+
+  @@unique([tenantId, type])
+  @@map("plan_type_templates")
 }

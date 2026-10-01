@@ -26,6 +26,7 @@ import {
   RequirementStatus,
   RiskLevel,
   WpStatus,
+  ProjectType,
 } from '../generated/prisma/enums.js';
 
 const CODE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
@@ -55,6 +56,7 @@ export class CreateProjectDto {
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) budget?: number;
   @IsOptional() @IsUUID() templateId?: string;
   @IsOptional() @IsUUID() managerId?: string;
+  @IsOptional() @IsEnum(ProjectType) type?: ProjectType;
 }
 
 export class UpdateProjectDto {

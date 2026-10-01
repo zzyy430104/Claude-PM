@@ -9,6 +9,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { WpStatus } from '../generated/prisma/enums.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth.types.js';
+import type { Project } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectAccess, ProjectCtx } from './access.service.js';
 import { ChangeGuard } from './change-guard.service.js';
@@ -31,6 +32,13 @@ export class WbsService {
   /** WBS 树、依赖、按 CPM 计算的排程；父节点的日期由子节点汇总 */
   async get(actor: AuthUser, projectId: string) {
     const ctx = await this.access.load(actor, projectId);
+    return this.scheduleOf(ctx.tenantId, ctx.project);
+  }
+
+  /** 排程计算，不做权限检查（调用方负责）；计划批准检查也用它 */
+  async scheduleOf(tenantId: string, project: Project) {
+    const ctx = { tenantId, project };
+    const projectId = project.id;
     const [wps, deps] = await Promise.all([
       this.prisma.workPackage.findMany({
         where: { projectId, tenantId: ctx.tenantId },
@@ -73,6 +81,9 @@ export class WbsService {
     const cal = await this.calendars.forTenant(ctx.tenantId);
     const origin = Date.parse(iso(start));
     const calOffset = (d: string) => Math.round((Date.parse(d) - origin) / 86_400_000);
+    // 按客户交期倒排：最晚开始 = 关键路径法的最晚开始 + （交期对应的工期 − 计划总工期）
+    const requiredEnd = ctx.project.customerDeliveryDate ? iso(ctx.project.customerDeliveryDate) : null;
+    const shift = requiredEnd && sched.projectDurationDays > 0 ? cal.workdaysBetween(start, requiredEnd) + 1 - sched.projectDurationDays : null;
     const items = wps.map((w) => {
       const r = rollUp(w.id);
       const s = byId.get(w.id);
@@ -86,6 +97,8 @@ export class WbsService {
         endOffsetDays: calOffset(span.end) + (w.isMilestone ? 0 : 1),
         critical: r.critical,
         totalFloatDays: s?.totalFloat ?? null,
+        latestStart: s && shift !== null ? cal.dateAt(start, Math.max(s.lateStart + shift, 0)) : null,
+        startTooLate: !!s && shift !== null && s.lateStart + shift < 0,
       };
     });
     const projectedEnd = sched.projectDurationDays > 0 ? cal.dateAt(start, sched.projectDurationDays - 1) : iso(start);
@@ -97,6 +110,9 @@ export class WbsService {
       calendarDays: items.length ? Math.max(...items.map((i) => i.endOffsetDays), 1) : 0,
       projectedEnd,
       exceedsPlannedEnd: projectedEnd > iso(ctx.project.endDate),
+      requiredEnd,
+      /** 比交期晚多少个工作日（负数 = 有余量） */
+      gapDays: requiredEnd && leaves.length ? cal.workdaysBetween(requiredEnd, projectedEnd) : null,
     };
   }
 
