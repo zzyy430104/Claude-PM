@@ -69,6 +69,12 @@ export function errorMessage(e: unknown, fallback = '操作失败'): string {
   if (body?.code === 'INSPECTION_INCOMPLETE') return `还不能核验：${(e.error as { blockers?: string[] }).blockers?.join('；')}`;
   if (body?.code === 'RATE_REASON_REQUIRED') return '人工费率与标准费率不同，请写明原因';
   if (body?.code === 'NA_REASON_REQUIRED') return '选“不适用”时请写明理由';
+  if (body?.code === 'EVALUATION_CONFIRMED') return '项目经理绩效已由管理层确认，不能再修改';
+  if (body?.code === 'EVALUATION_INCOMPLETE') return '还有评价方面没有分数（自定义方面由管理层打分）';
+  if (body?.code === 'EVALUATION_SUBMITTED') return '评价已提交并锁定；要修改请先“撤回修改”';
+  if (body?.code === 'SCORES_INCOMPLETE') return `还有维度没有打分：${(e.error as { missing?: string[] }).missing?.join('、') ?? ''}`;
+  if (body?.code === 'REASON_REQUIRED') return '请写明理由';
+  if (body?.code === 'DUPLICATE_NAME') return '名称已存在';
   if (body?.code === 'CBA_REQUIRED') return '选了应对策略，请先写成本收益分析';
   if (body?.code === 'ACCEPT_REASON_REQUIRED') return '选“接受”时请写明理由';
   if (body?.code === 'CONTINGENCY_REQUIRED') return '按规则，选“接受”还需要写应急预案';

@@ -23,6 +23,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { TenantsModule } from './tenants/tenants.module.js';
 import { UsersModule } from './users/users.module.js';
 import { InitiationsModule } from './initiations/initiations.module.js';
+import { PerformanceModule } from './performance/performance.module.js';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { InitiationsModule } from './initiations/initiations.module.js';
     AuthModule,
     UsersModule,
     InitiationsModule,
+    PerformanceModule,
     ProjectsModule,
     GovernanceModule,
     CostModule,

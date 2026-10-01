@@ -47,6 +47,8 @@ model Tenant {
   riskCriteria         Json       @default("{}") @map("risk_criteria")
   riskStrategies       Json       @default("{}") @map("risk_strategies")
   riskRules            Json       @default("{}") @map("risk_rules")
+  /// 项目绩效评价设置：项目经理评价方面与权重、计分规则、成员评价维度、等级、可见范围（空 = 默认）
+  perfConfig           Json       @default("{}") @map("perf_config")
   /// 检验 / 验证项的类别，企业可以增减
   inspectionCategories String[]   @default(["产品", "过程", "文件", "评审", "试验"]) @map("inspection_categories")
   users                User[]
@@ -67,6 +69,8 @@ model User {
   role               Role
   /// 职能角色（企业自定义名称，如 工艺、质量、采购），用于模板和计划里按角色指定责任人
   functionalRoleId   String?   @map("functional_role_id")
+  /// 所属部门（项目绩效评价单发给部门负责人）
+  departmentId       String?   @map("department_id")
   active             Boolean   @default(true)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -1092,6 +1096,8 @@ enum ApprovalRoleKind {
   APPROVER
   COSIGNER
   PLAN_APPROVER
+  /// 人事：查看和导出项目绩效评价单
+  HR
 }
 
 enum RequirementChangeStatus {
@@ -1408,4 +1414,78 @@ model ProjectObjective {
 
   @@index([tenantId, projectId])
   @@map("project_objectives")
+}
+
+// ───────── 第 5C 章：项目绩效评价 ─────────
+
+/// 部门及负责人（成员的项目绩效评价单发给所在部门负责人）
+model Department {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  headId    String?  @map("head_id")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("departments")
+}
+
+/// 项目经理绩效：本项目的权重、实际交付日期、管理层评语与调整
+model ProjectPerformance {
+  id             String    @id @default(uuid())
+  tenantId       String    @map("tenant_id")
+  projectId      String    @unique @map("project_id")
+  /// 本项目的评价方面与权重 [{ key, name, weight }]；为空时用企业默认
+  aspects        Json?
+  aspectsReason  String?   @map("aspects_reason")
+  /// 实际交付（入库）日期；为空时按交付物验收或排程推算
+  actualDelivery DateTime? @map("actual_delivery") @db.Date
+  /// 自定义方面的分数 { key: 0–100 }
+  manualScores   Json      @default("{}") @map("manual_scores")
+  adjustedScore  Int?      @map("adjusted_score")
+  adjustReason   String?   @map("adjust_reason")
+  comment        String?
+  confirmedAt    DateTime? @map("confirmed_at")
+  confirmedById  String?   @map("confirmed_by_id")
+  /// 确认时的计算结果（确认后不再随数据变化）
+  snapshot       Json?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@map("project_performances")
+}
+
+enum EvaluationStatus {
+  DRAFT
+  SUBMITTED
+}
+
+/// 项目经理对项目成员的评价（只针对本项目）
+model MemberEvaluation {
+  id          String           @id @default(uuid())
+  tenantId    String           @map("tenant_id")
+  projectId   String           @map("project_id")
+  userId      String           @map("user_id")
+  evaluatorId String           @map("evaluator_id")
+  /// 在本项目的角色（职能角色或项目角色）
+  roleName    String           @default("") @map("role_name")
+  /// 提交时的参考数据
+  reference   Json             @default("{}")
+  /// { 维度: 1–5 }
+  scores      Json             @default("{}")
+  score       Int              @default(0)
+  grade       String           @default("")
+  comment     String           @default("")
+  status      EvaluationStatus @default(DRAFT)
+  /// 提交次数（修改须重新提交）
+  version     Int              @default(0)
+  submittedAt DateTime?        @map("submitted_at")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([projectId, userId])
+  @@index([tenantId, userId])
+  @@map("member_evaluations")
 }

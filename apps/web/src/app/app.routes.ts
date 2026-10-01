@@ -65,6 +65,10 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/audit').then((m) => m.AuditPage),
       },
       {
+        path: 'evaluations',
+        loadComponent: () => import('./pages/evaluations').then((m) => m.EvaluationsPage),
+      },
+      {
         path: 'enterprise-risks',
         loadComponent: () => import('./pages/enterprise-risks').then((m) => m.EnterpriseRisksPage),
       },

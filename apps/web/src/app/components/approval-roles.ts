@@ -4,7 +4,7 @@ import { Api, errorMessage } from '../core/api';
 import { APPROVAL_ROLE_DEFAULTS, APPROVAL_ROLE_LABELS, ApprovalAssignment, ApprovalRoleKind, UserRow } from '../core/models';
 
 interface Entry { userId: string; basis: string; validFrom: string; validTo: string }
-const KINDS: ApprovalRoleKind[] = ['INITIATOR', 'COSIGNER', 'APPROVER', 'PLAN_APPROVER'];
+const KINDS: ApprovalRoleKind[] = ['INITIATOR', 'COSIGNER', 'APPROVER', 'PLAN_APPROVER', 'HR'];
 
 /** 立项与审批角色：按人指定立项申请人、会签人、立项批准人、计划批准人，附授权依据和有效期 */
 @Component({
@@ -52,7 +52,7 @@ export class ApprovalRoles {
   readonly users = input.required<UserRow[]>();
   readonly canEdit = input(false);
   readonly kinds = KINDS;
-  readonly entries = signal<Record<ApprovalRoleKind, Entry[]>>({ INITIATOR: [], COSIGNER: [], APPROVER: [], PLAN_APPROVER: [] });
+  readonly entries = signal<Record<ApprovalRoleKind, Entry[]>>({ INITIATOR: [], COSIGNER: [], APPROVER: [], PLAN_APPROVER: [], HR: [] });
   readonly error = signal('');
   readonly saved = signal<ApprovalRoleKind | null>(null);
 
@@ -61,7 +61,7 @@ export class ApprovalRoles {
   async load() {
     try {
       const rows = await this.api.get<ApprovalAssignment[]>('/approval-roles');
-      const out: Record<ApprovalRoleKind, Entry[]> = { INITIATOR: [], COSIGNER: [], APPROVER: [], PLAN_APPROVER: [] };
+      const out: Record<ApprovalRoleKind, Entry[]> = { INITIATOR: [], COSIGNER: [], APPROVER: [], PLAN_APPROVER: [], HR: [] };
       for (const r of rows) out[r.kind].push({ userId: r.userId, basis: r.basis, validFrom: r.validFrom?.slice(0, 10) ?? '', validTo: r.validTo?.slice(0, 10) ?? '' });
       this.entries.set(out);
     } catch (e) { this.error.set(errorMessage(e, '加载失败')); }

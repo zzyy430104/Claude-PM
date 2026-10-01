@@ -20,6 +20,7 @@ export class CreateUserDto {
   @IsString() @MinLength(8) @MaxLength(128) password: string;
   @IsEnum(Role) role: Role;
   @IsOptional() @IsUUID() functionalRoleId?: string;
+  @IsOptional() @IsUUID() departmentId?: string;
 }
 
 export class UpdateUserDto {
@@ -29,6 +30,7 @@ export class UpdateUserDto {
   @IsOptional() @IsString() @MinLength(8) @MaxLength(128) password?: string;
   /** null 表示清除 */
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID() functionalRoleId?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID() departmentId?: string | null;
 }
 
 export class CreateFunctionalRoleDto {

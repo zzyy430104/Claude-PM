@@ -41,6 +41,7 @@ export interface UserRow {
   name: string;
   role: Role;
   functionalRoleId?: string | null;
+  departmentId?: string | null;
   active: boolean;
   mustChangePassword?: boolean;
   createdAt: string;
@@ -524,15 +525,16 @@ export interface Initiation {
   cosigners?: string[];
   can?: { edit: boolean; submit: boolean; withdraw: boolean; cosign: boolean; decide: boolean };
 }
-export type ApprovalRoleKind = 'INITIATOR' | 'APPROVER' | 'COSIGNER' | 'PLAN_APPROVER';
+export type ApprovalRoleKind = 'INITIATOR' | 'APPROVER' | 'COSIGNER' | 'PLAN_APPROVER' | 'HR';
 export const APPROVAL_ROLE_LABELS: Record<ApprovalRoleKind, string> = {
-  INITIATOR: '立项申请人', COSIGNER: '会签人', APPROVER: '立项批准人', PLAN_APPROVER: '计划批准人',
+  INITIATOR: '立项申请人', COSIGNER: '会签人', APPROVER: '立项批准人', PLAN_APPROVER: '计划批准人', HR: '人事',
 };
 export const APPROVAL_ROLE_DEFAULTS: Record<ApprovalRoleKind, string> = {
   INITIATOR: '未指定时：企业管理员、最高管理层、项目经理',
   COSIGNER: '未指定时：没有会签人（开启会签前请先指定）',
   APPROVER: '未指定时：最高管理层',
   PLAN_APPROVER: '未指定时：最高管理层；立项批准人也可批准计划',
+  HR: '未指定时：没有人事（项目绩效评价单发给人事前请先指定）',
 };
 export interface ApprovalAssignment { id: string; kind: ApprovalRoleKind; userId: string; basis: string; validFrom: string | null; validTo: string | null }
 export interface MyApprovalRoles { initiator: boolean; approver: boolean; cosigner: boolean; planApprover: boolean }
@@ -586,3 +588,35 @@ export interface InspectionStats {
   workPackages: number; missing: { id: string; code: string; name: string }[];
 }
 export interface InspectionTemplate { id: string; name: string; category: string; requirement: string; method: string; record: string; active: boolean }
+
+// ───── 第 5C 章：项目绩效评价 ─────
+export interface Department { id: string; name: string; headId: string | null; active: boolean }
+export interface PerfAspect { key: string; name: string; weight: number }
+export interface PerfConfig {
+  aspects: PerfAspect[];
+  rules: { latePerDay: number; faiNotFirstPass: number; majorNc: number; criticalNc: number; customerNc: number; fpyTarget: number; fpyPerPct: number; capScore: number; overTargetPerPct: number; overCapPerPct: number };
+  memberDims: string[];
+  grades: { excellent: number; good: number; pass: number };
+  visibility: { memberSelf: boolean; deptHead: boolean; hr: boolean };
+}
+export interface AspectResult { key: string; name: string; weight: number; auto: boolean; target: string; actual: string; score: number | null; estimate?: boolean }
+export interface MemberReference { workPackages: number; done: number; onTimeRate: number | null; firstPassYield: number | null; overruns: number; overdueActions: number; text: string }
+export interface MemberEvalRow {
+  userId: string; name: string; roleName: string; reference: MemberReference | null; scores: Record<string, number>; score: number | null; grade: string | null;
+  comment: string; status: 'DRAFT' | 'SUBMITTED'; version: number; submittedAt: string | null; editable: boolean;
+}
+export interface ProjectEvaluation {
+  config: { aspects: PerfAspect[]; memberDims: string[]; grades: PerfConfig['grades'] };
+  pm: null | {
+    managers: { id: string; name: string }[]; aspects: AspectResult[]; total: number | null; complete: boolean; score: number | null; grade: string | null;
+    adjustedScore: number | null; adjustReason: string | null; comment: string | null; aspectsReason: string | null; customAspects: boolean; actualDelivery: string | null;
+    confirmedAt: string | null;
+  };
+  members: MemberEvalRow[];
+  can: { evaluate: boolean; manage: boolean; setWeights: boolean; export: boolean };
+}
+export interface EvaluationSheet {
+  kind: 'PM' | 'MEMBER'; id: string; project: { id: string; code: string; name: string; status: string }; userId: string; name: string; department: string; roleName: string;
+  score: number; grade: string; comment: string; submittedAt: string | null;
+  aspects?: AspectResult[]; adjustReason?: string | null; reference?: MemberReference; scores?: Record<string, number>; evaluator?: string; version?: number;
+}

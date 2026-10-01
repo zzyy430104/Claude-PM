@@ -19,6 +19,7 @@ const publicSelect = {
   name: true,
   role: true,
   functionalRoleId: true,
+  departmentId: true,
   active: true,
   mustChangePassword: true,
   createdAt: true,
@@ -63,6 +64,7 @@ export class UsersService {
       throw new BadRequestException('Role not allowed in a tenant');
     }
     await this.assertFunctionalRole(tenantId, dto.functionalRoleId);
+    await this.assertDepartment(tenantId, dto.departmentId);
     const passwordHash = await hashPassword(dto.password);
     try {
       return await this.prisma.txn(async (tx) => {
@@ -74,6 +76,7 @@ export class UsersService {
             passwordHash,
             role: dto.role,
             functionalRoleId: dto.functionalRoleId ?? null,
+            departmentId: dto.departmentId ?? null,
             mustChangePassword: true,
           },
           select: publicSelect,
@@ -103,6 +106,10 @@ export class UsersService {
   }
 
   /** 职能角色必须属于本企业且在用 */
+  private async assertDepartment(tenantId: string, id?: string | null) {
+    if (id && !(await this.prisma.department.findFirst({ where: { id, tenantId, active: true } }))) throw new BadRequestException('Unknown department');
+  }
+
   private async assertFunctionalRole(tenantId: string, id: string | null | undefined) {
     if (!id) return;
     const r = await this.prisma.functionalRole.findFirst({ where: { id, tenantId, active: true } });
@@ -127,12 +134,14 @@ export class UsersService {
     });
     if (!existing) throw new NotFoundException('User not found');
     await this.assertFunctionalRole(tenantId, dto.functionalRoleId);
+    await this.assertDepartment(tenantId, dto.departmentId);
 
     const data: Prisma.UserUpdateInput = {
       name: dto.name,
       role: dto.role,
       active: dto.active,
       functionalRoleId: dto.functionalRoleId,
+      departmentId: dto.departmentId,
     };
     if (dto.password) {
       // 管理员重置别人的密码后，对方下次登录必须自己改掉
@@ -165,12 +174,14 @@ export class UsersService {
             role: existing.role,
             active: existing.active,
             functionalRoleId: existing.functionalRoleId,
+            departmentId: existing.departmentId,
           },
           after: {
             name: user.name,
             role: user.role,
             active: user.active,
             functionalRoleId: user.functionalRoleId,
+            departmentId: user.departmentId,
             ...(dto.password ? { passwordReset: true } : {}),
           },
         },

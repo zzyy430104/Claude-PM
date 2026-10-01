@@ -10,7 +10,7 @@ import { MatTableModule } from '@angular/material/table';
 import { firstValueFrom } from 'rxjs';
 import { ApprovalRoles } from '../components/approval-roles';
 import { API, AuthService } from '../core/auth.service';
-import { FunctionalRole, ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../core/models';
+import { Department, FunctionalRole, ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../core/models';
 
 @Component({
   selector: 'app-users',
@@ -76,6 +76,13 @@ import { FunctionalRole, ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../cor
               @for (r of activeRoles(); track r.id) { <mat-option [value]="r.id">{{ r.name }}</mat-option> }
             </mat-select>
           </mat-form-field>
+          <mat-form-field>
+            <mat-label>部门</mat-label>
+            <mat-select formControlName="departmentId">
+              <mat-option value="">不指定</mat-option>
+              @for (d of activeDepts(); track d.id) { <mat-option [value]="d.id">{{ d.name }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
           <button mat-flat-button type="submit" [disabled]="form.invalid || busy()">添加用户</button>
         </form>
       }
@@ -105,6 +112,17 @@ import { FunctionalRole, ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../cor
                 @for (r of fRoles(); track r.id) { <mat-option [value]="r.id" [disabled]="!r.active">{{ r.name }}</mat-option> }
               </mat-select>
             } @else { {{ roleName(u.functionalRoleId) }} }
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="dept">
+          <th mat-header-cell *matHeaderCellDef>部门</th>
+          <td mat-cell *matCellDef="let u">
+            @if (canEdit()) {
+              <mat-select [value]="u.departmentId ?? ''" (selectionChange)="update(u, { departmentId: $event.value || null })" aria-label="部门">
+                <mat-option value="">不指定</mat-option>
+                @for (d of depts(); track d.id) { <mat-option [value]="d.id" [disabled]="!d.active">{{ d.name }}</mat-option> }
+              </mat-select>
+            } @else { {{ deptName(u.departmentId) }} }
           </td>
         </ng-container>
         <ng-container matColumnDef="active">
@@ -142,10 +160,12 @@ export class UsersPage {
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder).nonNullable;
 
-  readonly cols = ['name', 'email', 'role', 'frole', 'active', 'actions'];
+  readonly cols = ['name', 'email', 'role', 'frole', 'dept', 'active', 'actions'];
   readonly view = signal<'users' | 'roles' | 'approval'>('users');
   readonly activeUsers = computed(() => this.users().filter((u) => u.active));
   readonly fRoles = signal<FunctionalRole[]>([]);
+  readonly depts = signal<Department[]>([]);
+  readonly activeDepts = computed(() => this.depts().filter((d) => d.active));
   readonly activeRoles = computed(() => this.fRoles().filter((r) => r.active));
   readonly newRole = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(30)] });
   readonly resetting = signal<string | null>(null);
@@ -163,6 +183,7 @@ export class UsersPage {
     password: ['', [Validators.required, Validators.minLength(8)]],
     role: ['MEMBER' as Role, Validators.required],
     functionalRoleId: [''],
+    departmentId: [''],
   });
 
   constructor() {
@@ -174,16 +195,21 @@ export class UsersPage {
   }
 
   async load() {
-    const [users, roles] = await Promise.all([
+    const [users, roles, depts] = await Promise.all([
       firstValueFrom(this.http.get<UserRow[]>(`${API}/users`)),
       firstValueFrom(this.http.get<FunctionalRole[]>(`${API}/functional-roles`)),
+      firstValueFrom(this.http.get<Department[]>(`${API}/departments`)),
     ]);
     this.users.set(users);
     this.fRoles.set(roles);
+    this.depts.set(depts);
   }
 
   roleName(id: string | null | undefined) {
     return this.fRoles().find((r) => r.id === id)?.name ?? '—';
+  }
+  deptName(id: string | null | undefined) {
+    return this.depts().find((d) => d.id === id)?.name ?? '—';
   }
   countOf(id: string) {
     return this.users().filter((u) => u.functionalRoleId === id).length;
@@ -220,8 +246,8 @@ export class UsersPage {
     this.error.set('');
     try {
       const v = this.form.getRawValue();
-      await firstValueFrom(this.http.post(`${API}/users`, { ...v, functionalRoleId: v.functionalRoleId || undefined }));
-      this.form.reset({ name: '', email: '', password: '', role: 'MEMBER', functionalRoleId: '' });
+      await firstValueFrom(this.http.post(`${API}/users`, { ...v, functionalRoleId: v.functionalRoleId || undefined, departmentId: v.departmentId || undefined }));
+      this.form.reset({ name: '', email: '', password: '', role: 'MEMBER', functionalRoleId: '', departmentId: '' });
       await this.load();
     } catch (e) {
       this.error.set(this.message(e, '添加失败'));
@@ -230,7 +256,7 @@ export class UsersPage {
     }
   }
 
-  async update(u: UserRow, patch: Partial<Pick<UserRow, 'role' | 'active' | 'functionalRoleId'>>) {
+  async update(u: UserRow, patch: Partial<Pick<UserRow, 'role' | 'active' | 'functionalRoleId' | 'departmentId'>>) {
     this.error.set('');
     try {
       await firstValueFrom(this.http.patch(`${API}/users/${u.id}`, patch));

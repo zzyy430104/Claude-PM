@@ -11,6 +11,7 @@ const DEFAULT_ROLES: Record<ApprovalRoleKind, Role[]> = {
   APPROVER: [Role.TOP_MANAGEMENT],
   COSIGNER: [],
   PLAN_APPROVER: [Role.TOP_MANAGEMENT],
+  HR: [],
 };
 
 export interface AssignmentInput { userId: string; basis?: string; validFrom?: string | null; validTo?: string | null }

@@ -18,6 +18,7 @@ import { ProjectPhases } from '../components/project-phases';
 import { ProjectQuality } from '../components/project-quality';
 import { ProjectReviews } from '../components/project-reviews';
 import { ProjectRisks } from '../components/project-risks';
+import { ProjectEvaluationPanel } from '../components/project-evaluation';
 import { ProjectTeam } from '../components/project-team';
 import { ProjectWbs } from '../components/project-wbs';
 import { ProjectPlanApproval } from '../components/project-plan-approval';
@@ -41,7 +42,7 @@ const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs',
 
 @Component({
   selector: 'app-project-detail',
-  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig, ProjectReqVersions, ProjectPlanApproval, ProjectCostPlan, ProjectQualityPlan, ProjectCostControl],
+  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig, ProjectReqVersions, ProjectPlanApproval, ProjectCostPlan, ProjectQualityPlan, ProjectCostControl, ProjectEvaluationPanel],
   styles: `
     .crumb { font-size: 13px; color: var(--pm-muted); margin: 0 0 4px; }
     .crumb a { color: var(--pm-muted); }
@@ -95,7 +96,7 @@ const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs',
           @case ('inspections') { <app-project-quality-plan [project]="p" mode="records" /> }
           @case ('team') { <app-project-team [project]="p" /> }
           @case ('documents') { <div class="stack"><app-project-documents [project]="p" /><app-project-config [project]="p" /></div> }
-          @case ('closure') { <app-project-closure [project]="p" (changed)="load()" /> }
+          @case ('closure') { <div class="stack"><app-project-evaluation [project]="p" /><app-project-closure [project]="p" (changed)="load()" /></div> }
         }
       </div>
     }
