@@ -22,6 +22,8 @@ const GRADE_COLOR: Record<string, string> = { 优秀: 'green', 良好: 'green', 
     .foot { display: flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap; margin-top: 12px; }
     .foot .sp { flex: 1; font-size: 12.5px; color: var(--pm-muted); }
     td.ref { font-size: 13px; color: var(--pm-muted); }
+    td:first-child, td.nw, td:has(> input.w), td:has(> button), td:has(> select) { white-space: nowrap; }
+    td.ref { min-width: 200px; }
     hr { border: 0; border-top: 1px solid var(--pm-line); margin: 18px 0; }
   `,
   template: `
