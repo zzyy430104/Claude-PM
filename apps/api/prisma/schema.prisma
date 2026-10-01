@@ -507,6 +507,8 @@ model Issue {
   /// GATE | PROJECT_REVIEW | RISK | MANUAL
   source          String      @default("MANUAL")
   gateReviewId    String?     @map("gate_review_id")
+  /// 由哪次会议纪要产生
+  meetingId       String?     @map("meeting_id")
   projectReviewId String?     @map("project_review_id")
   riskId          String?     @map("risk_id")
   phaseId         String?     @map("phase_id")
@@ -1054,6 +1056,8 @@ model Stakeholder {
   interest      String   @default("MEDIUM")
   expectations  String   @default("")
   communication String   @default("")
+  /// 用于会议通知（外部参会人）
+  email         String   @default("")
   createdAt     DateTime @default(now())
 
   @@index([tenantId, projectId])
@@ -1614,4 +1618,129 @@ model Handover {
 
   @@index([tenantId])
   @@map("handovers")
+}
+
+// ───────── 第 4 步：会议与公告 ─────────
+
+enum MeetingType {
+  GENERAL
+  REGULAR
+  PHASE_REVIEW
+  PROJECT_REVIEW
+  SUMMARY
+}
+
+enum MeetingStatus {
+  DRAFT
+  NOTIFIED
+  PUBLISHED
+  CANCELLED
+}
+
+enum MeetingRecurrence {
+  NONE
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+/// 会议：通知（日历邀请）→ 参会确认 → 纪要（要点、决定、行动项）
+model Meeting {
+  id            String            @id @default(uuid())
+  tenantId      String            @map("tenant_id")
+  projectId     String            @map("project_id")
+  type          MeetingType       @default(GENERAL)
+  title         String
+  /// 例会的期数
+  seq           Int?
+  /// 同一例会系列的第一次会议 id
+  seriesId      String?           @map("series_id")
+  recurrence    MeetingRecurrence @default(NONE)
+  startAt       DateTime          @map("start_at")
+  endAt         DateTime          @map("end_at")
+  location      String            @default("")
+  link          String            @default("")
+  /// 议程 [string]
+  agenda        Json              @default("[]")
+  materials     String            @default("")
+  organizerId   String            @map("organizer_id")
+  status        MeetingStatus     @default(DRAFT)
+  notifiedAt    DateTime?         @map("notified_at")
+  /// 日历邀请的修订号（改时间后重新发通知时递增）
+  icsSequence   Int               @default(0) @map("ics_sequence")
+  points        String            @default("")
+  decisions     String            @default("")
+  /// 纪要里的行动项草稿 [{ title, ownerId, dueDate }]，发布后进入问题与行动
+  actions       Json              @default("[]")
+  publishedAt   DateTime?         @map("published_at")
+  publishedById String?           @map("published_by_id")
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  attendees MeetingAttendee[]
+
+  @@index([tenantId, projectId])
+  @@map("meetings")
+}
+
+enum RsvpStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model MeetingAttendee {
+  id            String     @id @default(uuid())
+  tenantId      String     @map("tenant_id")
+  meetingId     String     @map("meeting_id")
+  /// 系统用户；外部人员为空
+  userId        String?    @map("user_id")
+  name          String
+  org           String     @default("")
+  email         String     @default("")
+  external      Boolean    @default(false)
+  response      RsvpStatus @default(PENDING)
+  /// SYSTEM / EMAIL / WECHAT / PHONE（外部人员由组织者登记）
+  confirmMethod String     @default("") @map("confirm_method")
+  respondedAt   DateTime?  @map("responded_at")
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, meetingId])
+  @@index([tenantId, userId])
+  @@map("meeting_attendees")
+}
+
+/// 公告：发给全项目组或指定人员，可要求已读确认
+model Announcement {
+  id          String    @id @default(uuid())
+  tenantId    String    @map("tenant_id")
+  projectId   String    @map("project_id")
+  title       String
+  body        String
+  authorId    String    @map("author_id")
+  requireRead Boolean   @default(false) @map("require_read")
+  /// 接收人 user id
+  recipients  Json      @default("[]")
+  remindedAt  DateTime? @map("reminded_at")
+  createdAt   DateTime  @default(now())
+
+  reads AnnouncementRead[]
+
+  @@index([tenantId, projectId])
+  @@map("announcements")
+}
+
+model AnnouncementRead {
+  id             String       @id @default(uuid())
+  tenantId       String       @map("tenant_id")
+  announcementId String       @map("announcement_id")
+  userId         String       @map("user_id")
+  readAt         DateTime     @default(now()) @map("read_at")
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([tenantId, userId])
+  @@map("announcement_reads")
 }

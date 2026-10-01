@@ -1,4 +1,4 @@
-import { IsDateString, IsEnum, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, ValidateIf, IsDateString, IsEnum, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { DeviationDimension } from '../generated/prisma/enums.js';
 
 export class CreateSwotDto {
@@ -28,6 +28,7 @@ export class StakeholderDto {
   @IsOptional() @IsIn(LEVEL) interest?: string;
   @IsOptional() @IsString() @MaxLength(2000) expectations?: string;
   @IsOptional() @IsString() @MaxLength(2000) communication?: string;
+  @IsOptional() @ValidateIf((_, v) => v !== '') @IsEmail() email?: string;
 }
 
 export class UpdateStakeholderDto {
@@ -38,4 +39,5 @@ export class UpdateStakeholderDto {
   @IsOptional() @IsIn(LEVEL) interest?: string;
   @IsOptional() @IsString() @MaxLength(2000) expectations?: string;
   @IsOptional() @IsString() @MaxLength(2000) communication?: string;
+  @IsOptional() @ValidateIf((_, v) => v !== '') @IsEmail() email?: string;
 }

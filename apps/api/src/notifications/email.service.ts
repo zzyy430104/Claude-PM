@@ -1,7 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createTransport, Transporter } from 'nodemailer';
 
-export interface Mail { to: string; subject: string; text: string }
+export interface Mail {
+  to: string;
+  subject: string;
+  text: string;
+  /** 日历邀请（.ics），邮件客户端会显示“接受 / 拒绝” */
+  icalEvent?: { method: 'REQUEST' | 'CANCEL'; filename?: string; content: string };
+}
 
 /**
  * 邮件发送：配置 SMTP_URL（如 smtp://user:pass@host:587）后启用；未配置时不发送。

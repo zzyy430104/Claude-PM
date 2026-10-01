@@ -25,6 +25,7 @@ import { UsersModule } from './users/users.module.js';
 import { InitiationsModule } from './initiations/initiations.module.js';
 import { PerformanceModule } from './performance/performance.module.js';
 import { DeliveryModule } from './delivery/delivery.module.js';
+import { CommModule } from './comm/comm.module.js';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { DeliveryModule } from './delivery/delivery.module.js';
     InitiationsModule,
     PerformanceModule,
     DeliveryModule,
+    CommModule,
     ProjectsModule,
     GovernanceModule,
     CostModule,

@@ -22,6 +22,8 @@ import { ProjectEvaluationPanel } from '../components/project-evaluation';
 import { ProjectPurchase } from '../components/project-purchase';
 import { ProjectFai } from '../components/project-fai';
 import { ProjectHandover } from '../components/project-handover';
+import { ProjectMeetings } from '../components/project-meetings';
+import { ProjectAnnouncements } from '../components/project-announcements';
 import { ProjectTeam } from '../components/project-team';
 import { ProjectWbs } from '../components/project-wbs';
 import { ProjectPlanApproval } from '../components/project-plan-approval';
@@ -37,15 +39,15 @@ const GROUPS: { key: string; label: string; subs: { key: string; label: string }
   { key: 'exec', label: '执行', subs: [{ key: 'phases', label: '阶段与评审' }, { key: 'deliverables', label: '交付物' }, { key: 'fai', label: 'FAI' }] },
   { key: 'ctrl', label: '控制', subs: [{ key: 'issues', label: '问题与行动' }, { key: 'changes', label: '变更' }, { key: 'risks', label: '风险与机会' }, { key: 'cost', label: '成本' }] },
   { key: 'qual', label: '质量', subs: [{ key: 'inspections', label: '检验记录' }, { key: 'quality', label: '不符合项' }, { key: 'documents', label: '文档与配置' }] },
-  { key: 'comm', label: '沟通', subs: [{ key: 'reviews', label: '项目评审' }, { key: 'team', label: '沟通计划与干系人' }] },
+  { key: 'comm', label: '沟通', subs: [{ key: 'meetings', label: '会议' }, { key: 'announcements', label: '公告' }, { key: 'reviews', label: '项目评审' }, { key: 'team', label: '沟通计划与干系人' }] },
   { key: 'close', label: '收尾', subs: [{ key: 'closure', label: '总结与关闭' }] },
 ];
 /** 每组默认打开的子页 */
-const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs', exec: 'phases', ctrl: 'issues', qual: 'inspections', comm: 'reviews', close: 'closure' };
+const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs', exec: 'phases', ctrl: 'issues', qual: 'inspections', comm: 'meetings', close: 'closure' };
 
 @Component({
   selector: 'app-project-detail',
-  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig, ProjectReqVersions, ProjectPlanApproval, ProjectCostPlan, ProjectQualityPlan, ProjectCostControl, ProjectEvaluationPanel, ProjectPurchase, ProjectFai, ProjectHandover],
+  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig, ProjectReqVersions, ProjectPlanApproval, ProjectCostPlan, ProjectQualityPlan, ProjectCostControl, ProjectEvaluationPanel, ProjectPurchase, ProjectFai, ProjectHandover, ProjectMeetings, ProjectAnnouncements],
   styles: `
     .crumb { font-size: 13px; color: var(--pm-muted); margin: 0 0 4px; }
     .crumb a { color: var(--pm-muted); }
@@ -100,6 +102,8 @@ const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs',
           @case ('team') { <app-project-team [project]="p" /> }
           @case ('documents') { <div class="stack"><app-project-documents [project]="p" /><app-project-config [project]="p" /></div> }
           @case ('closure') { <div class="stack"><app-project-evaluation [project]="p" /><app-project-handover [projectId]="p.id" /><app-project-closure [project]="p" (changed)="load()" /></div> }
+          @case ('meetings') { <app-project-meetings [project]="p" /> }
+          @case ('announcements') { <app-project-announcements [project]="p" /> }
           @case ('purchase') { <app-project-purchase [project]="p" /> }
           @case ('fai') { <app-project-fai [project]="p" /> }
         }

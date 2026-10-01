@@ -139,8 +139,8 @@ export class ProjectEvaluationPanel {
     try {
       const e = await this.api.get<ProjectEvaluation>(this.base());
       this.ev.set(e);
-      this.weights.set(e.pm ? e.pm.aspects.map((a) => ({ key: a.key, name: a.name, weight: a.weight })) : []);
-      this.weightsDirty.set(false);
+      // 正在改权重时，其他保存引起的重新加载不覆盖
+      if (!this.weightsDirty()) this.weights.set(e.pm ? e.pm.aspects.map((a) => ({ key: a.key, name: a.name, weight: a.weight })) : []);
     } catch (e) {
       // 没有任何可看的内容时（例如普通成员、评价尚未提交）不显示错误
       const status = (e as { status?: number }).status;
@@ -159,12 +159,12 @@ export class ProjectEvaluationPanel {
   saveWeights() {
     const reason = askText('调整本项目权重的原因（留记录）');
     if (!reason?.trim()) return;
-    return this.run(() => this.api.put(`${this.base()}/aspects`, { aspects: this.weights(), reason: reason.trim() }), '保存失败');
+    return this.run(async () => { await this.api.put(`${this.base()}/aspects`, { aspects: this.weights(), reason: reason.trim() }); this.weightsDirty.set(false); }, '保存失败');
   }
   resetWeights() {
     const reason = askText('恢复企业默认权重的原因');
     if (!reason?.trim()) return;
-    return this.run(() => this.api.put(`${this.base()}/aspects`, { aspects: null, reason: reason.trim() }), '保存失败');
+    return this.run(async () => { await this.api.put(`${this.base()}/aspects`, { aspects: null, reason: reason.trim() }); this.weightsDirty.set(false); }, '保存失败');
   }
   addAspect() {
     const name = askText('自定义方面名称（如 客户满意）');

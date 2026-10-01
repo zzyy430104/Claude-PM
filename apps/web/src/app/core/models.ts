@@ -481,7 +481,7 @@ export interface CalendarSettings { systemName: string; companyName: string; evm
 
 export interface SwotReview { id: string; reviewDate: string; participants: string; strengths: string; weaknesses: string; opportunities: string; threats: string; actions: string }
 export interface DeviationNotice { id: string; dimension: 'QUALITY' | 'SCHEDULE' | 'COST'; noticeDate: string; audience: string; impact: string; countermeasures: string }
-export interface Stakeholder { id: string; name: string; organization: string; role: string; influence: 'HIGH' | 'MEDIUM' | 'LOW'; interest: 'HIGH' | 'MEDIUM' | 'LOW'; expectations: string; communication: string }
+export interface Stakeholder { id: string; name: string; organization: string; role: string; influence: 'HIGH' | 'MEDIUM' | 'LOW'; interest: 'HIGH' | 'MEDIUM' | 'LOW'; expectations: string; communication: string; email?: string }
 export const LEVEL_LABELS = { HIGH: '高', MEDIUM: '中', LOW: '低' } as const;
 export const DIMENSION_LABELS = { QUALITY: '质量', SCHEDULE: '进度', COST: '成本' } as const;
 
@@ -655,4 +655,25 @@ export interface HandoverView {
   };
   defaultDocuments: string[]; required: boolean;
   can: { edit: boolean; submit: boolean; withdraw: boolean; confirm: boolean };
+}
+
+// ───── 第 4 步：会议与公告 ─────
+export type MeetingType = 'GENERAL' | 'REGULAR' | 'PHASE_REVIEW' | 'PROJECT_REVIEW' | 'SUMMARY';
+export const MEETING_TYPE_LABELS: Record<MeetingType, string> = { GENERAL: '普通会议', REGULAR: '例会', PHASE_REVIEW: '阶段评审会', PROJECT_REVIEW: '项目评审会', SUMMARY: '项目总结会' };
+export type MeetingRecurrence = 'NONE' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+export const RECURRENCE_LABELS: Record<MeetingRecurrence, string> = { NONE: '不重复', WEEKLY: '每周', BIWEEKLY: '每两周', MONTHLY: '每月' };
+export type RsvpStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
+export interface MeetingAttendeeRow { id: string; userId: string | null; name: string; org: string; email: string; external: boolean; response: RsvpStatus; confirmMethod: string; respondedAt: string | null }
+export interface MeetingActionRow { id: string; title: string; status: string; owner: string | null; dueDate: string | null; overdueDays: number; from: string | null }
+export interface MeetingRow {
+  id: string; type: MeetingType; typeLabel: string; title: string; seq: number | null; seriesId: string | null; recurrence: MeetingRecurrence;
+  startAt: string; endAt: string; location: string; link: string; agenda: string[]; materials: string; organizerId: string;
+  status: 'DRAFT' | 'NOTIFIED' | 'PUBLISHED' | 'CANCELLED'; notifiedAt: string | null; points: string; decisions: string;
+  actions: { title: string; ownerId?: string; dueDate?: string }[]; publishedAt: string | null; attendees: MeetingAttendeeRow[];
+  stats: { total: number; accepted: number; declined: number; pending: number }; myResponse: RsvpStatus | null; canManage: boolean;
+  openActions?: number; organizer?: string; carryOver?: MeetingActionRow[]; createdActions?: MeetingActionRow[];
+}
+export interface AnnouncementRow {
+  id: string; title: string; body: string; author: string; createdAt: string; requireRead: boolean; remindedAt: string | null;
+  readByMe: boolean; forMe: boolean; read?: string[]; unread?: string[]; total: number; readCount: number;
 }

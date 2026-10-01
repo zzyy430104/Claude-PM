@@ -45,6 +45,7 @@ import { DIMENSION_LABELS, DeviationNotice, LEVEL_LABELS, Project, Stakeholder }
       <form class="row" [formGroup]="form" (ngSubmit)="add()">
         <mat-form-field><mat-label>姓名 / 岗位</mat-label><input matInput formControlName="name" /></mat-form-field>
         <mat-form-field><mat-label>单位</mat-label><input matInput formControlName="organization" /></mat-form-field>
+        <mat-form-field><mat-label>邮箱（会议通知）</mat-label><input matInput type="email" formControlName="email" /></mat-form-field>
         <mat-form-field><mat-label>在项目中的角色</mat-label><input matInput formControlName="role" /></mat-form-field>
         <mat-form-field style="width: 110px"><mat-label>影响力</mat-label>
           <mat-select formControlName="influence">@for (l of levels; track l) { <mat-option [value]="l">{{ levelLabel(l) }}</mat-option> }</mat-select>
@@ -64,7 +65,7 @@ import { DIMENSION_LABELS, DeviationNotice, LEVEL_LABELS, Project, Stakeholder }
         <tbody>
           @for (s of rows(); track s.id) {
             <tr>
-              <td>{{ s.name }}<small>{{ s.organization }}</small></td>
+              <td>{{ s.name }}<small>{{ s.organization }}@if (s.email) { · {{ s.email }} }</small></td>
               <td>{{ s.role || '—' }}</td>
               <td>{{ levelLabel(s.influence) }}</td>
               <td>{{ levelLabel(s.interest) }}</td>
@@ -90,7 +91,7 @@ export class ProjectStakeholders {
   readonly manage = computed(() => !!this.project().permissions?.manage && this.project().status !== 'CLOSED');
   readonly canEdit = computed(() => { const p = this.project().permissions; return !!(p?.manage || p?.quality) && this.project().status !== 'CLOSED'; });
   readonly form = this.fb.group({
-    name: ['', Validators.required], organization: [''], role: [''], influence: ['MEDIUM'], interest: ['MEDIUM'], expectations: [''], communication: [''],
+    name: ['', Validators.required], organization: [''], email: [''], role: [''], influence: ['MEDIUM'], interest: ['MEDIUM'], expectations: [''], communication: [''],
   });
   readonly devForm = this.fb.group({
     dimension: ['SCHEDULE'], noticeDate: [new Date().toISOString().slice(0, 10), Validators.required],
@@ -115,7 +116,7 @@ export class ProjectStakeholders {
   add() {
     return this.run(async () => {
       await this.api.post(`/projects/${this.project().id}/stakeholders`, this.form.getRawValue());
-      this.form.reset({ name: '', organization: '', role: '', influence: 'MEDIUM', interest: 'MEDIUM', expectations: '', communication: '' });
+      this.form.reset({ name: '', organization: '', email: '', role: '', influence: 'MEDIUM', interest: 'MEDIUM', expectations: '', communication: '' });
     }, '添加失败');
   }
   remove(s: Stakeholder) {

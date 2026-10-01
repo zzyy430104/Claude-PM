@@ -19,6 +19,7 @@ export interface NewIssue {
   projectReviewId?: string;
   riskId?: string;
   phaseId?: string;
+  meetingId?: string;
 }
 
 @Injectable()
@@ -108,6 +109,7 @@ export class IssuesService {
         projectReviewId: i.projectReviewId,
         riskId: i.riskId,
         phaseId: i.phaseId,
+        meetingId: i.meetingId,
         createdById,
       },
     });

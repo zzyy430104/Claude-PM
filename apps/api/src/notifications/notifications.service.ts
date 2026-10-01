@@ -10,6 +10,8 @@ export interface NotifyInput {
   body?: string;
   /** 前端路由，如 /projects/xxx */
   link?: string;
+  /** false：不另发通知邮件（例如会议通知已随日历邀请发出） */
+  email?: boolean;
 }
 
 /** 站内通知，同时按需发邮件。通知失败不能影响业务操作，所以这里吞掉异常只记日志。 */
@@ -31,7 +33,7 @@ export class NotificationsService {
       await this.prisma.notification.createMany({
         data: users.map((u) => ({ tenantId, userId: u.id, kind: input.kind, title: input.title, body: input.body ?? '', link: input.link })),
       });
-      if (this.email.enabled) {
+      if (this.email.enabled && input.email !== false) {
         const base = process.env.APP_URL ?? '';
         for (const u of users) {
           void this.email.send({ to: u.email, subject: `[Claude-PM] ${input.title}`, text: `${input.title}\n\n${input.body ?? ''}\n\n${input.link ? base + input.link : ''}`.trim() });

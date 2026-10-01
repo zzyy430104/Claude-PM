@@ -69,6 +69,9 @@ export function errorMessage(e: unknown, fallback = '操作失败'): string {
   if (body?.code === 'INSPECTION_INCOMPLETE') return `还不能核验：${(e.error as { blockers?: string[] }).blockers?.join('；')}`;
   if (body?.code === 'RATE_REASON_REQUIRED') return '人工费率与标准费率不同，请写明原因';
   if (body?.code === 'NA_REASON_REQUIRED') return '选“不适用”时请写明理由';
+  if (body?.code === 'MEETING_CLOSED') return '纪要已发布或会议已取消，不能再修改';
+  if (body?.code === 'MINUTES_EMPTY') return '请先填写讨论要点或决定事项';
+  if (body?.code === 'MEETING_NOT_HELD') return '会议还没开始，不能发布纪要';
   if (body?.code === 'PURCHASE_ORDERED') return '已下单的物料不能删除或改金额、科目；如不再需要请“取消”';
   if (body?.code === 'PURCHASE_EMPTY') return '采购计划还没有物料';
   if (body?.code === 'ACCOUNT_REQUIRED') return '请先为该物料选择成本科目';
