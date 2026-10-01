@@ -15,11 +15,12 @@ describe('风险与机会、项目评审、问题', () => {
     exposureAmount: 200000, responseCost: 30000, costBenefitAnalysis: '提前下单可避免大部分损失',
   };
 
-  it('风险登记：必须有成本收益分析，自动计算评分与期望价值', async () => {
+  it('风险登记：定了应对策略就要有成本收益分析，自动计算评分与期望价值', async () => {
     const t = await setupTenant(app, 'r1');
     const p = await gateProject(app, t);
     const { costBenefitAnalysis: _omit, ...missing } = risk;
-    await http().post(`/projects/${p.id}/risks`).set(bearer(t.pm.token)).send(missing).expect(400);
+    const noCba = await http().post(`/projects/${p.id}/risks`).set(bearer(t.pm.token)).send({ ...missing, strategy: '减弱' }).expect(400);
+    expect(noCba.body.code).toBe('CBA_REQUIRED');
     await http().post(`/projects/${p.id}/risks`).set(bearer(t.pm.token)).send({ ...risk, probability: 9 }).expect(400);
     await http().post(`/projects/${p.id}/risks`).set(bearer(t.outsider.token)).send(risk).expect(404);
 
@@ -27,7 +28,7 @@ describe('风险与机会、项目评审、问题', () => {
     const list = await http().get(`/projects/${p.id}/risks`).set(bearer(t.pm.token)).expect(200);
     expect(list.body[0]).toMatchObject({ score: 12, expectedValue: 140000, netBenefitOfResponse: 110000, openActions: 0 });
 
-    await http().post(`/projects/${p.id}/risks/${r.id}/actions`).set(bearer(t.pm.token)).send({ title: '提前下单', ownerId: t.member.id }).expect(201);
+    const act = (await http().post(`/projects/${p.id}/risks/${r.id}/actions`).set(bearer(t.pm.token)).send({ title: '提前下单', ownerId: t.member.id }).expect(201)).body;
     const after = await http().get(`/projects/${p.id}/risks`).set(bearer(t.pm.token)).expect(200);
     expect(after.body[0].openActions).toBe(1);
 
@@ -35,6 +36,10 @@ describe('风险与机会、项目评审、问题', () => {
     await http().patch(`/projects/${p.id}/risks/${r.id}`).set(bearer(t.pqm.token)).send({ status: 'MITIGATING' }).expect(200); // 质量经理可以
     const closed = await http().patch(`/projects/${p.id}/risks/${r.id}`).set(bearer(t.pm.token)).send({ status: 'CLOSED' }).expect(400);
     expect(JSON.stringify(closed.body)).toContain('closureNote');
+    // 措施没完成不能关闭；完成后风险进入待复评
+    expect((await http().patch(`/projects/${p.id}/risks/${r.id}`).set(bearer(t.pm.token)).send({ status: 'CLOSED', closureNote: '已按期到货' }).expect(409)).body.code).toBe('MEASURES_OPEN');
+    await http().patch(`/projects/${p.id}/issues/${act.id}`).set(bearer(t.member.token)).send({ status: 'CLOSED', closureNote: '已下单' }).expect(200);
+    expect((await http().get(`/projects/${p.id}/risks`).set(bearer(t.pm.token)).expect(200)).body[0].status).toBe('REVIEW');
     await http().patch(`/projects/${p.id}/risks/${r.id}`).set(bearer(t.pm.token)).send({ status: 'CLOSED', closureNote: '已按期到货' }).expect(200);
     await http().post(`/projects/${p.id}/risks`).set(bearer(t.pm.token)).send({ ...risk, kind: 'OPPORTUNITY', title: '批量采购降价' }).expect(201);
   });

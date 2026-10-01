@@ -1,7 +1,8 @@
 import { Global, Module } from '@nestjs/common';
 import { ChangesService } from './changes.service.js';
 import { GatesService } from './gates.service.js';
-import { GovernanceController } from './governance.controller.js';
+import { EnterpriseRisksController, GovernanceController, RiskSettingsController } from './governance.controller.js';
+import { ObjectivesService } from './objectives.service.js';
 import { IssuesService } from './issues.service.js';
 import { MetricsService } from './metrics.service.js';
 import { PerformanceService } from './performance.service.js';
@@ -10,8 +11,8 @@ import { RisksService } from './risks.service.js';
 
 @Global()
 @Module({
-  controllers: [GovernanceController],
-  providers: [GatesService, ReviewsService, ChangesService, RisksService, IssuesService, MetricsService, PerformanceService],
-  exports: [IssuesService, MetricsService, PerformanceService],
+  controllers: [GovernanceController, EnterpriseRisksController, RiskSettingsController],
+  providers: [GatesService, ReviewsService, ChangesService, RisksService, IssuesService, MetricsService, PerformanceService, ObjectivesService],
+  exports: [IssuesService, MetricsService, PerformanceService, ObjectivesService, RisksService],
 })
 export class GovernanceModule {}

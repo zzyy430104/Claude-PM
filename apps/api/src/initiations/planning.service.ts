@@ -14,6 +14,7 @@ import { ApprovalRolesService } from './approval-roles.service.js';
 import type { AddFromLibraryDto, AssignByRoleDto, DecisionDto, OptionalWpDto, UpdateOptionalWpDto } from './dto.js';
 import { isGroup, type TemplateRow } from './plan-templates.js';
 import { CostControlService } from '../projects/cost-control.service.js';
+import { ACCEPT, importanceOf, loadRiskSettings } from '../governance/risk-settings.js';
 import { PlanBuilderService } from './plan-builder.service.js';
 import { asRequirements } from './requirements.js';
 
@@ -72,6 +73,13 @@ export class PlanningService {
     out.push({ key: 'quality', ok: needQ.length === 0, message: needQ.length ? `质量：${needQ.slice(0, 5).map((w) => w.code).join('、')}${needQ.length > 5 ? ' 等' : ''} 有交付物但还没有检验 / 验证项` : '质量：有交付物的工作包都有检验 / 验证项' });
     const keyNoVerifier = items.filter((i) => i.isKey && !i.verifierId).length;
     out.push({ key: 'qualityKey', ok: keyNoVerifier === 0, message: keyNoVerifier ? `质量：${keyNoVerifier} 个关键检验项没有验证人` : '质量：关键检验项都有验证人' });
+    // 风险：高风险都要有应对措施（或已按规则接受）
+    const rs = await loadRiskSettings(this.prisma, tenantId);
+    const open = await this.prisma.risk.findMany({ where: { projectId: project.id, tenantId, kind: 'RISK', status: { in: ['OPEN', 'MITIGATING', 'REVIEW'] } }, select: { id: true, title: true, probability: true, impact: true, strategy: true } });
+    const highs = open.filter((r) => importanceOf(rs, r.probability, r.impact) === 'HIGH');
+    const withMeasure = new Set((await this.prisma.issue.findMany({ where: { riskId: { in: highs.map((r) => r.id) }, kind: 'ACTION' }, select: { riskId: true } })).map((i) => i.riskId));
+    const bare = highs.filter((r) => r.strategy !== ACCEPT && !withMeasure.has(r.id));
+    out.push({ key: 'riskHigh', ok: bare.length === 0, message: bare.length ? `风险：${bare.slice(0, 3).map((r) => r.title).join('、')} 是高风险，还没有应对措施` : '风险：高风险都有应对措施' });
     out.push({ key: 'risks', ok: risks > 0, message: risks > 0 ? `风险：已登记 ${risks} 项风险与机会` : '风险：还没有登记风险与机会' });
     return out;
   }

@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectAccess } from '../projects/access.service.js';
 import { ApprovalRolesService } from './approval-roles.service.js';
 import type { DecisionDto, SaveRequirementChangeDto } from './dto.js';
+import { ObjectivesService } from '../governance/objectives.service.js';
 import { PlanBuilderService } from './plan-builder.service.js';
 import { asRequirements, effectiveDeliveryDate, requirementProblems, TYPE_LABEL } from './requirements.js';
 
@@ -27,6 +28,7 @@ export class RequirementChangesService {
     private readonly roles: ApprovalRolesService,
     private readonly builder: PlanBuilderService,
     private readonly notifications: NotificationsService,
+    private readonly objectives: ObjectivesService,
   ) {}
 
   /** 项目成员按项目权限看；立项申请人、批准人即使不是成员也能看 */
@@ -176,6 +178,7 @@ export class RequirementChangesService {
           data: { requirementVersion: version, type, customerDeliveryDate: due ? new Date(due) : project.customerDeliveryDate, planOutdated: project.baselined, planSubmittedAt: null },
         });
         const added = type !== project.type ? await this.builder.addMissingPhases(tx, c.tenantId, project.id, type, req) : [];
+        await this.objectives.syncAuto(tx, c.tenantId, project.id);
         await tx.requirementChange.update({ where: { id }, data: { status: RequirementChangeStatus.APPROVED, decidedById: actor.id, decidedAt: new Date(), decisionNote: dto.note ?? null } });
         return { added };
       },

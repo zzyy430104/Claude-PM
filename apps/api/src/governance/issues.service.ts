@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
-import { IssueStatus } from '../generated/prisma/enums.js';
+import { RiskStatus, IssueStatus } from '../generated/prisma/enums.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -64,7 +64,7 @@ export class IssuesService {
     await this.checkOwner(ctx.tenantId, projectId, dto.ownerId);
     const closing = dto.status === IssueStatus.CLOSED;
     if (closing && !dto.closureNote?.trim()) throw new BadRequestException('closureNote is required to close an issue');
-    return this.audit.tx(
+    const updated = await this.audit.tx(
       actor,
       {
         action: closing ? 'issue.close' : 'issue.update',
@@ -84,6 +84,12 @@ export class IssuesService {
           },
         }),
     );
+    // 风险的最后一条措施完成后，风险进入“待复评”
+    if (closing && issue.riskId) {
+      const open = await this.prisma.issue.count({ where: { riskId: issue.riskId, status: { not: IssueStatus.CLOSED } } });
+      if (open === 0) await this.prisma.risk.updateMany({ where: { id: issue.riskId, status: { in: [RiskStatus.OPEN, RiskStatus.MITIGATING] } }, data: { status: RiskStatus.REVIEW } });
+    }
+    return updated;
   }
 
   /** 供评审、风险等模块在同一事务内创建问题 / 行动项 */

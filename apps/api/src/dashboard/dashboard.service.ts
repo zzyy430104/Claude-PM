@@ -6,10 +6,10 @@ import { CostService } from '../cost/cost.service.js';
 import { MetricsService } from '../governance/metrics.service.js';
 import { PerformanceService } from '../governance/performance.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { importanceOf, loadRiskSettings } from '../governance/risk-settings.js';
 
 export type Health = 'RED' | 'AMBER' | 'GREEN';
 
-const HIGH_RISK_SCORE = 15;
 const DAY = 86_400_000;
 
 /** 项目组合仪表盘与个人待办 */
@@ -46,6 +46,7 @@ export class DashboardService {
     const today = new Date();
     const todayIso = today.toISOString().slice(0, 10);
 
+    const riskSettings = await loadRiskSettings(this.prisma, tenantId);
     const rows = [];
     for (const p of projects) {
       const [progress, issues, risks, ncs, lastReview, pendingChanges, activePhase, cost] = await Promise.all([
@@ -61,7 +62,7 @@ export class DashboardService {
       const perf = await this.performance.compute({ project: p, tenantId }, today);
 
       const overdueActions = issues.filter((i) => i.dueDate && i.dueDate.toISOString().slice(0, 10) < todayIso).length;
-      const highRisks = risks.filter((r) => r.probability * r.impact >= HIGH_RISK_SCORE).length;
+      const highRisks = risks.filter((r) => importanceOf(riskSettings, r.probability, r.impact) === 'HIGH').length;
       const critical = ncs.filter((n) => n.severity === 'CRITICAL').length;
       const major = ncs.filter((n) => n.severity === 'MAJOR').length;
       const reference = lastReview ? lastReview.reviewDate : p.startDate;

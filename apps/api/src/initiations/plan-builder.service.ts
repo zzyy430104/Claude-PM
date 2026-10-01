@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { DeliverableKind, ProjectRole, ProjectType, RiskKind } from '../generated/prisma/enums.js';
 import { DEFAULT_ACCOUNTS } from '../projects/cost-control.service.js';
+import { ObjectivesService } from '../governance/objectives.service.js';
+import { loadRiskSettings, ruleOf, importanceOf } from '../governance/risk-settings.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DEFAULT_TEMPLATES, DELIVERY_MILESTONE, generatePlan, isGroup, phaseRule, type TemplateRow } from './plan-templates.js';
 import { effectiveDeliveryDate, type Requirements } from './requirements.js';
@@ -18,7 +20,7 @@ export interface ProjectSeed {
 /** 立项批准后生成项目：阶段、计划草稿（按类型模板取舍并接好依赖）、交付物、初步风险、项目要求第 1 版 */
 @Injectable()
 export class PlanBuilderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly objectives: ObjectivesService) {}
 
   /** 企业改过的模板优先，否则用系统默认模板 */
   async templateRows(tenantId: string, type: ProjectType, tx: Tx | PrismaService = this.prisma): Promise<TemplateRow[]> {
@@ -43,11 +45,18 @@ export class PlanBuilderService {
       data: { tenantId: s.tenantId, projectId: project.id, version: 1, data: { type: s.type, ...req } as unknown as Prisma.InputJsonValue, reason: '立项批准', approvedById: s.actorId },
     });
     const removed = await this.buildPlan(tx, s.tenantId, project.id, s.type, req, due);
+    await this.objectives.syncAuto(tx, s.tenantId, project.id);
     if (req.risks.length) {
+      // 立项时的初步风险按“中”带入，待项目经理评估
+      const rs = await loadRiskSettings(tx, s.tenantId);
+      const mid = rs.scale === 5 ? 3 : 2;
+      const days = ruleOf(rs, 'PROJECT', importanceOf(rs, mid, mid)).reviewDays;
+      const next = new Date(Date.now() + days * 86_400_000);
       await tx.risk.createMany({
         data: req.risks.map((r) => ({
+          nextReviewAt: new Date(next.toISOString().slice(0, 10)), reviewCycleDays: days,
           tenantId: s.tenantId, projectId: project.id, kind: r.kind === 'OPPORTUNITY' ? RiskKind.OPPORTUNITY : RiskKind.RISK, title: r.text,
-          probability: 3, impact: 3, exposureAmount: 0, responseCost: 0, costBenefitAnalysis: '立项时识别，待项目经理评估', createdById: s.actorId, ownerId: s.managerId,
+          probability: mid, impact: mid, exposureAmount: 0, responseCost: 0, costBenefitAnalysis: '立项时识别，待项目经理评估', createdById: s.actorId, ownerId: s.managerId,
         })),
       });
     }

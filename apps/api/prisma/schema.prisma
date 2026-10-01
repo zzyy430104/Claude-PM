@@ -40,6 +40,13 @@ model Tenant {
   requireCosign        Boolean    @default(false) @map("require_cosign")
   /// 小项目免立项：项目经理可直接建项目
   allowDirectProject   Boolean    @default(false) @map("allow_direct_project")
+  /// 风险评价：可能性、影响各分几档（3 或 5）；矩阵 [可能性][影响] → 0 低 / 1 中 / 2 高
+  riskScale            Int        @default(3) @map("risk_scale")
+  riskMatrix           Json       @default("[[0,0,1],[0,1,2],[1,2,2]]") @map("risk_matrix")
+  /// 各目标维度的影响判断标准 { 交期: [低, 中, 高], … }、应对策略清单、按层级 × 重要度的规则
+  riskCriteria         Json       @default("{}") @map("risk_criteria")
+  riskStrategies       Json       @default("{}") @map("risk_strategies")
+  riskRules            Json       @default("{}") @map("risk_rules")
   /// 检验 / 验证项的类别，企业可以增减
   inspectionCategories String[]   @default(["产品", "过程", "文件", "评审", "试验"]) @map("inspection_categories")
   users                User[]
@@ -424,8 +431,16 @@ enum RiskKind {
 enum RiskStatus {
   OPEN
   MITIGATING
+  /// 措施已全部完成，等待复评
+  REVIEW
   OCCURRED
   CLOSED
+}
+
+enum RiskLevel3 {
+  ENTERPRISE
+  PROJECT
+  WORK_PACKAGE
 }
 
 model GateReview {
@@ -542,7 +557,8 @@ model ChangeRequest {
 model Risk {
   id                  String     @id @default(uuid())
   tenantId            String     @map("tenant_id")
-  projectId           String     @map("project_id")
+  /// 企业级风险不属于某个项目（受影响的项目见 RiskProjectLink）
+  projectId           String?    @map("project_id")
   kind                RiskKind
   title               String
   description         String?
@@ -551,10 +567,10 @@ model Risk {
   /// 1–5
   impact              Int
   /// 风险的潜在损失，或机会的潜在收益
-  exposureAmount      Decimal    @map("exposure_amount") @db.Decimal(14, 2)
+  exposureAmount      Decimal    @default(0) @map("exposure_amount") @db.Decimal(14, 2)
   /// 应对措施成本
-  responseCost        Decimal    @map("response_cost") @db.Decimal(14, 2)
-  costBenefitAnalysis String     @map("cost_benefit_analysis")
+  responseCost        Decimal    @default(0) @map("response_cost") @db.Decimal(14, 2)
+  costBenefitAnalysis String     @default("") @map("cost_benefit_analysis")
   /// 与客户商定的产品成熟度（作为风险输入，8.1.3.9.2 b）
   maturityLevel       String?    @map("maturity_level")
   /// 参与风险评审的职能经理（8.1.3.9.2 a）
@@ -568,8 +584,37 @@ model Risk {
   createdById         String     @map("created_by_id")
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
+  /// 层级：企业级 / 项目级 / 工作包级，决定审批、关闭和监控的人
+  level               RiskLevel3 @default(PROJECT)
+  workPackageId       String?    @map("work_package_id")
+  /// 影响的项目目标
+  objectiveId         String?    @map("objective_id")
+  cause               String     @default("")
+  effect              String     @default("")
+  /// 应对策略：风险 消除 / 转移 / 减弱 / 接受；机会 利用 / 分享 / 提高 / 接受（企业可改名）
+  strategy            String?
+  acceptReason        String?    @map("accept_reason")
+  contingencyPlan     String?    @map("contingency_plan")
+  acceptApprovedById  String?    @map("accept_approved_by_id")
+  acceptApprovedAt    DateTime?  @map("accept_approved_at")
+  /// 预警条件（人工判断是否触发）
+  trigger             String     @default("")
+  triggeredAt         DateTime?  @map("triggered_at")
+  reviewCycleDays     Int?       @map("review_cycle_days")
+  nextReviewAt        DateTime?  @map("next_review_at") @db.Date
+  residualProbability Int?       @map("residual_probability")
+  residualImpact      Int?       @map("residual_impact")
+  closedById          String?    @map("closed_by_id")
+  closedAt            DateTime?  @map("closed_at")
+  /// 最近一次通知的重要度，用于“变成高风险时通知管理层”
+  notifiedLevel       String?    @map("notified_level")
+
+  links    RiskProjectLink[]
+  measures RiskMeasure[]
+  reviews  RiskReview[]
 
   @@index([tenantId, projectId])
+  @@index([tenantId, level])
   @@map("risks")
 }
 
@@ -1283,4 +1328,84 @@ model InspectionTemplate {
   @@unique([tenantId, name])
   @@index([tenantId])
   @@map("inspection_templates")
+}
+
+/// 企业级风险挂到受影响的项目上
+model RiskProjectLink {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  riskId    String   @map("risk_id")
+  projectId String   @map("project_id")
+  createdAt DateTime @default(now())
+
+  risk Risk @relation(fields: [riskId], references: [id], onDelete: Cascade)
+
+  @@unique([riskId, projectId])
+  @@index([tenantId, projectId])
+  @@map("risk_project_links")
+}
+
+/// 企业级风险的应对措施（项目内风险的措施是行动项，在「问题与行动」跟踪）
+model RiskMeasure {
+  id        String    @id @default(uuid())
+  tenantId  String    @map("tenant_id")
+  riskId    String    @map("risk_id")
+  title     String
+  ownerId   String?   @map("owner_id")
+  dueDate   DateTime? @map("due_date") @db.Date
+  cost      Decimal   @default(0) @db.Decimal(14, 2)
+  doneAt    DateTime? @map("done_at")
+  createdAt DateTime  @default(now())
+
+  risk Risk @relation(fields: [riskId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, riskId])
+  @@map("risk_measures")
+}
+
+/// 风险复查记录
+model RiskReview {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  riskId       String   @map("risk_id")
+  reviewedById String   @map("reviewed_by_id")
+  probability  Int
+  impact       Int
+  note         String
+  createdAt    DateTime @default(now())
+
+  risk Risk @relation(fields: [riskId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, riskId])
+  @@map("risk_reviews")
+}
+
+enum ObjectiveMetric {
+  DELIVERY
+  COST
+  FAI
+  FIRST_PASS_YIELD
+  MANUAL
+}
+
+/// 项目目标：由项目要求生成（交期、成本、质量），项目经理可补充自定义目标
+model ProjectObjective {
+  id          String          @id @default(uuid())
+  tenantId    String          @map("tenant_id")
+  projectId   String          @map("project_id")
+  /// 维度：交期 / 成本 / 质量 / 客户 / 其他，用于选影响的判断标准
+  dimension   String
+  name        String
+  target      String
+  metric      ObjectiveMetric @default(MANUAL)
+  /// 自定义目标的当前值和状态（GREEN / AMBER / RED / 空），由项目经理更新
+  current     String          @default("")
+  manualState String?         @map("manual_state")
+  /// 由项目要求生成的目标随项目要求变更自动更新
+  auto        Boolean         @default(false)
+  sortOrder   Int             @default(0) @map("sort_order")
+  createdAt   DateTime        @default(now())
+
+  @@index([tenantId, projectId])
+  @@map("project_objectives")
 }
