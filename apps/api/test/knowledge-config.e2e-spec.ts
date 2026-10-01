@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { bearer, createApp, createUser, gateProject, setupTenant } from './helpers.js';
+import { bearer, createApp, gateProject, setupTenant } from './helpers.js';
 
 const http = (app: INestApplication) => request(app.getHttpServer());
 type T = Awaited<ReturnType<typeof setupTenant>>;
