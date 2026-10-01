@@ -69,6 +69,15 @@ export function errorMessage(e: unknown, fallback = '操作失败'): string {
   if (body?.code === 'INSPECTION_INCOMPLETE') return `还不能核验：${(e.error as { blockers?: string[] }).blockers?.join('；')}`;
   if (body?.code === 'RATE_REASON_REQUIRED') return '人工费率与标准费率不同，请写明原因';
   if (body?.code === 'NA_REASON_REQUIRED') return '选“不适用”时请写明理由';
+  if (body?.code === 'AI_DISABLED') return 'AI 辅助没有启用，请企业管理员在“企业设置 → AI 辅助”里设置';
+  if (body?.code === 'AI_SCENARIO_DISABLED') return '这个 AI 场景已关闭';
+  if (body?.code === 'AI_LIMIT') return '今天的 AI 调用次数已用完';
+  if (body?.code === 'AI_FAILED') return 'AI 没有返回可用的结果，请重试或手工填写';
+  if (body?.code === 'AI_INPUT_TOO_LONG') return '内容太长，超过了 AI 的文字上限，请删减后再试';
+  if (body?.code === 'AI_FILE_TYPE') return '只支持 PDF、Word（.docx）、Excel（.xlsx）和文本文件';
+  if (body?.code === 'AI_FILE_TOO_LARGE') return '文件超过了大小上限';
+  if (body?.code === 'AI_FILE_NO_TEXT') return 'PDF 是扫描图片，没有文字，请先做文字识别（OCR）';
+  if (body?.code === 'AI_NOT_CONFIGURED') return '还没有设置 API 密钥';
   if (body?.code === 'MEETING_CLOSED') return '纪要已发布或会议已取消，不能再修改';
   if (body?.code === 'MINUTES_EMPTY') return '请先填写讨论要点或决定事项';
   if (body?.code === 'MEETING_NOT_HELD') return '会议还没开始，不能发布纪要';

@@ -49,6 +49,10 @@ model Tenant {
   riskRules            Json       @default("{}") @map("risk_rules")
   /// 项目绩效评价设置：项目经理评价方面与权重、计分规则、成员评价维度、等级、可见范围（空 = 默认）
   perfConfig           Json       @default("{}") @map("perf_config")
+  /// AI 辅助设置：是否启用、接口地址、模型、各场景开关、调用上限（密钥单独加密保存）
+  aiConfig             Json       @default("{}") @map("ai_config")
+  /// AI 接口密钥（AES-256-GCM 加密），不回传给前端
+  aiKeyEnc             String?    @map("ai_key_enc")
   /// 检验 / 验证项的类别，企业可以增减
   inspectionCategories String[]   @default(["产品", "过程", "文件", "评审", "试验"]) @map("inspection_categories")
   users                User[]
@@ -1771,4 +1775,34 @@ model Comment {
 
   @@index([tenantId, projectId, entityType, entityId])
   @@map("comments")
+}
+
+// ───────── 第 5 步：AI 辅助 ─────────
+
+/// AI 使用记录：谁、什么时候、哪个场景、是否采纳（采纳后记录确认人和落到哪条记录）
+model AiUsage {
+  id               String    @id @default(uuid())
+  tenantId         String    @map("tenant_id")
+  userId           String    @map("user_id")
+  projectId        String?   @map("project_id")
+  scenario         String
+  model            String    @default("")
+  inputChars       Int       @default(0) @map("input_chars")
+  promptTokens     Int       @default(0) @map("prompt_tokens")
+  completionTokens Int       @default(0) @map("completion_tokens")
+  /// OK / ERROR
+  status           String    @default("OK")
+  error            String?
+  /// 起草结果（JSON），便于追溯
+  output           Json?
+  adopted          Boolean?
+  adoptedAt        DateTime? @map("adopted_at")
+  /// 采纳后保存到哪类记录、哪条
+  entityType       String?   @map("entity_type")
+  entityId         String?   @map("entity_id")
+  createdAt        DateTime  @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entityType, entityId])
+  @@map("ai_usages")
 }

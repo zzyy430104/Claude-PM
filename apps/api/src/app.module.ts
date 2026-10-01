@@ -26,6 +26,7 @@ import { InitiationsModule } from './initiations/initiations.module.js';
 import { PerformanceModule } from './performance/performance.module.js';
 import { DeliveryModule } from './delivery/delivery.module.js';
 import { CommModule } from './comm/comm.module.js';
+import { AiModule } from './ai/ai.module.js';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { CommModule } from './comm/comm.module.js';
     PerformanceModule,
     DeliveryModule,
     CommModule,
+    AiModule,
     ProjectsModule,
     GovernanceModule,
     CostModule,
