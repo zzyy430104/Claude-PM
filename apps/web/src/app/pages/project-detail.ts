@@ -21,24 +21,27 @@ import { ProjectRisks } from '../components/project-risks';
 import { ProjectTeam } from '../components/project-team';
 import { ProjectWbs } from '../components/project-wbs';
 import { ProjectPlanApproval } from '../components/project-plan-approval';
+import { ProjectCostPlan } from '../components/project-cost-plan';
+import { ProjectCostControl } from '../components/project-cost-control';
+import { ProjectQualityPlan } from '../components/project-quality-plan';
 import { ProjectReqVersions } from '../components/project-req-versions';
 
 /** 项目内按工作顺序分 7 组，每组下面再分子页；组和子页记在网址里（?g=组&s=子页），刷新和分享链接都回到同一页 */
 const GROUPS: { key: string; label: string; subs: { key: string; label: string }[] }[] = [
   { key: 'overview', label: '总览', subs: [{ key: 'overview', label: '总览' }] },
-  { key: 'plan', label: '计划', subs: [{ key: 'requirements', label: '项目要求与需求' }, { key: 'wbs', label: 'WBS 与进度' }, { key: 'members', label: '团队与职责' }, { key: 'approval', label: '计划批准' }] },
+  { key: 'plan', label: '计划', subs: [{ key: 'requirements', label: '项目要求与需求' }, { key: 'wbs', label: 'WBS 与进度' }, { key: 'costplan', label: '成本策划' }, { key: 'qualityplan', label: '质量策划' }, { key: 'members', label: '团队与职责' }, { key: 'approval', label: '计划批准' }] },
   { key: 'exec', label: '执行', subs: [{ key: 'phases', label: '阶段与评审' }, { key: 'deliverables', label: '交付物' }] },
   { key: 'ctrl', label: '控制', subs: [{ key: 'issues', label: '问题与行动' }, { key: 'changes', label: '变更' }, { key: 'risks', label: '风险与机会' }, { key: 'cost', label: '成本' }] },
-  { key: 'qual', label: '质量', subs: [{ key: 'quality', label: '不符合项' }, { key: 'documents', label: '文档与配置' }] },
+  { key: 'qual', label: '质量', subs: [{ key: 'inspections', label: '检验记录' }, { key: 'quality', label: '不符合项' }, { key: 'documents', label: '文档与配置' }] },
   { key: 'comm', label: '沟通', subs: [{ key: 'reviews', label: '项目评审' }, { key: 'team', label: '沟通计划与干系人' }] },
   { key: 'close', label: '收尾', subs: [{ key: 'closure', label: '总结与关闭' }] },
 ];
 /** 每组默认打开的子页 */
-const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs', exec: 'phases', ctrl: 'issues', qual: 'quality', comm: 'reviews', close: 'closure' };
+const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs', exec: 'phases', ctrl: 'issues', qual: 'inspections', comm: 'reviews', close: 'closure' };
 
 @Component({
   selector: 'app-project-detail',
-  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig, ProjectReqVersions, ProjectPlanApproval],
+  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig, ProjectReqVersions, ProjectPlanApproval, ProjectCostPlan, ProjectQualityPlan, ProjectCostControl],
   styles: `
     .crumb { font-size: 13px; color: var(--pm-muted); margin: 0 0 4px; }
     .crumb a { color: var(--pm-muted); }
@@ -84,8 +87,11 @@ const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs',
           @case ('changes') { <app-project-changes [project]="p" /> }
           @case ('risks') { <app-project-risks [project]="p" /> }
           @case ('issues') { <app-project-issues [project]="p" /> }
-          @case ('cost') { <app-project-cost [project]="p" /> }
-          @case ('quality') { <app-project-quality [project]="p" /> }
+          @case ('cost') { <div class="stack"><app-project-cost-control [project]="p" /><app-project-cost [project]="p" /></div> }
+          @case ('quality') { <app-project-quality [project]="p" part="nc" /> }
+          @case ('costplan') { <app-project-cost-plan [project]="p" /> }
+          @case ('qualityplan') { <app-project-quality-plan [project]="p" mode="plan" /> }
+          @case ('inspections') { <app-project-quality-plan [project]="p" mode="records" /> }
           @case ('team') { <app-project-team [project]="p" /> }
           @case ('documents') { <div class="stack"><app-project-documents [project]="p" /><app-project-config [project]="p" /></div> }
           @case ('closure') { <app-project-closure [project]="p" (changed)="load()" /> }

@@ -66,6 +66,11 @@ export function errorMessage(e: unknown, fallback = '操作失败'): string {
   if (body?.code === 'CUSTOMER_AGREEMENT_REQUIRED') return '客户尚未同意，请先记录“客户已同意”';
   if (body?.code === 'TOP_MANAGEMENT_REQUIRED') return '预算增加必须由最高管理层批准';
   if (body?.code === 'CHANGE_INCOMPLETE') return (e.error as { problems?: string[] }).problems?.join('；') ?? '变更申请信息不完整';
+  if (body?.code === 'INSPECTION_INCOMPLETE') return `还不能核验：${(e.error as { blockers?: string[] }).blockers?.join('；')}`;
+  if (body?.code === 'RATE_REASON_REQUIRED') return '人工费率与标准费率不同，请写明原因';
+  if (body?.code === 'NA_REASON_REQUIRED') return '选“不适用”时请写明理由';
+  if (body?.code === 'UNKNOWN_CATEGORY') return '检验类别不存在，请先在企业设置里添加';
+  if (body?.code === 'PLAN_CHECK_FAILED') return `计划还有未通过的检查：${(e.error as { problems?: string[] }).problems?.join('；')}`;
   if (body?.code === 'WRONG_PASSWORD') return '当前密码不正确';
   if (body?.code === 'SAME_PASSWORD') return '新密码不能与当前密码相同';
   if (body?.code === 'PASSWORD_CHANGE_REQUIRED') return '请先修改初始密码';

@@ -10,16 +10,17 @@ import { Api, errorMessage } from '../core/api';
 import { askText } from '../core/i18n';
 import { AuthService } from '../core/auth.service';
 import {
-  ChangeRequest, CostSummary, Deliverable, FunctionalRole, Member, OptionalWorkPackage, Performance, Phase, PlanVersion, Project, WbsTemplate, WP_STATUS_LABELS, WbsResponse, WorkPackage, WpStatus,
+  ChangeRequest, CostPlan, CostSummary, InspectionItem, Deliverable, FunctionalRole, Member, OptionalWorkPackage, Performance, Phase, PlanVersion, Project, WbsTemplate, WP_STATUS_LABELS, WbsResponse, WorkPackage, WpStatus,
 } from '../core/models';
 import { approvedScopeChanges } from '../core/scope-change';
 import { BaselineDates, GanttComponent } from './gantt';
+import { DrawerTab, WpDrawer } from './wp-drawer';
 
 const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
 
 @Component({
   selector: 'app-project-wbs',
-  imports: [ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, GanttComponent],
+  imports: [ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, GanttComponent, WpDrawer],
   styles: `
     .crit-name { color: var(--pm-red); font-weight: 500; }
     .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
@@ -48,6 +49,10 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
     .error ul { margin: 6px 0 0; padding-left: 18px; }
     .nw { white-space: nowrap; }
     .dates { white-space: nowrap; font-size: 12.5px; }
+    .wpname { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+    .wpname:hover { text-decoration: underline; }
+    button.tag { border: 0; cursor: pointer; font: inherit; font-size: 11.5px; }
+    .tag.ok { background: var(--pm-green-bg); color: var(--pm-green); }
   `,
   template: `
     @if (data(); as d) {
@@ -225,7 +230,7 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
               <tr>
                 <td [style.padding-left.px]="14 + depth(w) * 16">{{ w.code }}</td>
                 <td>
-                  <span [class.crit-name]="w.critical">@if (w.isMilestone) { ◆ }{{ w.name }}{{ w.critical ? ' ★' : '' }}</span>
+                  <button type="button" class="wpname" (click)="open(w, 'time')" [class.crit-name]="w.critical">@if (w.isMilestone) { ◆ }{{ w.name }}{{ w.critical ? ' ★' : '' }}</button>
                   <div class="tags">
                     @if (phaseName(w)) { <span class="tag">{{ phaseName(w) }}</span> }
                     @if (deliverableName(w)) { <span class="tag">交付物：{{ deliverableName(w) }}</span> }
@@ -234,6 +239,8 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
                     @if (w.resourceDays) { <span class="tag">{{ +w.resourceDays }} 人天</span> }
                     @if (slip(w); as s) { <span class="tag late">比批准计划{{ s > 0 ? '晚' : '早' }} {{ s > 0 ? s : -s }} 个工作日</span> }
                     @if (roleName(w); as rn) { <span class="tag">{{ rn }}</span> }
+                    @if (costState()[w.id]; as cs) { <button type="button" class="tag late" [class.lead]="cs === 'AMBER'" (click)="open(w, 'cost')">超支</button> }
+                    @if (inspCount()[w.id]; as ic) { <button type="button" class="tag" [class.late]="ic.failed > 0" [class.ok]="ic.done === ic.total && !ic.failed" (click)="open(w, 'qual')" title="检验 / 验证项">检 {{ ic.done }}/{{ ic.total }}</button> }
                     @if (w.isLeaf && w.startTooLate) { <span class="tag late">最晚开始已过（{{ w.latestStart }}）</span> }
                     @else if (w.isLeaf && w.latestStart && w.status === 'NOT_STARTED') { <span class="tag">最晚开始 {{ w.latestStart }}</span> }
                   </div>
@@ -280,6 +287,7 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
         </div>
       }
     }
+    @if (drawer(); as d) { <app-wp-drawer [project]="project()" [wp]="d.wp" [ownerName]="ownerName(d.wp)" [initialTab]="d.tab" (closed)="drawer.set(null)" (changed)="load()" /> }
   `,
 })
 export class ProjectWbs {
@@ -301,6 +309,10 @@ export class ProjectWbs {
   readonly importResult = signal<{ created: number; updated: number; dependencies: number } | null>(null);
   readonly importErrors = signal<string[]>([]);
   readonly library = signal<OptionalWorkPackage[]>([]);
+  readonly drawer = signal<{ wp: WorkPackage; tab: DrawerTab } | null>(null);
+  readonly costState = signal<Record<string, string>>({});
+  readonly inspCount = signal<Record<string, { done: number; total: number; failed: number }>>({});
+  open(w: WorkPackage, tab: DrawerTab) { if (w.isLeaf) this.drawer.set({ wp: w, tab }); }
   readonly libParent = signal('');
   readonly fRoles = signal<FunctionalRole[]>([]);
   readonly directory = signal<{ id: string; name: string; functionalRoleId: string | null }[]>([]);
@@ -402,6 +414,21 @@ export class ProjectWbs {
       this.slips.set(Object.fromEntries(perf.schedule.slips.map((s) => [s.id, s.slipDays])));
     }
     this.data.set(await this.api.get<WbsResponse>(`/projects/${this.project().id}/wbs`));
+    const d = this.drawer();
+    if (d) { const w = this.data()!.items.find((x) => x.id === d.wp.id); if (w) this.drawer.set({ ...d, wp: w }); }
+    try {
+      const [plan, items] = await Promise.all([
+        this.api.get<CostPlan>(`/projects/${this.project().id}/cost-plan`),
+        this.api.get<InspectionItem[]>(`/projects/${this.project().id}/inspections`),
+      ]);
+      this.costState.set(Object.fromEntries(plan.workPackages.filter((w) => w.state).map((w) => [w.id, w.state])));
+      const ic: Record<string, { done: number; total: number; failed: number }> = {};
+      for (const it of items) {
+        const x = (ic[it.workPackageId] ??= { done: 0, total: 0, failed: 0 });
+        x.total++; if (it.result !== 'PENDING') x.done++; if (it.result === 'FAIL') x.failed++;
+      }
+      this.inspCount.set(ic);
+    } catch { /* 标记只是提示，取不到不影响 WBS */ }
   }
 
   /** 按库里的“建议位置”预选上级 */

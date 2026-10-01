@@ -87,6 +87,11 @@ await p.waitForSelector('.pcard:has-text("按职能角色指定责任人") selec
 for (const sel of await p.locator('.pcard:has-text("按职能角色指定责任人") select').all()) await sel.selectOption({ index: 1 });
 await p.click('.pcard:has-text("按职能角色指定责任人") button:has-text("确定")');
 await p.waitForSelector('.pcard:has-text("按职能角色指定责任人")', { state: 'detached' });
+// 加了可选库的工作包后人工合计超过人工科目预算：在成本策划里按工作包合计重设科目预算
+await tab(p, '成本策划');
+await p.waitForSelector('app-project-cost-plan .checks li.no:has-text("人工")');
+await p.click('button:has-text("按工作包合计设定科目预算")');
+await p.waitForFunction(() => document.querySelectorAll('app-project-cost-plan .checks li.no').length === 0);
 await tab(p, '计划批准');
 await p.waitForFunction(() => document.querySelectorAll('.checks li.no').length === 0, null, { timeout: 5000 }).catch(async () => {
   throw new Error('仍有未通过的检查：' + (await p.locator('.checks li.no').allInnerTexts()).join('；'));

@@ -34,7 +34,7 @@ export interface CurrentUser {
   mustChangePassword?: boolean;
 }
 
-export interface FunctionalRole { id: string; name: string; sortOrder: number; active: boolean }
+export interface FunctionalRole { id: string; name: string; sortOrder: number; active: boolean; rate?: string | number }
 export interface UserRow {
   id: string;
   email: string;
@@ -505,3 +505,32 @@ export interface PlanTemplateRow {
 }
 export interface PlanTemplate { type: ProjectType; custom: boolean; updatedAt: string | null; items: PlanTemplateRow[] }
 export interface OptionalWorkPackage { id: string; name: string; durationDays: number; suggestedPhase: string; roleName: string; deliverable: string; types: ProjectType[]; active: boolean }
+
+// —— 成本与质量的策划、执行与控制 ——
+export type CostState = '' | 'AMBER' | 'RED';
+export interface WpCost {
+  id: string; code: string; name: string; ownerId: string | null; percentComplete: number; isMilestone: boolean;
+  role: { id: string; name: string; rate: number } | null;
+  personDays: number; rate: number; rateOverride: number | null; rateReason: string | null; labor: number;
+  lines: { id: string; accountId: string; description: string; amount: number }[];
+  budget: number; actual: number; commitment: number; etc: number; etcManual: boolean; eac: number; state: CostState;
+}
+export interface CostPlan {
+  cap: number | null; target: number | null; accSum: number; wpSum: number; eac: number; alarm: string | null;
+  accounts: { id: string; code: string; name: string; isLabor: boolean; budget: number; wpTotal: number }[];
+  workPackages: WpCost[];
+  checks: PlanCheck[];
+}
+export type InspectionResult = 'PENDING' | 'PASS' | 'FAIL' | 'NA';
+export const INSPECTION_RESULT_LABELS: Record<InspectionResult, string> = { PENDING: '待检', PASS: '合格', FAIL: '不合格', NA: '不适用' };
+export interface InspectionItem {
+  id: string; workPackageId: string; name: string; category: string; requirement: string; method: string; record: string;
+  verifierId: string | null; isKey: boolean; result: InspectionResult; firstResult: InspectionResult | null; recordNo: string; resultNote: string;
+  resultAt: string | null; ncId: string | null;
+  workPackage?: { code: string; name: string; ownerId: string | null; status: WpStatus };
+}
+export interface InspectionStats {
+  total: number; key: number; keyWithoutVerifier: number; done: number; pending: number; failed: number; firstPassYield: number | null;
+  workPackages: number; missing: { id: string; code: string; name: string }[];
+}
+export interface InspectionTemplate { id: string; name: string; category: string; requirement: string; method: string; record: string; active: boolean }

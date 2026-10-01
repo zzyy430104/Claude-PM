@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { Api, errorMessage } from '../core/api';
 import { Brand } from '../core/brand';
 import { CalendarSettings } from '../core/models';
+import { CostQualitySettings } from '../components/cost-quality-settings';
 
 const DAYS = [
   { n: 1, label: '周一' }, { n: 2, label: '周二' }, { n: 3, label: '周三' }, { n: 4, label: '周四' },
@@ -17,7 +18,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** 企业设置：品牌、立项、挣值预警阈值、工作日历 */
 @Component({
   selector: 'app-settings',
-  imports: [ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule],
+  imports: [CostQualitySettings, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule],
   styles: `
     section { max-width: 760px; }
     .week { display: flex; gap: 12px; flex-wrap: wrap; margin: 4px 0 12px; }
@@ -73,6 +74,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
         @if (saved()) { <span class="ok">已保存</span> }
       </form>
       @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
+      <app-cost-quality-settings />
     </div>
   `,
 })

@@ -22,6 +22,7 @@ const NEXT: Record<string, { to: string; label: string }> = {
   styles: `.box { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 12px 16px; margin: 12px 0; } .meta { font-size: 13px; color: var(--mat-sys-on-surface-variant); } .bad { color: var(--mat-sys-error); }`,
   template: `
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
+    @if (part() !== 'nc') {
     <h2>项目质量计划（第 {{ plan()?.version ?? 0 }} 版{{ plan()?.approvedAt ? '，已批准' : '，未批准' }}）</h2>
     <form [formGroup]="planForm">
       <mat-form-field style="width: 100%"><mat-label>质量目标</mat-label><textarea matInput formControlName="objectives" [readonly]="!canPlan()"></textarea></mat-form-field>
@@ -31,6 +32,8 @@ const NEXT: Record<string, { to: string; label: string }> = {
       @if (quality() && plan() && plan()!.version > 0 && !plan()!.approvedAt) { <button mat-stroked-button type="button" (click)="approve()">质量经理批准</button> }
     </form>
 
+    }
+    @if (part() !== 'plan') {
     <h2>不符合项 / 整改（CAR）</h2>
     <form class="row" [formGroup]="ncForm" (ngSubmit)="addNc()">
       <mat-form-field style="min-width: 240px"><mat-label>标题</mat-label><input matInput formControlName="title" /></mat-form-field>
@@ -65,6 +68,7 @@ const NEXT: Record<string, { to: string; label: string }> = {
       </div>
     }
     @if (ncs().length === 0) { <p>暂无不符合项。</p> }
+    }
   `,
 })
 export class ProjectQuality {
@@ -72,6 +76,8 @@ export class ProjectQuality {
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder).nonNullable;
   readonly project = input.required<Project>();
+  /** plan：只显示质量计划（质量策划页）；nc：只显示不符合项；all：都显示 */
+  readonly part = input<'all' | 'plan' | 'nc'>('all');
   readonly plan = signal<QualityPlan | null>(null);
   readonly ncs = signal<Nonconformity[]>([]);
   readonly members = signal<Member[]>([]);

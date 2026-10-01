@@ -24,11 +24,12 @@ await p.waitForSelector('td:has-text("钢材采购")'); step('记录实际成本
 await p.click('button:has-text("调整尚需")');
 await p.waitForSelector('td.over'); step('ETC 调整后科目预警（偏差标红）');
 
-await tab(p, '质量与不符合项');
+await tab(p, '质量计划');
 await p.fill('textarea[formcontrolname=objectives]', '一次交检合格率 ≥ 98%');
 await p.fill('textarea[formcontrolname=activities]', 'QA | 过程审核 | 每月\nQC | 焊缝无损检测 | 每批');
 await p.click('button:has-text("保存计划")');
 await p.waitForSelector('h2:has-text("第 1 版，未批准")'); step('保存质量计划');
+await tab(p, '质量与不符合项');
 await p.fill('input[formcontrolname=title]', '焊缝气孔');
 await p.fill('input[formcontrolname=description]', '构架焊缝发现气孔');
 await p.click('button:has-text("登记不符合项")');
@@ -44,9 +45,10 @@ await p.click('button:has-text("登记")');
 await p.waitForSelector('.box:has-text("交期沟通")'); step('沟通计划与记录');
 
 // 质量经理批准质量计划并推进不符合项
-await loginAs(p, u.pqm); await openProject(p, proj.code); await tab(p, '质量与不符合项');
+await loginAs(p, u.pqm); await openProject(p, proj.code); await tab(p, '质量计划');
 await p.click('button:has-text("质量经理批准")');
 await p.waitForSelector('h2:has-text("已批准")'); step('质量经理批准质量计划');
+await tab(p, '质量与不符合项');
 await p.click('.box button:has-text("开始原因分析")');
 await p.waitForSelector('.box:has-text("原因分析")');
 await p.fill('.box input[formcontrolname=containment]', '隔离并全检');

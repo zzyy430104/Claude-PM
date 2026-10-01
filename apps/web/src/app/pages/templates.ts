@@ -5,12 +5,13 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { Api, errorMessage } from '../core/api';
 import { OptionalLibrary } from '../components/optional-library';
+import { InspectionLibrary } from '../components/inspection-library';
 import { PlanTypeTemplates } from '../components/plan-type-templates';
 import { PhaseTemplate, PROJECT_ROLES, PROJECT_ROLE_LABELS, ProjectRole, WbsTemplate } from '../core/models';
 
 @Component({
   selector: 'app-templates',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, PlanTypeTemplates, OptionalLibrary],
+  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, PlanTypeTemplates, OptionalLibrary, InspectionLibrary],
   template: `
     <div class="page">
       <div class="crumb">知识库</div>
@@ -18,10 +19,12 @@ import { PhaseTemplate, PROJECT_ROLES, PROJECT_ROLE_LABELS, ProjectRole, WbsTemp
       <nav class="stabs" role="tablist" aria-label="模板分类">
         <button type="button" role="tab" [attr.aria-selected]="view() === 'type'" (click)="view.set('type')">项目类型模板</button>
         <button type="button" role="tab" [attr.aria-selected]="view() === 'library'" (click)="view.set('library')">可选工作包库</button>
+        <button type="button" role="tab" [attr.aria-selected]="view() === 'insp'" (click)="view.set('insp')">检验项库</button>
         <button type="button" role="tab" [attr.aria-selected]="view() === 'saved'" (click)="view.set('saved')">阶段与 WBS 模板</button>
       </nav>
       @if (view() === 'type') { <app-plan-type-templates /> }
       @if (view() === 'library') { <app-optional-library /> }
+      @if (view() === 'insp') { <app-inspection-library /> }
       @if (view() === 'saved') {
       <p>不经立项直接建立的小项目可以选用这里的阶段模板；未选择时使用默认的 6 个阶段。每行一个阶段，格式：<code>阶段名 | 关口清单项1；清单项2 | 必选：项目经理、项目质量经理 | 可选：职能经理</code>。后两段可省略，省略时必选参与者为项目经理。</p>
       <form [formGroup]="form" (ngSubmit)="create()">
@@ -56,7 +59,7 @@ export class TemplatesPage {
   private readonly api = inject(Api);
   private readonly fb = inject(FormBuilder).nonNullable;
   readonly templates = signal<PhaseTemplate[]>([]);
-  readonly view = signal<'type' | 'library' | 'saved'>('type');
+  readonly view = signal<'type' | 'library' | 'insp' | 'saved'>('type');
   readonly error = signal('');
   readonly form = this.fb.group({ name: ['', [Validators.required, Validators.minLength(2)]], phases: ['', Validators.required] });
 
