@@ -7,6 +7,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Discussion } from './discussion';
+import { AiMark } from './ai-mark';
+import { Ai } from '../core/ai';
 import { Api, errorMessage } from '../core/api';
 import { AuthService } from '../core/auth.service';
 import { CHANGE_STATUS_LABELS, CHANGE_TYPE_LABELS, ChangeRequest, ChangeType, Project } from '../core/models';
@@ -15,7 +17,7 @@ interface HistoryRow { id: string; action: string; createdAt: string; actorId: s
 
 @Component({
   selector: 'app-project-changes',
-  imports: [Discussion, ReactiveFormsModule, DatePipe, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [Discussion, AiMark, ReactiveFormsModule, DatePipe, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   styles: `.cr { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 12px 16px; margin: 12px 0; } h3 { margin: 0 0 4px; } .meta { color: var(--mat-sys-on-surface-variant); font-size: 13px; } .hist { font-size: 12px; color: var(--mat-sys-on-surface-variant); }`,
   template: `
     <h2>{{ editingId() ? '编辑草稿 ' + editingCode() : '提交变更申请' }}</h2>
@@ -32,6 +34,7 @@ interface HistoryRow { id: string; action: string; createdAt: string; actorId: s
       <mat-form-field style="width: 100%"><mat-label>变更内容</mat-label><textarea matInput formControlName="description"></textarea></mat-form-field>
       <mat-form-field style="width: 100%"><mat-label>变更原因</mat-label><textarea matInput formControlName="reason"></textarea></mat-form-field>
       <mat-form-field style="width: 100%"><mat-label>影响分析（含风险与机会）</mat-label><textarea matInput formControlName="impactAnalysis"></textarea></mat-form-field>
+      @if (ai.on('ANALYSIS')) { <button mat-button type="button" [disabled]="aiBusy() || !form.controls.description.value" (click)="aiImpact()" style="margin: -8px 0 8px"><span class="pill blue">AI</span> {{ aiBusy() ? '正在起草…' : '起草影响分析' }}</button> }
       <mat-form-field style="width: 100%"><mat-label>原因分析（由故障引起时必填）</mat-label><textarea matInput formControlName="causeAnalysis"></textarea></mat-form-field>
       <label><input type="checkbox" formControlName="triggeredByFailure" /> 由故障 / 不合格引起</label>
       @if (form.controls.type.value === 'TECHNICAL') {
@@ -51,7 +54,7 @@ interface HistoryRow { id: string; action: string; createdAt: string; actorId: s
     <h2>变更申请</h2>
     @for (c of rows(); track c.id) {
       <div class="cr">
-        <h3>{{ c.code }} · {{ c.title }}（{{ typeLabels[c.type] }}）— {{ statusLabels[c.status] }}</h3>
+        <h3>{{ c.code }} · {{ c.title }}（{{ typeLabels[c.type] }}）— {{ statusLabels[c.status] }} <app-ai-mark entity="CHANGE" [id]="c.id" /></h3>
         <div class="meta">{{ c.description }}｜原因：{{ c.reason }}</div>
         @if (c.impactAnalysis) { <div class="meta">影响分析：{{ c.impactAnalysis }}</div> }
         @if (c.proposed) { <div class="meta">拟变更：{{ proposed(c) }}</div> }
@@ -153,6 +156,20 @@ export class ProjectChanges {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  readonly ai = inject(Ai);
+  readonly aiBusy = signal(false);
+  private pendingAi: string | null = null;
+  /** AI 根据变更内容和原因起草影响分析，填入表单待确认 */
+  async aiImpact() {
+    const v = this.form.getRawValue();
+    this.aiBusy.set(true); this.error.set('');
+    try {
+      const d = await this.ai.draft<{ impactAnalysis: string }>('ANALYSIS', { kind: 'CHANGE', record: { 类型: this.typeLabels[v.type], 标题: v.title, 内容: v.description, 原因: v.reason, 新预算: v.budget, 新客户交期: v.customerDeliveryDate, 新结束日期: v.endDate } }, this.project().id);
+      this.form.patchValue({ impactAnalysis: d.draft.impactAnalysis });
+      this.pendingAi = d.usageId;
+    } catch (e) { this.error.set(errorMessage(e, 'AI 起草失败')); } finally { this.aiBusy.set(false); }
+  }
+
   cancelEdit() {
     this.editingId.set(null);
     this.form.controls.type.enable();
@@ -176,8 +193,8 @@ export class ProjectChanges {
     };
     const id = this.editingId();
     return this.run(async () => {
-      if (id) await this.api.patch(`/projects/${this.project().id}/changes/${id}`, body);
-      else await this.api.post(`/projects/${this.project().id}/changes`, { ...body, type: v.type });
+      const saved = id ? await this.api.patch<{ id: string }>(`/projects/${this.project().id}/changes/${id}`, body) : await this.api.post<{ id: string }>(`/projects/${this.project().id}/changes`, { ...body, type: v.type });
+      if (this.pendingAi) { await this.ai.adopt(this.pendingAi, true, 'CHANGE', saved?.id ?? id ?? undefined); this.pendingAi = null; }
       this.cancelEdit();
     }, '保存失败');
   }

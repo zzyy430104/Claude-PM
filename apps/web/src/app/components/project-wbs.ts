@@ -6,6 +6,8 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { AiPlan } from './ai-plan';
+import { Ai } from '../core/ai';
 import { Api, errorMessage } from '../core/api';
 import { askText } from '../core/i18n';
 import { AuthService } from '../core/auth.service';
@@ -20,7 +22,7 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
 
 @Component({
   selector: 'app-project-wbs',
-  imports: [ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, GanttComponent, WpDrawer],
+  imports: [AiPlan, ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, GanttComponent, WpDrawer],
   styles: `
     .crit-name { color: var(--pm-red); font-weight: 500; }
     .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
@@ -70,6 +72,7 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
       }
     }
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
+    @if (manage() && !project().baselined && ai.on('PLAN')) { <app-ai-plan [project]="project()" (changed)="load()" /> }
 
     @if (manage() && project().baselined) {
       <div class="scope-cr">
@@ -341,6 +344,7 @@ export class ProjectWbs {
   );
   readonly leaves = computed(() => this.items().filter((w) => w.isLeaf));
   readonly manage = computed(() => !!this.project().permissions?.manage);
+  readonly ai = inject(Ai);
   readonly quality = computed(() => !!this.project().permissions?.quality);
 
   private readonly empty = {

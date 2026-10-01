@@ -6,6 +6,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Discussion } from './discussion';
+import { AiMark } from './ai-mark';
+import { Ai } from '../core/ai';
 import { Api, errorMessage } from '../core/api';
 import { AuthService } from '../core/auth.service';
 import { Member, NC_SEVERITY_LABELS, NC_SOURCE_LABELS, NC_STATUS_LABELS, Nonconformity, Project, QualityPlan } from '../core/models';
@@ -19,7 +21,7 @@ const NEXT: Record<string, { to: string; label: string }> = {
 
 @Component({
   selector: 'app-project-quality',
-  imports: [Discussion, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [Discussion, AiMark, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   styles: `.box { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 12px 16px; margin: 12px 0; } .meta { font-size: 13px; color: var(--mat-sys-on-surface-variant); } .bad { color: var(--mat-sys-error); }`,
   template: `
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
@@ -45,7 +47,7 @@ const NEXT: Record<string, { to: string; label: string }> = {
     </form>
     @for (n of ncs(); track n.id) {
       <div class="box">
-        <strong>{{ n.code }} · {{ n.title }}</strong>
+        <strong>{{ n.code }} · {{ n.title }}</strong> <app-ai-mark entity="NONCONFORMITY" [id]="n.id" />
         <span [class.bad]="n.severity !== 'MINOR'"> {{ sevLabels[n.severity] }}</span> · {{ srcLabels[n.source] }} · {{ statusLabels[n.status] }}
         <div class="meta">{{ n.description }}</div>
         @if (n.containment) { <div class="meta">遏制措施：{{ n.containment }}</div> }
@@ -60,6 +62,7 @@ const NEXT: Record<string, { to: string; label: string }> = {
             <mat-form-field><mat-label>措施负责人</mat-label><mat-select formControlName="actionOwnerId"><mat-option value="">未指定</mat-option>@for (m of members(); track m.userId) { <mat-option [value]="m.userId">{{ m.user?.name }}</mat-option> }</mat-select></mat-form-field>
             <mat-form-field><mat-label>完成期限</mat-label><input matInput type="date" formControlName="actionDueDate" /></mat-form-field>
             <button mat-stroked-button type="submit">保存</button>
+            @if (ai.on('ANALYSIS')) { <button mat-button type="button" [disabled]="aiBusy()" (click)="aiNc(n)"><span class="pill blue">AI</span> {{ aiBusy() ? '正在起草…' : '起草原因分析和措施' }}</button> }
           </form>
         }
         @if (n.status !== 'CLOSED') {
@@ -141,10 +144,29 @@ export class ProjectQuality {
       this.ncForm.reset({ title: '', severity: 'MINOR', source: 'INSPECTION', description: '' });
     }, '登记失败');
   }
+  readonly ai = inject(Ai);
+  readonly aiBusy = signal(false);
+  private pendingAi: { usageId: string; id: string } | null = null;
+  /** AI 起草遏制措施、根本原因、纠正和预防措施，填入表单待确认 */
+  async aiNc(n: Nonconformity) {
+    this.aiBusy.set(true); this.error.set('');
+    try {
+      const d = await this.ai.draft<{ containment: string; rootCause: string; correctiveAction: string; preventiveAction: string }>('ANALYSIS', {
+        kind: 'NONCONFORMITY', record: { 标题: n.title, 描述: n.description, 严重程度: n.severity, 来源: n.source, 遏制措施: n.containment, 根本原因: n.rootCause, 纠正措施: n.correctiveAction },
+      }, this.project().id);
+      const x = d.draft;
+      this.ncEdit.patchValue({ containment: x.containment || this.ncEdit.value.containment, rootCause: x.rootCause || this.ncEdit.value.rootCause,
+        correctiveAction: [x.correctiveAction, x.preventiveAction ? `预防：${x.preventiveAction}` : ''].filter(Boolean).join('；') || this.ncEdit.value.correctiveAction });
+      this.pendingAi = { usageId: d.usageId, id: n.id };
+    } catch (e) { this.error.set(errorMessage(e, 'AI 起草失败')); } finally { this.aiBusy.set(false); }
+  }
   saveNc(n: Nonconformity) {
     const v = this.ncEdit.getRawValue();
     const body = Object.fromEntries(Object.entries(v).filter(([, x]) => x));
-    return this.run(() => this.api.patch(`/projects/${this.project().id}/nonconformities/${n.id}`, body), '保存失败');
+    return this.run(async () => {
+      await this.api.patch(`/projects/${this.project().id}/nonconformities/${n.id}`, body);
+      if (this.pendingAi?.id === n.id) { await this.ai.adopt(this.pendingAi.usageId, true, 'NONCONFORMITY', n.id); this.pendingAi = null; }
+    }, '保存失败');
   }
   move(n: Nonconformity, to: string, needNote = false) {
     const note = to === 'CLOSED' || needNote ? askText(to === 'CLOSED' ? '有效性验证结论' : '退回原因') : undefined;

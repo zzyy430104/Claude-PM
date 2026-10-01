@@ -24,6 +24,8 @@ import { ProjectFai } from '../components/project-fai';
 import { ProjectHandover } from '../components/project-handover';
 import { ProjectMeetings } from '../components/project-meetings';
 import { ProjectAnnouncements } from '../components/project-announcements';
+import { AiQuick } from '../components/ai-quick';
+import { Ai } from '../core/ai';
 import { ProjectTeam } from '../components/project-team';
 import { ProjectWbs } from '../components/project-wbs';
 import { ProjectPlanApproval } from '../components/project-plan-approval';
@@ -47,13 +49,14 @@ const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs',
 
 @Component({
   selector: 'app-project-detail',
-  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig, ProjectReqVersions, ProjectPlanApproval, ProjectCostPlan, ProjectQualityPlan, ProjectCostControl, ProjectEvaluationPanel, ProjectPurchase, ProjectFai, ProjectHandover, ProjectMeetings, ProjectAnnouncements],
+  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig, ProjectReqVersions, ProjectPlanApproval, ProjectCostPlan, ProjectQualityPlan, ProjectCostControl, ProjectEvaluationPanel, ProjectPurchase, ProjectFai, ProjectHandover, ProjectMeetings, ProjectAnnouncements, AiQuick],
   styles: `
     .crumb { font-size: 13px; color: var(--pm-muted); margin: 0 0 4px; }
     .crumb a { color: var(--pm-muted); }
     h1 { margin-bottom: 6px !important; }
     .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--pm-muted); font-size: 14px; margin: 0 0 18px; }
     .stack > * + * { display: block; margin-top: 20px; }
+    .aiq { margin-left: auto; border: 1px solid var(--pm-line); background: var(--pm-card); border-radius: 16px; padding: 3px 10px; font: inherit; font-size: 13px; cursor: pointer; }
     .stack > .h-sub { margin: 24px 0 8px !important; font-size: 17px; }
   `,
   template: `
@@ -68,7 +71,9 @@ const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs',
           @if (p.planOutdated) { <span class="pill amber">计划待重新批准</span> }
           @if (p.planSubmittedAt) { <span class="pill amber">计划待批准</span> }
           <span>编号 {{ p.code }}</span>
+          @if (ai.on('QUICK') && p.status !== 'CLOSED' && p.status !== 'CANCELLED') { <button type="button" class="aiq" (click)="quick.set(!quick())"><span class="pill blue">AI</span> 一句话登记</button> }
         </div>
+        @if (quick()) { <app-ai-quick [project]="p" (closed)="quick.set(false)" /> }
         <nav class="gtabs" role="tablist" aria-label="项目分组">
           @for (g of groups; track g.key) {
             <button type="button" role="tab" [attr.aria-selected]="group() === g.key" (click)="go(g.key)">{{ g.label }}</button>
@@ -134,7 +139,11 @@ export class ProjectDetailPage {
     return p ? PROJECT_STATUS_LABELS[p.status] : '';
   });
 
+  readonly ai = inject(Ai);
+  readonly quick = signal(false);
+
   ngOnInit() {
+    void this.ai.load();
     void this.load();
   }
 

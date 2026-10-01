@@ -1,7 +1,9 @@
 import { Component, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
-import { Api } from '../core/api';
+import { Api, errorMessage } from '../core/api';
+import { Ai } from '../core/ai';
+import { AuthService } from '../core/auth.service';
 import { CHANGE_STATUS_LABELS, ChangeStatus, DIMENSION_LABELS, Dimension, Health } from '../core/models';
 import { I18n } from '../core/i18n';
 
@@ -38,6 +40,7 @@ const HL: Record<Health, string> = { RED: '告警', AMBER: '关注', GREEN: '正
     .tri .muted { margin-top: 6px; }
     ul { margin: 4px 0 0; padding-left: 20px; } li { margin: 2px 0; }
     .no-print { margin: 0 0 12px; display: flex; gap: 8px; }
+    .aibox { display: block; border: 1px dashed var(--pm-primary); border-radius: 10px; padding: 10px 12px; }
     h2 { margin-top: 22px !important; }
     @media print {
       :host ::ng-deep { }
@@ -50,10 +53,21 @@ const HL: Record<Health, string> = { RED: '告警', AMBER: '关注', GREEN: '正
       <div class="no-print">
         <a mat-button [routerLink]="['/projects', id()]">← 返回项目</a>
         <button mat-flat-button (click)="print()">打印 / 另存为 PDF</button>
+        @if (ai.on('REPORT') && r()) { <button mat-stroked-button type="button" [disabled]="aiBusy()" (click)="aiDraft()"><span class="pill blue">AI</span> {{ aiBusy() ? '正在起草…' : '起草本周摘要' }}</button> }
       </div>
+      @if (aiErr()) { <div class="error no-print" role="alert">{{ aiErr() }}</div> }
+      @if (draft() !== null && !adopted()) {
+        <div class="no-print aibox" data-ai="report">
+          <label class="fld" style="display: block">AI 起草的本周摘要（可修改，采用后显示在周报里）<textarea [value]="draft()" (input)="draft.set($any($event.target).value)" aria-label="本周摘要草稿" style="min-height: 140px"></textarea></label>
+          <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px"><button mat-button type="button" (click)="discard()">放弃</button><button mat-flat-button type="button" (click)="adopt()">采用</button></div>
+        </div>
+      }
       @if (r(); as r) {
         <div class="sheet">
           <div class="head"><h1>项目周报：{{ r.project.code }} {{ r.project.name }}</h1><span class="muted">{{ r.period.from }} 至 {{ r.period.to }}</span></div>
+          @if (adopted() && draft()) {
+            <h2>本周摘要</h2><p style="white-space: pre-line; margin: 0 0 4px" data-summary>{{ draft() }}</p><div class="muted" style="font-size: 12px">AI 起草，{{ me() }} 确认</div>
+          }
           <h2>总体状态</h2>
           <div class="tri">
             <div><span [class]="'badge ' + r.performance.triangle.quality.health">质量 {{ hl(r.performance.triangle.quality.health) }}</span><ul>@for (x of r.performance.triangle.quality.reasons; track x) { <li>{{ x }}</li> }</ul></div>
@@ -98,5 +112,24 @@ export class ReportPage {
   cs(s: ChangeStatus) { return CHANGE_STATUS_LABELS[s]; }
   dim(d: keyof typeof DIMENSION_LABELS) { return DIMENSION_LABELS[d]; }
   print() { window.print(); }
-  async ngOnInit() { this.r.set(await this.api.get<Report>(`/projects/${this.id()}/weekly-report`)); }
+  readonly ai = inject(Ai);
+  private readonly auth = inject(AuthService);
+  readonly draft = signal<string | null>(null);
+  readonly adopted = signal(false);
+  readonly aiBusy = signal(false);
+  readonly aiErr = signal('');
+  private usageId = '';
+  me() { return this.auth.user()?.name ?? ''; }
+  async ngOnInit() { void this.ai.load(); this.r.set(await this.api.get<Report>(`/projects/${this.id()}/weekly-report`)); }
+  async aiDraft() {
+    this.aiBusy.set(true); this.aiErr.set(''); this.adopted.set(false);
+    try {
+      const d = await this.ai.draft<{ summary: string; highlights: string[]; issues: string[]; next: string[] }>('REPORT', { kind: 'WEEKLY', data: this.r() }, this.id());
+      const x = d.draft;
+      this.usageId = d.usageId;
+      this.draft.set([x.summary, x.highlights.length ? `本周完成：${x.highlights.join('；')}` : '', x.issues.length ? `问题与风险：${x.issues.join('；')}` : '', x.next.length ? `下周计划：${x.next.join('；')}` : ''].filter(Boolean).join('\n'));
+    } catch (e) { this.aiErr.set(errorMessage(e, 'AI 起草失败')); } finally { this.aiBusy.set(false); }
+  }
+  async adopt() { await this.ai.adopt(this.usageId, true, 'WEEKLY_REPORT', this.id()); this.adopted.set(true); }
+  async discard() { await this.ai.adopt(this.usageId, false); this.draft.set(null); }
 }

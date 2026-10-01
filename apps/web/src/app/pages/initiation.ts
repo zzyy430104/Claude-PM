@@ -10,6 +10,9 @@ import {
 import { requirementProblems } from '../core/requirements';
 import { RequirementsEditor, cleanRequirements } from '../components/requirements-editor';
 import { RequirementsView } from '../components/requirements-view';
+import { AiContract, ContractFields } from '../components/ai-contract';
+import { AiMark } from '../components/ai-mark';
+import { Ai } from '../core/ai';
 
 interface Person { id: string; name: string; role: string }
 interface Form {
@@ -21,7 +24,7 @@ const blank = (): Form => ({ name: '', projectCode: '', type: 'B', riskLevel: 'M
 /** 立项申请：新建、修改草稿、提交；会签人给意见，批准人批准或驳回。批准后按类型模板生成项目和计划草稿。 */
 @Component({
   selector: 'app-initiation',
-  imports: [RouterLink, MatButtonModule, RequirementsEditor, RequirementsView],
+  imports: [AiContract, AiMark, RouterLink, MatButtonModule, RequirementsEditor, RequirementsView],
   styles: `
     .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--pm-muted); font-size: 14px; margin: 0 0 18px; }
     .opinion { border-top: 1px solid var(--pm-line); padding: 8px 0; font-size: 14px; }
@@ -59,6 +62,8 @@ const blank = (): Form => ({ name: '', projectCode: '', type: 'B', riskLevel: 'M
 
       <div class="split">
         <div>
+          @if (editable() && ai.on('CONTRACT')) { <app-ai-contract [type]="f().type" (applied)="applyAi($event)" /> }
+          @if (id()) { <app-ai-mark entity="INITIATION" [id]="id()!" /> }
           <section class="pcard">
             <header><h2>基本信息</h2></header>
             <div class="body">
@@ -204,7 +209,18 @@ export class InitiationPage {
     return i.cosigners.map((u) => `${this.person(u)} ${i.opinions.some((o) => o.userId === u) ? '已签' : '待签'}`).join('，');
   });
 
-  ngOnInit() { void this.load(); }
+  readonly ai = inject(Ai);
+  /** AI 起草后待保存的使用记录：保存成功时记下“AI 起草，某某确认” */
+  private pendingAi: string | null = null;
+
+  ngOnInit() { void this.load(); void this.ai.load(); }
+
+  applyAi(e: { fields: ContractFields; apply: (r: Requirements) => Requirements; usageId: string }) {
+    this.f.update((f) => ({ ...f, ...Object.fromEntries(Object.entries(e.fields).filter(([, v]) => v !== undefined && v !== '')) }));
+    this.req.update((r) => e.apply(r));
+    this.pendingAi = e.usageId;
+    this.saved.set('已写入 AI 起草的条目，请核对后保存');
+  }
 
   async load() {
     try {
@@ -252,11 +268,19 @@ export class InitiationPage {
     if (!this.f().name || this.f().name.length < 2) { this.error.set('请先填写项目名称（至少 2 个字）'); return null; }
     if (this.isNew()) {
       const i = await this.api.post<Initiation>('/initiations', this.body());
+      await this.adoptAi(i.id);
       await this.router.navigate(['/initiations', i.id], { replaceUrl: true });
       return i.id;
     }
     await this.api.patch(`/initiations/${this.id()}`, this.body());
+    await this.adoptAi(this.id()!);
     return this.id()!;
+  }
+
+  private async adoptAi(id: string) {
+    if (!this.pendingAi) return;
+    await this.ai.adopt(this.pendingAi, true, 'INITIATION', id);
+    this.pendingAi = null;
   }
 
   async save() {

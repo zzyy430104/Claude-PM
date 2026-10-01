@@ -2,6 +2,8 @@ import { Component, computed, inject, input, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, errorMessage } from '../core/api';
+import { Ai } from '../core/ai';
+import { AiMark } from './ai-mark';
 import {
   MEETING_TYPE_LABELS, Member, MeetingAttendeeRow, MeetingRecurrence, MeetingRow, MeetingType, Project, RECURRENCE_LABELS, RsvpStatus,
 } from '../core/models';
@@ -24,7 +26,7 @@ const STATUS: Record<MeetingRow['status'], [string, string]> = { DRAFT: ['未发
 /** 会议：发起与通知（日历邀请）→ 参会确认 → 纪要（要点、决定、行动项）；例会生成下一次并带出未关闭的行动项 */
 @Component({
   selector: 'app-project-meetings',
-  imports: [MatButtonModule],
+  imports: [MatButtonModule, AiMark],
   styles: `
     .lay { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }
     @media (max-width: 900px) { .lay { grid-template-columns: 1fr; } }
@@ -45,6 +47,7 @@ const STATUS: Record<MeetingRow['status'], [string, string]> = { DRAFT: ['未发
     .carry { background: var(--pm-amber-bg); border-radius: 10px; padding: 10px 14px; margin: 0 0 12px; font-size: 14px; }
     .carry li { margin: 2px 0; }
     h4 { margin: 14px 0 6px; font-size: 14px; }
+    .aibox { border: 1px dashed var(--pm-primary); border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; }
   `,
   template: `
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
@@ -170,6 +173,7 @@ const STATUS: Record<MeetingRow['status'], [string, string]> = { DRAFT: ['未发
                   </div>
                 }
                 @if (m.status === 'PUBLISHED') {
+                  <app-ai-mark entity="MEETING" [id]="m.id" />
                   <h4>讨论要点</h4><p style="white-space: pre-line; margin: 0">{{ m.points || '—' }}</p>
                   <h4>决定事项</h4><p style="white-space: pre-line; margin: 0">{{ m.decisions || '—' }}</p>
                   <h4>行动项（已进入「问题与行动」）</h4>
@@ -179,6 +183,13 @@ const STATUS: Record<MeetingRow['status'], [string, string]> = { DRAFT: ['未发
                   </tbody></table></div>
                   <p class="muted" style="font-size: 13px">纪要已于 {{ m.publishedAt?.slice(0, 10) }} 发布。</p>
                 } @else if (m.canManage && m.status !== 'CANCELLED') {
+                  @if (ai.on('MINUTES')) {
+                    <div class="aibox" data-ai="minutes">
+                      <label class="fld" style="display: block"><span><span class="pill blue">AI</span> 粘贴会议记录或录音转写文字，AI 整理成要点、决定和行动项草稿</span>
+                        <textarea [value]="notes()" (input)="notes.set($any($event.target).value)" aria-label="会议记录原文"></textarea></label>
+                      <div class="tools"><span class="sp"></span><button mat-stroked-button type="button" [disabled]="!notes().trim() || aiBusy()" (click)="aiMinutes(m)">{{ aiBusy() ? 'AI 正在整理…' : 'AI 整理' }}</button></div>
+                    </div>
+                  }
                   <label class="fld" style="display: block">讨论要点<textarea [value]="points()" (input)="points.set($any($event.target).value)" aria-label="讨论要点"></textarea></label>
                   <label class="fld" style="display: block; margin-top: 10px">决定事项<textarea [value]="decisions()" (input)="decisions.set($any($event.target).value)" aria-label="决定事项"></textarea></label>
                   <h4>行动项（发布纪要后进入「问题与行动」）</h4>
@@ -223,8 +234,32 @@ export class ProjectMeetings {
   readonly teamIds = computed(() => [...new Set(this.team().map((m) => m.userId))]);
   private base = () => `/projects/${this.project().id}/meetings`;
   private draftFor: string | null = null;
+  readonly ai = inject(Ai);
+  readonly notes = signal('');
+  readonly aiBusy = signal(false);
+  /** AI 整理后待保存的使用记录 */
+  private pendingAi: string | null = null;
+
+  async aiMinutes(m: MeetingRow) {
+    this.aiBusy.set(true); this.error.set('');
+    try {
+      const d = await this.ai.draft<{ points: string[]; decisions: string[]; actions: { title: string; owner: string; dueDate: string }[] }>('MINUTES', {
+        notes: this.notes(), attendees: m.attendees.map((a) => a.name), agenda: m.agenda, date: m.startAt.slice(0, 10),
+      }, this.project().id);
+      this.points.set(d.draft.points.map((x) => `· ${x}`).join('\n'));
+      this.decisions.set(d.draft.decisions.map((x) => `· ${x}`).join('\n'));
+      this.actions.set(d.draft.actions.map((a) => ({ title: a.title, ownerId: this.team().find((t) => t.user?.name === a.owner)?.userId, dueDate: a.dueDate || undefined })));
+      this.pendingAi = d.usageId;
+    } catch (e) { this.error.set(errorMessage(e, 'AI 整理失败')); } finally { this.aiBusy.set(false); }
+  }
+  private async adoptAi(id: string) {
+    if (!this.pendingAi) return;
+    await this.ai.adopt(this.pendingAi, true, 'MEETING', id);
+    this.pendingAi = null;
+  }
 
   async ngOnInit() {
+    void this.ai.load();
     const id = this.project().id;
     try {
       const [ms, sh] = await Promise.all([this.api.get<Member[]>(`/projects/${id}/members`), this.api.get<Stakeholder[]>(`/projects/${id}/stakeholders`).catch(() => [])]);
@@ -344,6 +379,7 @@ export class ProjectMeetings {
     try {
       await this.api.put(`${this.base()}/${m.id}/minutes`, this.minutesBody());
       await this.api.post(`${this.base()}/${m.id}/publish`, {});
+      await this.adoptAi(m.id);
     } catch (e) { this.error.set(errorMessage(e, '发布失败')); }
     await this.load(m.id);
     this.tab.set('minutes');

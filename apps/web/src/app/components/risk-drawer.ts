@@ -2,6 +2,8 @@ import { Component, computed, effect, inject, input, output, signal } from '@ang
 import { MatButtonModule } from '@angular/material/button';
 import { Api, errorMessage } from '../core/api';
 import { Discussion } from './discussion';
+import { AiMark } from './ai-mark';
+import { Ai } from '../core/ai';
 import { AuthService } from '../core/auth.service';
 import { askText } from '../core/i18n';
 import {
@@ -28,7 +30,7 @@ interface Draft {
 /** 风险 / 机会详情：识别 → 评价 → 应对 → 预警 → 复评与关闭（企业级、项目级、工作包级共用） */
 @Component({
   selector: 'app-risk-drawer',
-  imports: [MatButtonModule, Discussion],
+  imports: [MatButtonModule, Discussion, AiMark],
   styles: `
     .shade { position: fixed; inset: 0; background: rgba(20, 26, 24, .38); z-index: 1000; display: flex; justify-content: flex-end; }
     .win { background: var(--pm-card); width: min(680px, 100%); height: 100%; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(0,0,0,.15); }
@@ -70,6 +72,7 @@ interface Draft {
           <div>
             <div class="muted" style="font-size: 12px">{{ d().kind === 'RISK' ? '风险' : '机会' }} · {{ levelLabel(d().level) }}@if (risk(); as r) { · {{ statusLabel(r) }} }</div>
             <h2>{{ risk()?.title || '新增' + (d().kind === 'RISK' ? '风险' : '机会') }}</h2>
+            @if (risk(); as r) { <app-ai-mark entity="RISK" [id]="r.id" /> }
           </div>
           <button class="x" type="button" (click)="closed.emit()" aria-label="关闭">✕</button>
         </header>
@@ -141,6 +144,14 @@ interface Draft {
               </div>
             }
             @case ('plan') {
+              @if (ai.on('ANALYSIS') && !locked()) {
+                <div class="tools" style="margin: 0 0 10px"><button mat-stroked-button type="button" [disabled]="aiBusy() || d().title.trim().length < 2" (click)="aiRisk()"><span class="pill blue">AI</span> {{ aiBusy() ? '正在起草…' : '起草原因、后果、措施和成本收益分析' }}</button></div>
+                @if (aiMeasures().length) {
+                  <div class="banner amber" data-ai="measures">AI 建议的措施（确认后添加）：
+                    @for (x of aiMeasures(); track $index) { <div>· {{ x }} @if (risk() && open()) { <button mat-button type="button" (click)="addMeasure(x, '', '', 0); dropMeasure($index)">添加</button> } </div> }
+                  </div>
+                }
+              }
               <div class="fld" style="display: block">应对策略
                 <div class="chips" style="margin-top: 6px">@for (s of strategies(); track s) { <button type="button" class="chip" [class.on]="s === d().strategy" (click)="set('strategy', d().strategy === s ? '' : s)" [disabled]="locked()">{{ s }}</button> }</div>
               </div>
@@ -356,6 +367,32 @@ export class RiskDrawer {
   who(w: 'OWNER' | 'PM' | 'MANAGEMENT') { return w === 'OWNER' && this.d().level === 'WORK_PACKAGE' ? '工作包负责人' : RISK_WHO_LABELS[w]; }
   name(id: string | null) { return id ? this.people().find((p) => p.id === id)?.name ?? '—' : '—'; }
 
+  readonly ai = inject(Ai);
+  readonly aiBusy = signal(false);
+  readonly aiMeasures = signal<string[]>([]);
+  private pendingAi: string | null = null;
+  /** AI 根据描述起草原因、后果、成本收益分析，并建议措施（措施逐条确认后添加） */
+  async aiRisk() {
+    const x = this.d();
+    this.aiBusy.set(true); this.error.set('');
+    try {
+      const r = await this.ai.draft<{ cause: string; effect: string; measures: string[]; costBenefitAnalysis: string }>('ANALYSIS', {
+        kind: 'RISK', record: { 类型: x.kind === 'RISK' ? '风险' : '机会', 描述: x.title, 原因: x.cause, 后果: x.effect, 可能性: x.probability, 影响: x.impact, 策略: x.strategy, 潜在金额: x.exposureAmount },
+      }, this.projectId() ?? undefined);
+      if (r.draft.cause && !x.cause) this.set('cause', r.draft.cause);
+      if (r.draft.effect && !x.effect) this.set('effect', r.draft.effect);
+      if (r.draft.costBenefitAnalysis) this.set('costBenefitAnalysis', r.draft.costBenefitAnalysis);
+      this.aiMeasures.set(r.draft.measures);
+      this.pendingAi = r.usageId;
+    } catch (e) { this.error.set(errorMessage(e, 'AI 起草失败')); } finally { this.aiBusy.set(false); }
+  }
+  dropMeasure(i: number) { this.aiMeasures.update((m) => m.filter((_, j) => j !== i)); }
+  private async adoptAi(id: string) {
+    if (!this.pendingAi) return;
+    await this.ai.adopt(this.pendingAi, true, 'RISK', id);
+    this.pendingAi = null;
+  }
+
   private base(r: RiskRow) { return r.level === 'ENTERPRISE' ? `/enterprise-risks/${r.id}` : `/projects/${this.projectId()}/risks/${r.id}`; }
   private async loadReviews(r: RiskRow) {
     try { this.reviews.set(await this.api.get<RiskReviewRow[]>(`${this.base(r)}/reviews`)); } catch { this.reviews.set([]); }
@@ -384,11 +421,12 @@ export class RiskDrawer {
     this.error.set('');
     try {
       const r = this.risk();
-      if (r) await this.api.patch(this.base(r), this.body());
+      if (r) { await this.api.patch(this.base(r), this.body()); await this.adoptAi(r.id); }
       else {
         const created = this.projectId()
           ? await this.api.post<{ id: string }>(`/projects/${this.projectId()}/risks`, { ...this.body(), kind: x.kind, level: x.level })
           : await this.api.post<{ id: string }>('/enterprise-risks', { ...this.body(), kind: x.kind });
+        await this.adoptAi(created.id);
         this.dirty = false;
         this.changed.emit(created.id);
         if (close) this.closed.emit();
