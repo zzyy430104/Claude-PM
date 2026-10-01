@@ -22,6 +22,18 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/home').then((m) => m.HomePage),
       },
       {
+        path: 'initiations',
+        loadComponent: () => import('./pages/initiations').then((m) => m.InitiationsPage),
+      },
+      {
+        path: 'initiations/new',
+        loadComponent: () => import('./pages/initiation').then((m) => m.InitiationPage),
+      },
+      {
+        path: 'initiations/:id',
+        loadComponent: () => import('./pages/initiation').then((m) => m.InitiationPage),
+      },
+      {
         path: 'projects',
         loadComponent: () => import('./pages/projects').then((m) => m.ProjectsPage),
       },

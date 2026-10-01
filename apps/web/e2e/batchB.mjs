@@ -4,6 +4,11 @@ const { b, p, errors } = await launch();
 await signup(p, slug); step('注册企业');
 await addUser(p, '李经理', 'pm@demo.test', 'pm-pass-12345', '项目经理');
 await addUser(p, '王成员', 'wang@demo.test', 'pm-pass-12345', '成员（只读）');
+// 直接建项目需要企业开启“小项目免立项”（默认关闭，立项流程见 initiation.mjs）
+await p.click('mat-sidenav a:text-is("企业设置")');
+await p.click('mat-checkbox:has-text("小项目免立项") input');
+await p.click('button:has-text("保存")');
+await p.waitForSelector('text=已保存'); step('开启小项目免立项');
 await logout(p);
 
 await login(p, slug, 'pm@demo.test', 'pm-pass-12345'); step('项目经理登录');

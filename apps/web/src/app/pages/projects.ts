@@ -8,15 +8,20 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { Api, errorMessage } from '../core/api';
 import { AuthService } from '../core/auth.service';
-import { PROJECT_STATUS_LABELS, PhaseTemplate, Project, RISK_LABELS, RiskLevel, UserRow } from '../core/models';
+import { Brand } from '../core/brand';
+import { MyApprovalRoles, PROJECT_STATUS_LABELS, PhaseTemplate, Project, RISK_LABELS, RiskLevel, UserRow } from '../core/models';
 
 @Component({
   selector: 'app-projects',
   imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatTableModule],
   template: `
     <div class="page">
-      <h1>项目</h1>
-      @if (canCreate()) {
+      <div class="head">
+        <div><h1>项目</h1>
+          <p class="lead">项目由立项申请批准后生成。@if (brand.allowDirectProject() && canCreate()) { 本企业开启了“小项目免立项”，也可以在下面直接建立小项目。 }</p></div>
+        @if (showInitiate()) { <div class="actions"><a mat-flat-button routerLink="/initiations/new">+ 新建立项申请</a></div> }
+      </div>
+      @if (canCreate() && brand.allowDirectProject()) {
         <form class="row" [formGroup]="form" (ngSubmit)="create()">
           <mat-form-field><mat-label>项目编号</mat-label><input matInput formControlName="code" /></mat-form-field>
           <mat-form-field><mat-label>项目名称</mat-label><input matInput formControlName="name" /></mat-form-field>
@@ -26,13 +31,19 @@ import { PROJECT_STATUS_LABELS, PhaseTemplate, Project, RISK_LABELS, RiskLevel, 
               @for (r of risks; track r) { <mat-option [value]="r">{{ riskLabel(r) }}</mat-option> }
             </mat-select>
           </mat-form-field>
+          <mat-form-field>
+            <mat-label>项目类型</mat-label>
+            <mat-select formControlName="type">
+              @for (t of types; track t) { <mat-option [value]="t">{{ t }} 类</mat-option> }
+            </mat-select>
+          </mat-form-field>
           <mat-form-field><mat-label>开始日期</mat-label><input matInput type="date" formControlName="startDate" /></mat-form-field>
           <mat-form-field><mat-label>结束日期</mat-label><input matInput type="date" formControlName="endDate" /></mat-form-field>
           <mat-form-field><mat-label>预算</mat-label><input matInput type="number" formControlName="budget" /></mat-form-field>
           <mat-form-field>
             <mat-label>阶段模板</mat-label>
             <mat-select formControlName="templateId">
-              <mat-option value="">默认（轨道交通 7 阶段）</mat-option>
+              <mat-option value="">默认（6 个阶段）</mat-option>
               @for (t of templates(); track t.id) { <mat-option [value]="t.id">{{ t.name }}</mat-option> }
             </mat-select>
           </mat-form-field>
@@ -52,7 +63,8 @@ import { PROJECT_STATUS_LABELS, PhaseTemplate, Project, RISK_LABELS, RiskLevel, 
       <table mat-table [dataSource]="projects()">
         <ng-container matColumnDef="code"><th mat-header-cell *matHeaderCellDef>编号</th><td mat-cell *matCellDef="let p"><a [routerLink]="['/projects', p.id]">{{ p.code }}</a></td></ng-container>
         <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>名称</th><td mat-cell *matCellDef="let p">{{ p.name }}</td></ng-container>
-        <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef>状态</th><td mat-cell *matCellDef="let p">{{ statusLabel(p) }}{{ p.baselined ? '（计划已批准）' : '' }}</td></ng-container>
+        <ng-container matColumnDef="type"><th mat-header-cell *matHeaderCellDef>类型</th><td mat-cell *matCellDef="let p">@if (p.type) { <span class="pill blue">{{ p.type }}</span> }</td></ng-container>
+        <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef>状态</th><td mat-cell *matCellDef="let p">{{ statusLabel(p) }}{{ p.planOutdated ? '（计划待重新批准）' : p.planSubmittedAt ? '（计划待批准）' : p.baselined ? '（计划已批准）' : '' }}</td></ng-container>
         <ng-container matColumnDef="risk"><th mat-header-cell *matHeaderCellDef>风险等级</th><td mat-cell *matCellDef="let p">{{ riskLabel(p.riskLevel) }}</td></ng-container>
         <ng-container matColumnDef="dates"><th mat-header-cell *matHeaderCellDef>周期</th><td mat-cell *matCellDef="let p">{{ p.startDate.slice(0, 10) }} → {{ p.endDate.slice(0, 10) }}</td></ng-container>
         <tr mat-header-row *matHeaderRowDef="cols"></tr>
@@ -68,8 +80,11 @@ export class ProjectsPage {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder).nonNullable;
 
-  readonly cols = ['code', 'name', 'status', 'risk', 'dates'];
+  readonly cols = ['code', 'name', 'type', 'status', 'risk', 'dates'];
+  readonly brand = inject(Brand);
+  readonly showInitiate = signal(false);
   readonly risks: RiskLevel[] = ['LOW', 'MEDIUM', 'HIGH'];
+  readonly types = ['A', 'B', 'C'] as const;
   readonly projects = signal<Project[]>([]);
   readonly templates = signal<PhaseTemplate[]>([]);
   readonly managers = signal<UserRow[]>([]);
@@ -78,6 +93,7 @@ export class ProjectsPage {
     code: ['', Validators.required],
     name: ['', [Validators.required, Validators.minLength(2)]],
     riskLevel: ['MEDIUM' as RiskLevel],
+    type: ['B' as 'A' | 'B' | 'C'],
     startDate: ['', Validators.required],
     endDate: ['', Validators.required],
     budget: [null as number | null],
@@ -96,6 +112,8 @@ export class ProjectsPage {
 
   async load() {
     this.projects.set(await this.api.get<Project[]>('/projects'));
+    void this.brand.load();
+    this.api.get<MyApprovalRoles>('/approval-roles/mine').then((m) => this.showInitiate.set(m.initiator), () => undefined);
     if (this.canCreate()) this.templates.set(await this.api.get<PhaseTemplate[]>('/phase-templates'));
     if (this.isAdmin()) {
       const users = await this.api.get<UserRow[]>('/users');
@@ -109,7 +127,7 @@ export class ProjectsPage {
     const v = this.form.getRawValue();
     try {
       const p = await this.api.post<Project>('/projects', {
-        code: v.code, name: v.name, riskLevel: v.riskLevel, startDate: v.startDate, endDate: v.endDate,
+        code: v.code, name: v.name, riskLevel: v.riskLevel, type: v.type, startDate: v.startDate, endDate: v.endDate,
         budget: v.budget ?? undefined, templateId: v.templateId || undefined, managerId: v.managerId || undefined,
       });
       await this.router.navigate(['/projects', p.id]);

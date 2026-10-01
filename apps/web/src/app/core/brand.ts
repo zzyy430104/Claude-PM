@@ -7,11 +7,14 @@ export class Brand {
   private readonly api = inject(Api);
   readonly systemName = signal('Claude-PM');
   readonly companyName = signal('');
+  /** 小项目免立项：允许不经立项直接建项目 */
+  readonly allowDirectProject = signal(false);
 
   async load() {
     try {
-      const b = await this.api.get<{ systemName: string; companyName: string }>('/branding');
+      const b = await this.api.get<{ systemName: string; companyName: string; allowDirectProject?: boolean }>('/branding');
       this.set(b.systemName, b.companyName);
+      this.allowDirectProject.set(!!b.allowDirectProject);
     } catch { /* 平台管理员没有企业，沿用默认名称 */ }
   }
   set(systemName: string, companyName: string) {

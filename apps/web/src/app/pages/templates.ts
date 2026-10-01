@@ -4,15 +4,26 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { Api, errorMessage } from '../core/api';
+import { OptionalLibrary } from '../components/optional-library';
+import { PlanTypeTemplates } from '../components/plan-type-templates';
 import { PhaseTemplate, PROJECT_ROLES, PROJECT_ROLE_LABELS, ProjectRole, WbsTemplate } from '../core/models';
 
 @Component({
   selector: 'app-templates',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, PlanTypeTemplates, OptionalLibrary],
   template: `
     <div class="page">
+      <div class="crumb">知识库</div>
       <h1>模板</h1>
-      <p>未选择模板的项目使用默认的轨道交通 7 个阶段。每行一个阶段，格式：<code>阶段名 | 关口清单项1；清单项2 | 必选：项目经理、项目质量经理 | 可选：职能经理</code>。后两段可省略，省略时必选参与者为项目经理。</p>
+      <nav class="stabs" role="tablist" aria-label="模板分类">
+        <button type="button" role="tab" [attr.aria-selected]="view() === 'type'" (click)="view.set('type')">项目类型模板</button>
+        <button type="button" role="tab" [attr.aria-selected]="view() === 'library'" (click)="view.set('library')">可选工作包库</button>
+        <button type="button" role="tab" [attr.aria-selected]="view() === 'saved'" (click)="view.set('saved')">阶段与 WBS 模板</button>
+      </nav>
+      @if (view() === 'type') { <app-plan-type-templates /> }
+      @if (view() === 'library') { <app-optional-library /> }
+      @if (view() === 'saved') {
+      <p>不经立项直接建立的小项目可以选用这里的阶段模板；未选择时使用默认的 6 个阶段。每行一个阶段，格式：<code>阶段名 | 关口清单项1；清单项2 | 必选：项目经理、项目质量经理 | 可选：职能经理</code>。后两段可省略，省略时必选参与者为项目经理。</p>
       <form [formGroup]="form" (ngSubmit)="create()">
         <mat-form-field style="width: 100%"><mat-label>模板名称</mat-label><input matInput formControlName="name" /></mat-form-field>
         <mat-form-field style="width: 100%"><mat-label>阶段（每行一个）</mat-label><textarea matInput rows="6" formControlName="phases" placeholder="设计 | 设计评审完成；输出已受控&#10;交付 | 客户验收"></textarea></mat-form-field>
@@ -37,6 +48,7 @@ import { PhaseTemplate, PROJECT_ROLES, PROJECT_ROLE_LABELS, ProjectRole, WbsTemp
         </div>
       }
       @if (wbsTemplates().length === 0) { <p class="muted">还没有 WBS 模板。</p> }
+      }
     </div>
   `,
 })
@@ -44,6 +56,7 @@ export class TemplatesPage {
   private readonly api = inject(Api);
   private readonly fb = inject(FormBuilder).nonNullable;
   readonly templates = signal<PhaseTemplate[]>([]);
+  readonly view = signal<'type' | 'library' | 'saved'>('type');
   readonly error = signal('');
   readonly form = this.fb.group({ name: ['', [Validators.required, Validators.minLength(2)]], phases: ['', Validators.required] });
 

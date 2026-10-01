@@ -9,7 +9,7 @@ import { Api } from '../core/api';
 import { AuthService } from '../core/auth.service';
 import { Brand } from '../core/brand';
 import { I18n } from '../core/i18n';
-import { NotificationRow, ROLE_LABELS } from '../core/models';
+import { MyApprovalRoles, NotificationRow, ROLE_LABELS } from '../core/models';
 
 @Component({
   selector: 'app-shell',
@@ -67,6 +67,7 @@ import { NotificationRow, ROLE_LABELS } from '../core/models';
           @if (!auth.hasRole('PLATFORM_ADMIN')) {
             <div class="grp">
               <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">我的工作台</a>
+              @if (showInitiations()) { <a routerLink="/initiations" routerLinkActive="active">立项管理</a> }
               <a routerLink="/projects" routerLinkActive="active">项目</a>
               @if (auth.hasRole('TENANT_ADMIN', 'TOP_MANAGEMENT', 'PROJECT_MANAGER', 'FUNCTION_MANAGER')) {
                 <a routerLink="/resources" routerLinkActive="active">资源</a>
@@ -102,6 +103,8 @@ export class Shell {
   readonly brand = inject(Brand);
   readonly unread = signal(0);
   readonly list = signal<NotificationRow[]>([]);
+  /** 立项管理菜单：企业管理员、最高管理层，以及被指定为立项申请人、批准人、会签人的用户 */
+  readonly showInitiations = signal(false);
   private timer: ReturnType<typeof setInterval> | null = null;
 
   readonly roleLabel = computed(() => {
@@ -112,6 +115,7 @@ export class Shell {
   ngOnInit() {
     if (this.auth.hasRole('PLATFORM_ADMIN')) return;
     void this.brand.load();
+    void this.loadApprovalRoles();
     void this.refreshCount();
     this.timer = setInterval(() => void this.refreshCount(), 60_000);
   }
@@ -119,6 +123,13 @@ export class Shell {
     if (this.timer) clearInterval(this.timer);
   }
 
+  async loadApprovalRoles() {
+    if (this.auth.hasRole('TENANT_ADMIN', 'TOP_MANAGEMENT')) { this.showInitiations.set(true); return; }
+    try {
+      const m = await this.api.get<MyApprovalRoles>('/approval-roles/mine');
+      this.showInitiations.set(m.initiator || m.approver || m.cosigner);
+    } catch { /* 改密码前等情况下取不到，不显示 */ }
+  }
   async refreshCount() {
     try { this.unread.set((await this.api.get<{ count: number }>('/notifications/count')).count); } catch { /* 网络暂时不可用时忽略 */ }
   }

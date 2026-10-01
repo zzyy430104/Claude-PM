@@ -14,7 +14,7 @@ const DAYS = [
 ];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** 企业设置：品牌、挣值预警阈值、工作日历 */
+/** 企业设置：品牌、立项、挣值预警阈值、工作日历 */
 @Component({
   selector: 'app-settings',
   imports: [ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule],
@@ -35,6 +35,12 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
             <mat-form-field><mat-label>系统名称</mat-label><input matInput formControlName="systemName" maxlength="40" /></mat-form-field>
             <mat-form-field style="min-width: 280px"><mat-label>企业名称</mat-label><input matInput formControlName="companyName" maxlength="100" /></mat-form-field>
           </div>
+        </section>
+        <section>
+          <h2>立项</h2>
+          <p class="muted">立项申请批准后才生成项目。立项人员（申请人、会签人、批准人、计划批准人）在「用户与角色 → 立项与审批角色」里指定。</p>
+          <mat-checkbox formControlName="requireCosign">立项需要会签（会签人全部签完意见才进入批准）</mat-checkbox><br />
+          <mat-checkbox formControlName="allowDirectProject">小项目免立项（允许项目经理不经立项直接建项目，由项目经理自己批准计划）</mat-checkbox>
         </section>
         <section>
           <h2>挣值预警阈值</h2>
@@ -85,12 +91,14 @@ export class SettingsPage {
     evmRed: [0.9, [Validators.required, Validators.min(0.5), Validators.max(1)]],
     holidays: [''],
     extraWorkdays: [''],
+    requireCosign: [false],
+    allowDirectProject: [false],
   });
 
   async ngOnInit() {
     const s = await this.api.get<CalendarSettings>('/tenant-settings');
     this.week.set(s.workWeek);
-    this.form.patchValue({ systemName: s.systemName, companyName: s.companyName, evmAmber: s.evmAmber, evmRed: s.evmRed, holidays: s.holidays.join('\n'), extraWorkdays: s.extraWorkdays.join('\n') });
+    this.form.patchValue({ systemName: s.systemName, companyName: s.companyName, evmAmber: s.evmAmber, evmRed: s.evmRed, holidays: s.holidays.join('\n'), extraWorkdays: s.extraWorkdays.join('\n'), requireCosign: !!s.requireCosign, allowDirectProject: !!s.allowDirectProject });
   }
 
   toggleDay(n: number, on: boolean) {
@@ -117,8 +125,10 @@ export class SettingsPage {
       const s = await this.api.patch<CalendarSettings>('/tenant-settings', {
         systemName: v.systemName.trim(), companyName: v.companyName.trim(),
         evmAmber: v.evmAmber, evmRed: v.evmRed, workWeek: this.week(), holidays, extraWorkdays,
+        requireCosign: v.requireCosign, allowDirectProject: v.allowDirectProject,
       });
       this.brand.set(s.systemName, s.companyName);
+      this.brand.allowDirectProject.set(!!s.allowDirectProject);
       this.week.set(s.workWeek);
       this.form.patchValue({ holidays: s.holidays.join('\n'), extraWorkdays: s.extraWorkdays.join('\n') });
       this.saved.set(true);

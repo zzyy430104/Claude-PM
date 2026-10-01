@@ -20,11 +20,13 @@ import { ProjectReviews } from '../components/project-reviews';
 import { ProjectRisks } from '../components/project-risks';
 import { ProjectTeam } from '../components/project-team';
 import { ProjectWbs } from '../components/project-wbs';
+import { ProjectPlanApproval } from '../components/project-plan-approval';
+import { ProjectReqVersions } from '../components/project-req-versions';
 
 /** 项目内按工作顺序分 7 组，每组下面再分子页；组和子页记在网址里（?g=组&s=子页），刷新和分享链接都回到同一页 */
 const GROUPS: { key: string; label: string; subs: { key: string; label: string }[] }[] = [
   { key: 'overview', label: '总览', subs: [{ key: 'overview', label: '总览' }] },
-  { key: 'plan', label: '计划', subs: [{ key: 'requirements', label: '项目要求与需求' }, { key: 'wbs', label: 'WBS 与进度' }, { key: 'members', label: '团队与职责' }] },
+  { key: 'plan', label: '计划', subs: [{ key: 'requirements', label: '项目要求与需求' }, { key: 'wbs', label: 'WBS 与进度' }, { key: 'members', label: '团队与职责' }, { key: 'approval', label: '计划批准' }] },
   { key: 'exec', label: '执行', subs: [{ key: 'phases', label: '阶段与评审' }, { key: 'deliverables', label: '交付物' }] },
   { key: 'ctrl', label: '控制', subs: [{ key: 'issues', label: '问题与行动' }, { key: 'changes', label: '变更' }, { key: 'risks', label: '风险与机会' }, { key: 'cost', label: '成本' }] },
   { key: 'qual', label: '质量', subs: [{ key: 'quality', label: '不符合项' }, { key: 'documents', label: '文档与配置' }] },
@@ -36,13 +38,14 @@ const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs',
 
 @Component({
   selector: 'app-project-detail',
-  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig],
+  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig, ProjectReqVersions, ProjectPlanApproval],
   styles: `
     .crumb { font-size: 13px; color: var(--pm-muted); margin: 0 0 4px; }
     .crumb a { color: var(--pm-muted); }
     h1 { margin-bottom: 6px !important; }
     .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--pm-muted); font-size: 14px; margin: 0 0 18px; }
     .stack > * + * { display: block; margin-top: 20px; }
+    .stack > .h-sub { margin: 24px 0 8px !important; font-size: 17px; }
   `,
   template: `
     @if (project(); as p) {
@@ -51,7 +54,10 @@ const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs',
         <h1>{{ p.name }}</h1>
         <div class="meta">
           <span class="pill" [class.green]="p.status === 'ACTIVE'" [class.amber]="p.status === 'PLANNING'">{{ statusLabel() }}</span>
-          @if (p.baselined) { <span class="pill blue">计划已批准</span> }
+          @if (p.type) { <span class="pill blue">{{ p.type }} 类</span> }
+          @if (p.baselined && !p.planOutdated) { <span class="pill blue">计划已批准</span> }
+          @if (p.planOutdated) { <span class="pill amber">计划待重新批准</span> }
+          @if (p.planSubmittedAt) { <span class="pill amber">计划待批准</span> }
           <span>编号 {{ p.code }}</span>
         </div>
         <nav class="gtabs" role="tablist" aria-label="项目分组">
@@ -68,7 +74,8 @@ const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs',
         }
         @switch (tab()) {
           @case ('overview') { <app-project-overview [project]="p" (changed)="load()" /> }
-          @case ('requirements') { <app-project-requirements [project]="p" /> }
+          @case ('requirements') { <div class="stack"><app-project-req-versions [project]="p" (changed)="load()" /><h2 class="h-sub">细化需求</h2><app-project-requirements [project]="p" /></div> }
+          @case ('approval') { <app-project-plan-approval [project]="p" (changed)="load()" /> }
           @case ('phases') { <div class="stack"><app-project-phases [project]="p" /><app-project-gates [project]="p" /></div> }
           @case ('wbs') { <app-project-wbs [project]="p" /> }
           @case ('deliverables') { <app-project-deliverables [project]="p" /> }

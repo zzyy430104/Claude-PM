@@ -13,6 +13,8 @@ export async function call(method, path, token, body) {
 export async function seedTenant(slug) {
   await call('POST', '/auth/signup', null, { tenantName: '演示企业', tenantSlug: slug, adminEmail: 'admin@demo.test', adminName: '张管理', password: 'demo-pass-123' });
   const admin = await call('POST', '/auth/login', null, { tenantSlug: slug, email: 'admin@demo.test', password: 'demo-pass-123' });
+  // 老脚本直接建项目：打开“小项目免立项”（立项流程见 initiation.mjs）
+  await call('PATCH', '/tenant-settings', admin.accessToken, { allowDirectProject: true });
   const users = {};
   for (const [key, name, role] of [['pm', '李经理', 'PROJECT_MANAGER'], ['pqm', '赵质量', 'PROJECT_QUALITY_MANAGER'], ['member', '王成员', 'MEMBER'], ['top', '钱总', 'TOP_MANAGEMENT']]) {
     const email = `${key}@demo.test`;

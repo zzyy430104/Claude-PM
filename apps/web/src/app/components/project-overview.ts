@@ -54,7 +54,18 @@ interface Plan {
       </dd></div>
     </dl>
 
-    @if (!project().baselined && project().permissions?.manage) {
+    @if (project().initiationId && (!project().baselined || project().planOutdated) && (project().permissions?.manage || project().planSubmittedAt)) {
+      <div class="panel approve">
+        <h3>计划批准</h3>
+        <p class="hint" style="margin: 0 0 10px">
+          @if (project().planSubmittedAt) { 计划已提交，等待管理层批准。 }
+          @else if (project().planOutdated) { 项目要求已变更（v{{ project().requirementVersion }}），计划需要对照新要求调整后重新提交批准。 }
+          @else { 本项目经立项批准：计划对照项目要求检查通过后，由项目经理提交、管理层批准。 }
+        </p>
+        <a mat-flat-button [routerLink]="[]" [queryParams]="{ g: 'plan', s: 'approval' }">去「计划批准」</a>
+      </div>
+    }
+    @if (!project().initiationId && !project().baselined && project().permissions?.manage) {
       <div class="panel approve">
         <h3>计划批准</h3>
         @if (!confirming()) {

@@ -106,6 +106,11 @@ export interface Project {
   reviewIntervalDays: number;
   gateReviewWbsLevel?: number;
   permissions?: Permissions;
+  type?: ProjectType;
+  initiationId?: string | null;
+  requirementVersion?: number;
+  planOutdated?: boolean;
+  planSubmittedAt?: string | null;
 }
 
 export const PROJECT_STATUS_LABELS: Record<Project['status'], string> = {
@@ -168,6 +173,11 @@ export interface WorkPackage {
   externalProvider: string | null;
   longLead: boolean;
   isMilestone?: boolean;
+  functionalRoleId?: string | null;
+  isPurchase?: boolean;
+  /** 按客户交期倒排的最晚开始日 */
+  latestStart?: string | null;
+  startTooLate?: boolean;
 }
 
 export interface Dependency {
@@ -183,6 +193,9 @@ export interface WbsResponse {
   calendarDays?: number;
   projectedEnd: string;
   exceedsPlannedEnd: boolean;
+  /** 客户交期（由项目要求带来）与差距：正数 = 晚几个工作日 */
+  requiredEnd?: string | null;
+  gapDays?: number | null;
 }
 
 export interface PhaseTemplate {
@@ -411,10 +424,84 @@ export interface ResourceLoad {
   weeks: { start: string; capacity: number }[];
   people: { userId: string; name: string; load: number[]; overloadedWeeks: number; items: { project: string; code: string; name: string; days: number }[] }[];
 }
-export interface CalendarSettings { systemName: string; companyName: string; evmAmber: number; evmRed: number; workWeek: number[]; holidays: string[]; extraWorkdays: string[] }
+export interface CalendarSettings { systemName: string; companyName: string; evmAmber: number; evmRed: number; workWeek: number[]; holidays: string[]; extraWorkdays: string[]; requireCosign?: boolean; allowDirectProject?: boolean }
 
 export interface SwotReview { id: string; reviewDate: string; participants: string; strengths: string; weaknesses: string; opportunities: string; threats: string; actions: string }
 export interface DeviationNotice { id: string; dimension: 'QUALITY' | 'SCHEDULE' | 'COST'; noticeDate: string; audience: string; impact: string; countermeasures: string }
 export interface Stakeholder { id: string; name: string; organization: string; role: string; influence: 'HIGH' | 'MEDIUM' | 'LOW'; interest: 'HIGH' | 'MEDIUM' | 'LOW'; expectations: string; communication: string }
 export const LEVEL_LABELS = { HIGH: '高', MEDIUM: '中', LOW: '低' } as const;
 export const DIMENSION_LABELS = { QUALITY: '质量', SCHEDULE: '进度', COST: '成本' } as const;
+
+// —— 立项、项目要求、计划批准、计划模板 ——
+export type ProjectType = 'A' | 'B' | 'C';
+export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = { A: 'A 类 · 含产品设计开发', B: 'B 类 · 基于客户合同', C: 'C 类 · 按库存计划' };
+export const PROJECT_TYPE_HINTS: Record<ProjectType, string> = {
+  A: '客户合同 + 设计开发；FAI 必做',
+  B: '不含设计开发；量产前技术准备；FAI 可选',
+  C: '无客户合同；以入库代替交付；FAI 可选',
+};
+export interface Requirements {
+  deliveryDate?: string;
+  milestones: { name: string; date: string }[];
+  deliverables: { name: string; quantity: string; kind: 'PRODUCT' | 'DOCUMENT' }[];
+  stockLines: { product: string; quantity: number; date: string }[];
+  quality: { standards: string[]; special: string; acceptance: string; fai: boolean; faiReason: string; customerWitness: boolean; drawingApproval: boolean; rams: boolean };
+  cost: { cap: number; target?: number };
+  longLead: boolean;
+  risks: { text: string; kind: 'RISK' | 'OPPORTUNITY' }[];
+}
+export function emptyRequirements(): Requirements {
+  return {
+    milestones: [], deliverables: [], stockLines: [], risks: [], longLead: false,
+    quality: { standards: [], special: '', acceptance: '', fai: true, faiReason: '', customerWitness: false, drawingApproval: false, rams: false },
+    cost: { cap: 0 },
+  };
+}
+export type InitiationStatus = 'DRAFT' | 'COSIGN' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
+export const INITIATION_STATUS_LABELS: Record<InitiationStatus, string> = {
+  DRAFT: '草稿', COSIGN: '待会签', PENDING: '待审批', APPROVED: '已批准', REJECTED: '驳回', WITHDRAWN: '已撤回',
+};
+export interface InitiationOpinion { id: string; userId: string; agree: boolean; opinion: string; createdAt: string }
+export interface Initiation {
+  id: string; code: string; projectCode: string; name: string; type: ProjectType; riskLevel: RiskLevel; productFamily: string;
+  proposedPmId: string | null; customer: string; contractNo: string; contractAmount: string | null; startDate: string | null;
+  requirements: Requirements; status: InitiationStatus; applicantId: string; submittedAt: string | null;
+  decidedById: string | null; decidedAt: string | null; decisionNote: string | null; projectId: string | null; createdAt: string;
+  opinions: InitiationOpinion[];
+  problems?: string[];
+  cosigners?: string[];
+  can?: { edit: boolean; submit: boolean; withdraw: boolean; cosign: boolean; decide: boolean };
+}
+export type ApprovalRoleKind = 'INITIATOR' | 'APPROVER' | 'COSIGNER' | 'PLAN_APPROVER';
+export const APPROVAL_ROLE_LABELS: Record<ApprovalRoleKind, string> = {
+  INITIATOR: '立项申请人', COSIGNER: '会签人', APPROVER: '立项批准人', PLAN_APPROVER: '计划批准人',
+};
+export const APPROVAL_ROLE_DEFAULTS: Record<ApprovalRoleKind, string> = {
+  INITIATOR: '未指定时：企业管理员、最高管理层、项目经理',
+  COSIGNER: '未指定时：没有会签人（开启会签前请先指定）',
+  APPROVER: '未指定时：最高管理层',
+  PLAN_APPROVER: '未指定时：最高管理层；立项批准人也可批准计划',
+};
+export interface ApprovalAssignment { id: string; kind: ApprovalRoleKind; userId: string; basis: string; validFrom: string | null; validTo: string | null }
+export interface MyApprovalRoles { initiator: boolean; approver: boolean; cosigner: boolean; planApprover: boolean }
+export type RequirementChangeStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED';
+export const RC_STATUS_LABELS: Record<RequirementChangeStatus, string> = { DRAFT: '草稿', PENDING: '待审批', APPROVED: '已批准', REJECTED: '驳回' };
+export interface RequirementChange {
+  id: string; projectId: string; code: string; reason: string; data: Requirements & { type?: ProjectType }; fromVersion: number;
+  status: RequirementChangeStatus; applicantId: string; submittedAt: string | null; decidedAt: string | null; decisionNote: string | null; createdAt: string;
+  project?: { id: string; code: string; name: string; type?: ProjectType; requirementVersion?: number } | null;
+  current?: (Requirements & { type?: ProjectType }) | null;
+  can?: { edit: boolean; decide: boolean };
+}
+export interface RequirementVersion { id: string; version: number; data: Requirements & { type?: ProjectType }; reason: string; approvedById: string; approvedAt: string; changeId: string | null }
+export interface PlanCheck { key: string; ok: boolean; message: string }
+export interface PlanApprovalStatus {
+  needsApproval: boolean; submittedAt: string | null; outdated: boolean; baselined: boolean; checks: PlanCheck[]; ok: boolean;
+  can: { submit: boolean; approve: boolean; selfApprove: boolean };
+}
+export interface PlanTemplateRow {
+  code: string; name: string; group?: true; phase?: string | null;
+  durationDays?: number; predecessors?: string[]; role?: string; deliverable?: string; milestone?: boolean; condition?: string;
+}
+export interface PlanTemplate { type: ProjectType; custom: boolean; updatedAt: string | null; items: PlanTemplateRow[] }
+export interface OptionalWorkPackage { id: string; name: string; durationDays: number; suggestedPhase: string; roleName: string; deliverable: string; types: ProjectType[]; active: boolean }

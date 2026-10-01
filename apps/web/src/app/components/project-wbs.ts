@@ -10,7 +10,7 @@ import { Api, errorMessage } from '../core/api';
 import { askText } from '../core/i18n';
 import { AuthService } from '../core/auth.service';
 import {
-  ChangeRequest, CostSummary, Deliverable, Member, Performance, Phase, PlanVersion, Project, WbsTemplate, WP_STATUS_LABELS, WbsResponse, WorkPackage, WpStatus,
+  ChangeRequest, CostSummary, Deliverable, FunctionalRole, Member, OptionalWorkPackage, Performance, Phase, PlanVersion, Project, WbsTemplate, WP_STATUS_LABELS, WbsResponse, WorkPackage, WpStatus,
 } from '../core/models';
 import { approvedScopeChanges } from '../core/scope-change';
 import { BaselineDates, GanttComponent } from './gantt';
@@ -55,6 +55,14 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
         总工期 {{ d.projectDurationDays }} 天，预计完成 {{ d.projectedEnd }}
         @if (d.exceedsPlannedEnd) { <span class="warn">（超出项目计划结束日 {{ project().endDate.slice(0, 10) }}）</span> }
       </p>
+      @if (d.requiredEnd && d.gapDays !== null && d.gapDays !== undefined) {
+        @if (d.gapDays > 0) {
+          <div class="banner red" role="status">按当前计划预计 {{ d.projectedEnd }} 完工，比客户交期 {{ d.requiredEnd }} 晚 {{ d.gapDays }} 个工作日。
+            标“最晚开始已过”的工作包需要压缩工期、并行或调整依赖；确实做不到时发起项目要求变更。</div>
+        } @else {
+          <div class="banner green" role="status">按客户交期 {{ d.requiredEnd }} 倒排：预计 {{ d.projectedEnd }} 完工，余量 {{ -d.gapDays }} 个工作日。</div>
+        }
+      }
     }
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
 
@@ -84,8 +92,46 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
           @for (t of wbsTemplates(); track t.id) { <option [value]="t.id">{{ t.name }}（{{ t.items.length }} 项）</option> }
         </select>
         <button mat-button type="button" (click)="saveAsTemplate()">另存为 WBS 模板</button>
+        @if (library().length) {
+          <span class="sep"></span>
+          <select class="tpl" #libSel aria-label="从可选工作包库添加" (change)="suggestParent(libSel.value)">
+            <option value="">从可选库添加…</option>
+            @for (l of library(); track l.id) { <option [value]="l.id">{{ l.name }}（{{ l.durationDays ? l.durationDays + ' 天' : '里程碑' }}）</option> }
+          </select>
+          @if (libSel.value) {
+            <select class="tpl" [value]="libParent()" (change)="libParent.set($any($event.target).value)" aria-label="放在哪个阶段下">
+              <option value="">（顶层）</option>
+              @for (g of groups(); track g.id) { <option [value]="g.id" [selected]="g.id === libParent()">{{ g.code }} {{ g.name }}</option> }
+            </select>
+            <button mat-stroked-button type="button" (click)="addFromLibrary(libSel)">添加</button>
+          }
+        }
+        @if (roleCounts().length) {
+          <button mat-stroked-button type="button" (click)="assigning.set(!assigning())">按角色指定责任人</button>
+        }
       }
     </div>
+    @if (assigning()) {
+      <div class="pcard">
+        <header><h3>按职能角色指定责任人</h3><span class="sub">模板里的工作包带有职能角色；给每个角色选一个人，一次填好对应工作包的责任人</span></header>
+        <div class="body">
+          <div class="fgrid">
+            @for (r of roleCounts(); track r.id) {
+              <label class="fld">{{ r.name }}（{{ r.total }} 个工作包，{{ r.empty }} 个未指定）
+                <select [value]="roleOwner()[r.id] ?? ''" (change)="setRoleOwner(r.id, $any($event.target).value)">
+                  <option value="">不指定</option>
+                  @for (u of usersFor(r.id); track u.id) { <option [value]="u.id" [selected]="u.id === roleOwner()[r.id]">{{ u.name }}{{ u.functionalRoleId === r.id ? '（' + r.name + '）' : '' }}</option> }
+                </select></label>
+            }
+          </div>
+          <label><input type="checkbox" [checked]="overwrite()" (change)="overwrite.set($any($event.target).checked)" /> 已有责任人的也改</label>
+          <div style="margin-top: 10px">
+            <button mat-flat-button type="button" (click)="assignByRole()">确定</button>
+            <button mat-button type="button" (click)="assigning.set(false)">取消</button>
+          </div>
+        </div>
+      </div>
+    }
     @if (importResult(); as r) { <div class="ok-box" role="status">导入完成：新增 {{ r.created }} 个、更新 {{ r.updated }} 个工作包，新增 {{ r.dependencies }} 个依赖。</div> }
     @if (importErrors().length) {
       <div class="error" role="alert">
@@ -187,6 +233,9 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
                     @if (w.longLead) { <span class="tag lead">长周期</span> }
                     @if (w.resourceDays) { <span class="tag">{{ +w.resourceDays }} 人天</span> }
                     @if (slip(w); as s) { <span class="tag late">比批准计划{{ s > 0 ? '晚' : '早' }} {{ s > 0 ? s : -s }} 个工作日</span> }
+                    @if (roleName(w); as rn) { <span class="tag">{{ rn }}</span> }
+                    @if (w.isLeaf && w.startTooLate) { <span class="tag late">最晚开始已过（{{ w.latestStart }}）</span> }
+                    @else if (w.isLeaf && w.latestStart && w.status === 'NOT_STARTED') { <span class="tag">最晚开始 {{ w.latestStart }}</span> }
                   </div>
                 </td>
                 <td class="nw">{{ ownerName(w) }}</td>
@@ -251,6 +300,24 @@ export class ProjectWbs {
   readonly wbsTemplates = signal<WbsTemplate[]>([]);
   readonly importResult = signal<{ created: number; updated: number; dependencies: number } | null>(null);
   readonly importErrors = signal<string[]>([]);
+  readonly library = signal<OptionalWorkPackage[]>([]);
+  readonly libParent = signal('');
+  readonly fRoles = signal<FunctionalRole[]>([]);
+  readonly directory = signal<{ id: string; name: string; functionalRoleId: string | null }[]>([]);
+  readonly assigning = signal(false);
+  readonly overwrite = signal(false);
+  readonly roleOwner = signal<Partial<Record<string, string>>>({});
+  /** 一级工作包（阶段或工作线），可选库的工作包放到它们下面 */
+  readonly groups = computed(() => this.items().filter((w) => !w.parentId));
+  /** 工作包里用到的职能角色，以及各自未指定责任人的数量 */
+  readonly roleCounts = computed(() => {
+    const leaves = this.leaves().filter((w) => w.functionalRoleId);
+    return this.fRoles().filter((r) => leaves.some((w) => w.functionalRoleId === r.id)).map((r) => ({
+      id: r.id, name: r.name,
+      total: leaves.filter((w) => w.functionalRoleId === r.id).length,
+      empty: leaves.filter((w) => w.functionalRoleId === r.id && !w.ownerId).length,
+    }));
+  });
   slip(w: WorkPackage) { return this.slips()[w.id] ?? 0; }
   readonly error = signal('');
   readonly view = signal<'table' | 'gantt' | 'board'>('table');
@@ -279,7 +346,14 @@ export class ProjectWbs {
   status(s: WpStatus) { return WP_STATUS_LABELS[s]; }
   byStatus(s: WpStatus) { return this.leaves().filter((w) => w.status === s); }
   depth(w: WorkPackage) { return w.code.split('.').length - 1; }
-  ownerName(w: WorkPackage) { return this.members().find((m) => m.userId === w.ownerId)?.user?.name ?? '—'; }
+  ownerName(w: WorkPackage) { return this.members().find((m) => m.userId === w.ownerId)?.user?.name ?? this.directory().find((u) => u.id === w.ownerId)?.name ?? '—'; }
+  roleName(w: WorkPackage) { return w.functionalRoleId ? this.fRoles().find((r) => r.id === w.functionalRoleId)?.name ?? '' : ''; }
+  /** 候选人：本角色的人排在前面 */
+  usersFor(roleId: string) {
+    const all = this.directory();
+    return [...all.filter((u) => u.functionalRoleId === roleId), ...all.filter((u) => u.functionalRoleId !== roleId)];
+  }
+  setRoleOwner(roleId: string, userId: string) { this.roleOwner.update((m) => ({ ...m, [roleId]: userId })); }
   phaseName(w: WorkPackage) { return this.phases().find((p) => p.id === w.phaseId)?.name ?? ''; }
   deliverableName(w: WorkPackage) { return this.deliverables().find((d) => d.id === w.deliverableId)?.name ?? ''; }
   canProgress(w: WorkPackage) {
@@ -303,6 +377,16 @@ export class ProjectWbs {
       this.accounts.set((await this.api.get<CostSummary>(`/projects/${id}/cost`)).accounts);
       if (this.project().baselined) this.scopeChanges.set(await approvedScopeChanges(this.api, id));
       this.wbsTemplates.set(await this.api.get<WbsTemplate[]>('/wbs-templates'));
+      const [lib, roles, dir] = await Promise.all([
+        this.api.get<OptionalWorkPackage[]>('/optional-work-packages'),
+        this.api.get<FunctionalRole[]>('/functional-roles'),
+        this.api.get<{ id: string; name: string; functionalRoleId: string | null }[]>('/users/directory'),
+      ]);
+      const type = this.project().type;
+      this.library.set(lib.filter((l) => l.active && (!type || !l.types.length || l.types.includes(type))));
+      this.fRoles.set(roles); this.directory.set(dir);
+    } else {
+      this.fRoles.set(await this.api.get<FunctionalRole[]>('/functional-roles'));
     }
     await this.load();
   }
@@ -318,6 +402,34 @@ export class ProjectWbs {
       this.slips.set(Object.fromEntries(perf.schedule.slips.map((s) => [s.id, s.slipDays])));
     }
     this.data.set(await this.api.get<WbsResponse>(`/projects/${this.project().id}/wbs`));
+  }
+
+  /** 按库里的“建议位置”预选上级 */
+  suggestParent(libId: string) {
+    const l = this.library().find((x) => x.id === libId);
+    const hint = l?.suggestedPhase ?? '';
+    // 建议位置如“设计冻结或 FAI 之后”“工艺 / 技术准备”：拆成词，与一级工作包名称互相包含即可
+    const words = hint.split(/[\s/或、，,]+|之[前后]/).filter((x) => x.length >= 2);
+    const g = this.groups().find((w) => words.some((x) => w.name.includes(x) || x.includes(w.name)));
+    this.libParent.set(g?.id ?? '');
+  }
+  async addFromLibrary(sel: HTMLSelectElement) {
+    const libraryId = sel.value;
+    if (!libraryId) return;
+    await this.run(async () => {
+      await this.api.post(`/projects/${this.project().id}/wbs/from-library`, { libraryId, parentId: this.libParent() || undefined, changeRequestId: this.crControl.value || undefined });
+      sel.value = '';
+      this.libParent.set('');
+    }, '添加失败');
+  }
+  async assignByRole() {
+    const assignments = Object.entries(this.roleOwner()).filter(([, u]) => u).map(([functionalRoleId, userId]) => ({ functionalRoleId, userId }));
+    if (!assignments.length) { this.assigning.set(false); return; }
+    await this.run(async () => {
+      await this.api.post(`/projects/${this.project().id}/wbs/assign-by-role`, { assignments, overwrite: this.overwrite() });
+      this.assigning.set(false);
+      this.roleOwner.set({});
+    }, '指定失败');
   }
 
   private async run(fn: () => Promise<unknown>, fallback: string) {

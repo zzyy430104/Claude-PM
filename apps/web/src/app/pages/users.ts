@@ -8,12 +8,13 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTableModule } from '@angular/material/table';
 import { firstValueFrom } from 'rxjs';
+import { ApprovalRoles } from '../components/approval-roles';
 import { API, AuthService } from '../core/auth.service';
 import { FunctionalRole, ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../core/models';
 
 @Component({
   selector: 'app-users',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatSlideToggleModule, MatTableModule],
+  imports: [ApprovalRoles, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatSlideToggleModule, MatTableModule],
   styles: `
     .reset { display: inline-flex; gap: 8px; align-items: center; }
     .reset input, .rname { height: 32px; border: 1px solid var(--pm-line); border-radius: 8px; padding: 0 10px; font: inherit; width: 200px; background: var(--pm-card); }
@@ -26,8 +27,11 @@ import { FunctionalRole, ROLE_LABELS, Role, TENANT_ROLES, UserRow } from '../cor
       <nav class="stabs" role="tablist" aria-label="用户与角色">
         <button type="button" role="tab" [attr.aria-selected]="view() === 'users'" (click)="view.set('users')">用户</button>
         <button type="button" role="tab" [attr.aria-selected]="view() === 'roles'" (click)="view.set('roles')">职能角色</button>
+        <button type="button" role="tab" [attr.aria-selected]="view() === 'approval'" (click)="view.set('approval')">立项与审批角色</button>
       </nav>
-      @if (view() === 'roles') {
+      @if (view() === 'approval') {
+        <app-approval-roles [users]="activeUsers()" [canEdit]="canEdit()" />
+      } @else if (view() === 'roles') {
         <p class="muted">职能角色用于模板和计划里按角色指定责任人。模板和项目引用的是角色本身，改名后各处同步显示新名称。停用的角色不能再分配给用户。</p>
         @if (canEdit()) {
           <form class="row" (submit)="$event.preventDefault(); addRole()">
@@ -139,7 +143,8 @@ export class UsersPage {
   private readonly fb = inject(FormBuilder).nonNullable;
 
   readonly cols = ['name', 'email', 'role', 'frole', 'active', 'actions'];
-  readonly view = signal<'users' | 'roles'>('users');
+  readonly view = signal<'users' | 'roles' | 'approval'>('users');
+  readonly activeUsers = computed(() => this.users().filter((u) => u.active));
   readonly fRoles = signal<FunctionalRole[]>([]);
   readonly activeRoles = computed(() => this.fRoles().filter((r) => r.active));
   readonly newRole = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(30)] });
