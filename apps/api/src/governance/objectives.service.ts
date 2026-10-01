@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectAccess } from '../projects/access.service.js';
 import { CostControlService } from '../projects/cost-control.service.js';
 import { WbsService } from '../projects/wbs.service.js';
+import { faiSummary } from '../delivery/checks.js';
 import { ObjectiveDto, UpdateObjectiveDto } from './dto.js';
 import { importanceOf, loadRiskSettings } from './risk-settings.js';
 
@@ -87,6 +88,8 @@ export class ObjectivesService {
       const t = Number(project.budget);
       out.COST = { current: `完工估算 ${wan(eac)}`, state: project.costAlert || eac > t ? 'RED' : eac > t * 0.95 ? 'AMBER' : 'GREEN' };
     }
+    const fai = await faiSummary(this.prisma, project.id);
+    if (fai.records.length) out.FAI = { current: fai.text, state: fai.state };
     const items = await this.prisma.inspectionItem.findMany({ where: { projectId: project.id, firstResult: { in: [InspectionResult.PASS, InspectionResult.FAIL] } }, select: { firstResult: true } });
     if (items.length) {
       const fpy = Math.round((items.filter((i) => i.firstResult === InspectionResult.PASS).length / items.length) * 1000) / 10;

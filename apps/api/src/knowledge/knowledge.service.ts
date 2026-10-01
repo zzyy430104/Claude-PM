@@ -68,6 +68,10 @@ export class KnowledgeService {
     if (openIssues) blockers.push(`还有 ${openIssues} 个未关闭的问题 / 行动项`);
     if (openNc) blockers.push(`还有 ${openNc} 个未关闭的不符合项`);
     if (!lessons && !dto.noLessonsReason) blockers.push('尚未登记经验教训（如确无，请说明原因）');
+    if (ctx.project.initiationId) {
+      const h = await this.prisma.handover.findUnique({ where: { projectId } });
+      if (h?.status !== 'CONFIRMED') blockers.push('售后交接尚未完成（接收人确认后才能关闭项目）');
+    }
     if (blockers.length) throw new ConflictException({ code: 'PROJECT_CLOSE_BLOCKED', message: blockers.join('；'), blockers });
     return this.audit.tx(
       actor,

@@ -4,10 +4,21 @@ import { GateDecision, GateStatus, IssueStatus, PhaseStatus, ProjectRole, WpStat
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { faiSummary, purchaseChecks } from '../delivery/checks.js';
 import { ProjectAccess, ProjectCtx } from '../projects/access.service.js';
 import { AuthorizeOverrideDto, GateDecisionDto, UpdateGateDto } from './dto.js';
 import { IssuesService } from './issues.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+
+/** 阶段检查清单里由系统自动判断的项（文字须与模板一致） */
+async function autoGateChecks(prisma: PrismaService, tenantId: string, projectId: string): Promise<Record<string, { ok: boolean; message: string }>> {
+  const [pc, fai] = await Promise.all([purchaseChecks(prisma, tenantId, projectId), faiSummary(prisma, projectId)]);
+  return {
+    采购计划已批准: pc.approved,
+    长周期物料已下单: pc.longLead,
+    'FAI 报告已出具': { ok: fai.records.some((r) => r.result !== 'FAIL'), message: fai.text },
+  };
+}
 
 @Injectable()
 export class GatesService {
@@ -248,7 +259,10 @@ export class GatesService {
     const priorOpenIssues = await this.prisma.issue.findMany({
       where: { projectId, tenantId: ctx.tenantId, status: IssueStatus.OPEN, source: 'GATE', phaseId: { in: earlier.map((p) => p.id) } },
     });
-    const items = results ?? ((phase.checklist as string[]) ?? []).map((item) => ({ item, passed: false }));
+    const raw = results ?? ((phase.checklist as string[]) ?? []).map((item) => ({ item, passed: false }));
+    // 部分检查项由系统按采购计划、FAI 记录自动判断
+    const auto = await autoGateChecks(this.prisma, ctx.tenantId, projectId);
+    const items = raw.map((c) => (auto[c.item] ? { item: c.item, passed: auto[c.item].ok, auto: true, detail: auto[c.item].message } : c));
     return {
       checklist: items,
       checklistFailed: items.filter((c) => !c.passed).map((c) => c.item),

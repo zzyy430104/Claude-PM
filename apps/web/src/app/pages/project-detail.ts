@@ -19,6 +19,9 @@ import { ProjectQuality } from '../components/project-quality';
 import { ProjectReviews } from '../components/project-reviews';
 import { ProjectRisks } from '../components/project-risks';
 import { ProjectEvaluationPanel } from '../components/project-evaluation';
+import { ProjectPurchase } from '../components/project-purchase';
+import { ProjectFai } from '../components/project-fai';
+import { ProjectHandover } from '../components/project-handover';
 import { ProjectTeam } from '../components/project-team';
 import { ProjectWbs } from '../components/project-wbs';
 import { ProjectPlanApproval } from '../components/project-plan-approval';
@@ -30,8 +33,8 @@ import { ProjectReqVersions } from '../components/project-req-versions';
 /** 项目内按工作顺序分 7 组，每组下面再分子页；组和子页记在网址里（?g=组&s=子页），刷新和分享链接都回到同一页 */
 const GROUPS: { key: string; label: string; subs: { key: string; label: string }[] }[] = [
   { key: 'overview', label: '总览', subs: [{ key: 'overview', label: '总览' }] },
-  { key: 'plan', label: '计划', subs: [{ key: 'requirements', label: '项目要求与需求' }, { key: 'wbs', label: 'WBS 与进度' }, { key: 'costplan', label: '成本策划' }, { key: 'qualityplan', label: '质量策划' }, { key: 'objr', label: '目标与风险' }, { key: 'members', label: '团队与职责' }, { key: 'approval', label: '计划批准' }] },
-  { key: 'exec', label: '执行', subs: [{ key: 'phases', label: '阶段与评审' }, { key: 'deliverables', label: '交付物' }] },
+  { key: 'plan', label: '计划', subs: [{ key: 'requirements', label: '项目要求与需求' }, { key: 'wbs', label: 'WBS 与进度' }, { key: 'purchase', label: '采购计划' }, { key: 'costplan', label: '成本策划' }, { key: 'qualityplan', label: '质量策划' }, { key: 'objr', label: '目标与风险' }, { key: 'members', label: '团队与职责' }, { key: 'approval', label: '计划批准' }] },
+  { key: 'exec', label: '执行', subs: [{ key: 'phases', label: '阶段与评审' }, { key: 'deliverables', label: '交付物' }, { key: 'fai', label: 'FAI' }] },
   { key: 'ctrl', label: '控制', subs: [{ key: 'issues', label: '问题与行动' }, { key: 'changes', label: '变更' }, { key: 'risks', label: '风险与机会' }, { key: 'cost', label: '成本' }] },
   { key: 'qual', label: '质量', subs: [{ key: 'inspections', label: '检验记录' }, { key: 'quality', label: '不符合项' }, { key: 'documents', label: '文档与配置' }] },
   { key: 'comm', label: '沟通', subs: [{ key: 'reviews', label: '项目评审' }, { key: 'team', label: '沟通计划与干系人' }] },
@@ -42,7 +45,7 @@ const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs',
 
 @Component({
   selector: 'app-project-detail',
-  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig, ProjectReqVersions, ProjectPlanApproval, ProjectCostPlan, ProjectQualityPlan, ProjectCostControl, ProjectEvaluationPanel],
+  imports: [RouterLink, ProjectOverview, ProjectRequirements, ProjectPhases, ProjectWbs, ProjectMembers, ProjectDeliverables, ProjectGates, ProjectReviews, ProjectChanges, ProjectRisks, ProjectIssues, ProjectCost, ProjectQuality, ProjectTeam, ProjectDocuments, ProjectClosure, ProjectConfig, ProjectReqVersions, ProjectPlanApproval, ProjectCostPlan, ProjectQualityPlan, ProjectCostControl, ProjectEvaluationPanel, ProjectPurchase, ProjectFai, ProjectHandover],
   styles: `
     .crumb { font-size: 13px; color: var(--pm-muted); margin: 0 0 4px; }
     .crumb a { color: var(--pm-muted); }
@@ -96,7 +99,9 @@ const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs',
           @case ('inspections') { <app-project-quality-plan [project]="p" mode="records" /> }
           @case ('team') { <app-project-team [project]="p" /> }
           @case ('documents') { <div class="stack"><app-project-documents [project]="p" /><app-project-config [project]="p" /></div> }
-          @case ('closure') { <div class="stack"><app-project-evaluation [project]="p" /><app-project-closure [project]="p" (changed)="load()" /></div> }
+          @case ('closure') { <div class="stack"><app-project-evaluation [project]="p" /><app-project-handover [projectId]="p.id" /><app-project-closure [project]="p" (changed)="load()" /></div> }
+          @case ('purchase') { <app-project-purchase [project]="p" /> }
+          @case ('fai') { <app-project-fai [project]="p" /> }
         }
       </div>
     }

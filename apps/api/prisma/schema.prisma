@@ -1273,6 +1273,8 @@ model CostCommitment {
   amount        Decimal  @db.Decimal(14, 2)
   description   String
   entryDate     DateTime @map("entry_date") @db.Date
+  /// 由采购计划下单产生（结算或取消时去掉）
+  purchaseItemId String? @unique @map("purchase_item_id")
   createdById   String   @map("created_by_id")
   createdAt     DateTime @default(now())
 
@@ -1488,4 +1490,128 @@ model MemberEvaluation {
   @@unique([projectId, userId])
   @@index([tenantId, userId])
   @@map("member_evaluations")
+}
+
+// ───────── 第 3 步：采购计划、FAI、售后交接 ─────────
+
+/// 采购计划（每个项目一份，批准后修订需重新批准）
+model PurchasePlan {
+  id           String    @id @default(uuid())
+  tenantId     String    @map("tenant_id")
+  projectId    String    @unique @map("project_id")
+  /// 已批准的版本号（0 = 从未批准）
+  version      Int       @default(0)
+  approvedAt   DateTime? @map("approved_at")
+  approvedById String?   @map("approved_by_id")
+  /// 批准后又有修改，待重新批准
+  dirty        Boolean   @default(false)
+  updatedAt    DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@map("purchase_plans")
+}
+
+enum PurchaseStatus {
+  PLANNED
+  ORDERED
+  PARTIAL
+  RECEIVED
+  CANCELLED
+}
+
+/// 采购计划的物料行
+model PurchaseItem {
+  id            String         @id @default(uuid())
+  tenantId      String         @map("tenant_id")
+  projectId     String         @map("project_id")
+  code          String
+  name          String
+  supplier      String         @default("")
+  quantity      String         @default("")
+  /// 需求（到货）日期
+  needDate      DateTime?      @map("need_date") @db.Date
+  /// 最晚下单日期；为空时按需求日期判断逾期
+  orderBy       DateTime?      @map("order_by") @db.Date
+  longLead      Boolean        @default(false) @map("long_lead")
+  workPackageId String?        @map("work_package_id")
+  /// 记到哪个成本科目（下单时生成承诺成本）
+  accountId     String?        @map("account_id")
+  amount        Decimal        @default(0) @db.Decimal(14, 2)
+  status        PurchaseStatus @default(PLANNED)
+  orderNo       String?        @map("order_no")
+  orderedAt     DateTime?      @map("ordered_at") @db.Date
+  /// 到货比例 0–100
+  receivedPct   Int            @default(0) @map("received_pct")
+  receivedAt    DateTime?      @map("received_at") @db.Date
+  /// 已结算（转为实际成本）
+  settledAt     DateTime?      @map("settled_at")
+  notes         String         @default("")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([projectId, code])
+  @@index([tenantId, projectId])
+  @@map("purchase_items")
+}
+
+enum FaiResult {
+  PASS
+  CONDITIONAL
+  FAIL
+}
+
+/// FAI 首件鉴定记录：只记结论和追溯信息，报告本身按企业现有方式编制保存
+model FaiRecord {
+  id             String    @id @default(uuid())
+  tenantId       String    @map("tenant_id")
+  projectId      String    @map("project_id")
+  reportNo       String    @map("report_no")
+  date           DateTime  @db.Date
+  /// 产品 / 零件号
+  part           String
+  result         FaiResult
+  witnessed      Boolean   @default(false)
+  /// 见证人（客户代表）
+  witness        String    @default("")
+  /// 报告存放位置
+  location       String    @default("")
+  notes          String    @default("")
+  createdById    String    @map("created_by_id")
+  createdAt      DateTime  @default(now())
+
+  @@unique([projectId, reportNo])
+  @@index([tenantId, projectId])
+  @@map("fai_records")
+}
+
+enum HandoverStatus {
+  DRAFT
+  PENDING
+  CONFIRMED
+}
+
+/// 售后交接
+model Handover {
+  id            String         @id @default(uuid())
+  tenantId      String         @map("tenant_id")
+  projectId     String         @unique @map("project_id")
+  date          DateTime?      @db.Date
+  fromId        String?        @map("from_id")
+  /// 接收人（系统用户，需在系统里确认）
+  receiverId    String?        @map("receiver_id")
+  /// 外部接收人姓名（由项目经理登记签字交接单）
+  externalName  String         @default("") @map("external_name")
+  warrantyFrom  DateTime?      @map("warranty_from") @db.Date
+  warrantyTo    DateTime?      @map("warranty_to") @db.Date
+  documents     Json           @default("[]")
+  openIssues    String         @default("") @map("open_issues")
+  status        HandoverStatus @default(DRAFT)
+  submittedAt   DateTime?      @map("submitted_at")
+  confirmedAt   DateTime?      @map("confirmed_at")
+  confirmedById String?        @map("confirmed_by_id")
+  confirmNote   String         @default("") @map("confirm_note")
+  updatedAt     DateTime       @updatedAt
+
+  @@index([tenantId])
+  @@map("handovers")
 }

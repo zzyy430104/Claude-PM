@@ -69,6 +69,12 @@ export function errorMessage(e: unknown, fallback = '操作失败'): string {
   if (body?.code === 'INSPECTION_INCOMPLETE') return `还不能核验：${(e.error as { blockers?: string[] }).blockers?.join('；')}`;
   if (body?.code === 'RATE_REASON_REQUIRED') return '人工费率与标准费率不同，请写明原因';
   if (body?.code === 'NA_REASON_REQUIRED') return '选“不适用”时请写明理由';
+  if (body?.code === 'PURCHASE_ORDERED') return '已下单的物料不能删除或改金额、科目；如不再需要请“取消”';
+  if (body?.code === 'PURCHASE_EMPTY') return '采购计划还没有物料';
+  if (body?.code === 'ACCOUNT_REQUIRED') return '请先为该物料选择成本科目';
+  if (body?.code === 'OPEN_POINTS_REQUIRED') return '有条件通过时请填写遗留项';
+  if (body?.code === 'HANDOVER_INCOMPLETE') return `请先填写：${(e.error as { missing?: string[] }).missing?.join('、') ?? ''}`;
+  if (body?.code === 'HANDOVER_SUBMITTED') return '交接已发起；要修改请先“撤回修改”';
   if (body?.code === 'EVALUATION_CONFIRMED') return '项目经理绩效已由管理层确认，不能再修改';
   if (body?.code === 'EVALUATION_INCOMPLETE') return '还有评价方面没有分数（自定义方面由管理层打分）';
   if (body?.code === 'EVALUATION_SUBMITTED') return '评价已提交并锁定；要修改请先“撤回修改”';

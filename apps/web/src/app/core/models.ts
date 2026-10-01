@@ -620,3 +620,39 @@ export interface EvaluationSheet {
   score: number; grade: string; comment: string; submittedAt: string | null;
   aspects?: AspectResult[]; adjustReason?: string | null; reference?: MemberReference; scores?: Record<string, number>; evaluator?: string; version?: number;
 }
+
+// ───── 第 3 步：采购计划、FAI、售后交接 ─────
+export type PurchaseStatus = 'PLANNED' | 'ORDERED' | 'PARTIAL' | 'RECEIVED' | 'CANCELLED';
+export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = { PLANNED: '未下单', ORDERED: '已下单', PARTIAL: '部分到货', RECEIVED: '已到货', CANCELLED: '已取消' };
+export interface PurchaseItemRow {
+  id: string; code: string; name: string; supplier: string; quantity: string; needDate: string | null; orderBy: string | null; longLead: boolean;
+  workPackageId: string | null; accountId: string | null; amount: number; status: PurchaseStatus; orderNo: string | null; orderedAt: string | null;
+  receivedPct: number; receivedAt: string | null; settledAt: string | null; notes: string; overdue: boolean; wp: { id: string; code: string; name: string } | null;
+}
+export interface PurchasePlanView {
+  plan: { version: number; approvedAt: string | null; approvedBy: string | null; dirty: boolean };
+  items: PurchaseItemRow[];
+  stats: { items: number; workPackages: number; longLead: number; longLeadOrdered: number; receivedPct: number; overdue: string[]; committed: number };
+  checks: { ok: boolean; message: string }[];
+  workPackages: { id: string; code: string; name: string; isPurchase: boolean }[];
+  accounts: { id: string; code: string; name: string }[];
+  canEdit: boolean; canApprove: boolean;
+}
+export type FaiResult = 'PASS' | 'CONDITIONAL' | 'FAIL';
+export const FAI_RESULT_LABELS: Record<FaiResult, string> = { PASS: '通过', CONDITIONAL: '有条件通过', FAIL: '不通过' };
+export interface FaiRecordRow {
+  id: string; reportNo: string; date: string; part: string; result: FaiResult; witnessed: boolean; witness: string; location: string; notes: string; createdBy: string;
+  actions: { id: string; title: string; status: string }[];
+}
+export interface FaiView {
+  requirement: { fai: boolean; faiReason: string; customerWitness: boolean; version: number } | null;
+  records: FaiRecordRow[]; firstPass: boolean | null; state: 'GREY' | 'GREEN' | 'AMBER' | 'RED'; text: string; canEdit: boolean;
+}
+export interface HandoverView {
+  handover: {
+    id: string; status: 'DRAFT' | 'PENDING' | 'CONFIRMED'; date: string | null; receiverId: string | null; externalName: string; warrantyFrom: string | null; warrantyTo: string | null;
+    documents: string[]; openIssues: string; from: string | null; receiver: string | null; submittedAt: string | null; confirmedAt: string | null; confirmNote: string;
+  };
+  defaultDocuments: string[]; required: boolean;
+  can: { edit: boolean; submit: boolean; withdraw: boolean; confirm: boolean };
+}

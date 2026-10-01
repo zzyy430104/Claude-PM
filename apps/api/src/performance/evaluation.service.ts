@@ -11,6 +11,7 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CalendarService } from '../projects/calendar.service.js';
 import { CostControlService } from '../projects/cost-control.service.js';
+import { faiSummary } from '../delivery/checks.js';
 import { WbsService } from '../projects/wbs.service.js';
 import { AUTO_ASPECTS, type AutoAspect, checkAspects, GRADE_LABELS, gradeOf, loadPerfConfig, type PerfAspect, type PerfConfig } from './perf-settings.js';
 
@@ -111,8 +112,10 @@ export class EvaluationService {
           this.prisma.inspectionItem.findMany({ where: { projectId: p.id, firstResult: { in: [InspectionResult.PASS, InspectionResult.FAIL] } }, select: { name: true, category: true, firstResult: true } }),
           this.prisma.nonconformity.findMany({ where: { projectId: p.id }, select: { severity: true, source: true } }),
         ]);
-        const fai = items.filter((i) => /FAI|首件/i.test(`${i.name} ${i.category}`));
-        const faiFail = fai.some((i) => i.firstResult === InspectionResult.FAIL);
+        // FAI 以 FAI 记录为准；没有记录时看名称含 FAI / 首件的检验项
+        const faiRec = await faiSummary(this.prisma, p.id);
+        const fai = faiRec.records.length ? faiRec.records : items.filter((i) => /FAI|首件/i.test(`${i.name} ${i.category}`));
+        const faiFail = faiRec.records.length ? faiRec.firstPass === false : items.filter((i) => /FAI|首件/i.test(`${i.name} ${i.category}`)).some((i) => i.firstResult === InspectionResult.FAIL);
         const fpy = items.length ? Math.round((items.filter((i) => i.firstResult === InspectionResult.PASS).length / items.length) * 1000) / 10 : null;
         const major = ncs.filter((n) => n.severity === NcSeverity.MAJOR).length;
         const critical = ncs.filter((n) => n.severity === NcSeverity.CRITICAL).length;

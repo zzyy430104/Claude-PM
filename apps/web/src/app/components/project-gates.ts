@@ -63,7 +63,11 @@ const STATUS = { PLANNED: '未开始', ACTIVE: '进行中', CLOSED: '已关闭' 
           @if (g.phaseId === p.id) {
             <h4>评审进行中</h4>
             @for (c of checklist(); track c.item) {
-              <div><mat-checkbox [checked]="c.passed" [disabled]="!canEdit()" (change)="toggle(c.item, $event.checked)">{{ c.item }}</mat-checkbox></div>
+              @if (autoOf(c.item); as a) {
+                <div><mat-checkbox [checked]="a.passed" [disabled]="true">{{ c.item }}</mat-checkbox> <span class="meta">系统判断：{{ a.detail }}</span></div>
+              } @else {
+                <div><mat-checkbox [checked]="c.passed" [disabled]="!canEdit()" (change)="toggle(c.item, $event.checked)">{{ c.item }}</mat-checkbox></div>
+              }
             }
             @if (canEdit()) {
               <form [formGroup]="attendeeForm" class="row">
@@ -137,6 +141,11 @@ export class ProjectGates {
   readonly decisionForm = this.fb.group({ decision: ['APPROVED'], note: [''] , actions: [''] });
 
   phaseName(id: string) { return this.phases().find((p) => p.id === id)?.name ?? ''; }
+  /** 由系统按采购计划、FAI 记录判断的检查项 */
+  autoOf(item: string): { passed: boolean; detail: string } | null {
+    const c = ((this.readiness() as unknown as { checklist?: unknown })?.checklist as { item: string; passed: boolean; auto?: boolean; detail?: string }[] | undefined)?.find((x) => x.item === item && x.auto);
+    return c ? { passed: c.passed, detail: c.detail ?? '' } : null;
+  }
   decisionLabel(g: GateReview) { return g.decision ? DECISION_LABELS[g.decision] : ''; }
 
   async ngOnInit() {
