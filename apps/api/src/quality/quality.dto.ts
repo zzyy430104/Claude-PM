@@ -1,8 +1,8 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, IsArray, IsDateString, IsEnum, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength, ValidateNested,
+  ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength, ValidateIf, ValidateNested,
 } from 'class-validator';
-import { NcSeverity, NcSource, NcStatus } from '../generated/prisma/enums.js';
+import { InspectionResult, NcSeverity, NcSource, NcStatus } from '../generated/prisma/enums.js';
 
 export class QualityActivityDto {
   @IsIn(['QA', 'QC']) kind: 'QA' | 'QC';
@@ -42,4 +42,46 @@ export class UpdateNcDto {
 export class NcTransitionDto {
   @IsEnum(NcStatus) to: NcStatus;
   @IsOptional() @IsString() @MaxLength(5000) note?: string;
+}
+
+export class InspectionItemDto {
+  @IsString() @MinLength(1) @MaxLength(200) name: string;
+  @IsString() @MinLength(1) @MaxLength(30) category: string;
+  @IsOptional() @IsString() @MaxLength(1000) requirement?: string;
+  @IsOptional() @IsString() @MaxLength(300) method?: string;
+  @IsOptional() @IsString() @MaxLength(300) record?: string;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID('all') verifierId?: string | null;
+  @IsOptional() @IsBoolean() isKey?: boolean;
+}
+export class UpdateInspectionItemDto {
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(200) name?: string;
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(30) category?: string;
+  @IsOptional() @IsString() @MaxLength(1000) requirement?: string;
+  @IsOptional() @IsString() @MaxLength(300) method?: string;
+  @IsOptional() @IsString() @MaxLength(300) record?: string;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID('all') verifierId?: string | null;
+  @IsOptional() @IsBoolean() isKey?: boolean;
+}
+export class InspectionResultDto {
+  @IsEnum(InspectionResult) result: InspectionResult;
+  @IsOptional() @IsString() @MaxLength(200) recordNo?: string;
+  @IsOptional() @IsString() @MaxLength(2000) note?: string;
+}
+export class FromTemplateDto {
+  @IsUUID('all') templateId: string;
+}
+export class InspectionTemplateDto {
+  @IsString() @MinLength(1) @MaxLength(200) name: string;
+  @IsString() @MinLength(1) @MaxLength(30) category: string;
+  @IsOptional() @IsString() @MaxLength(1000) requirement?: string;
+  @IsOptional() @IsString() @MaxLength(300) method?: string;
+  @IsOptional() @IsString() @MaxLength(300) record?: string;
+}
+export class UpdateInspectionTemplateDto {
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(200) name?: string;
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(30) category?: string;
+  @IsOptional() @IsString() @MaxLength(1000) requirement?: string;
+  @IsOptional() @IsString() @MaxLength(300) method?: string;
+  @IsOptional() @IsString() @MaxLength(300) record?: string;
+  @IsOptional() @IsBoolean() active?: boolean;
 }

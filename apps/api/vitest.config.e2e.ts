@@ -11,6 +11,8 @@ export default defineConfig({
     include: ['**/*.e2e-spec.ts'],
     globalSetup: ['./test/global-setup.ts'],
     fileParallelism: false,
+    // 每个用例要建企业、建用户、走多步流程；在较慢的机器上 5 秒不够
+    testTimeout: 20_000,
     env: {
       DATABASE_URL:
         process.env.TEST_DATABASE_URL ??

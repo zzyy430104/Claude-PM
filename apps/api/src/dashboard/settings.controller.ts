@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Patch } from '@nestjs/common';
-import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuditService } from '../audit/audit.service.js';
 import { CurrentUser, Roles } from '../common/decorators.js';
 import { requireTenantId } from '../common/auth.types.js';
@@ -22,6 +22,8 @@ export class UpdateTenantSettingsDto {
   @IsOptional() @IsArray() @ArrayMaxSize(7) @IsInt({ each: true }) @Min(1, { each: true }) @Max(7, { each: true }) workWeek?: number[];
   @IsOptional() @IsArray() @ArrayMaxSize(500) @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true }) holidays?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(500) @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true }) extraWorkdays?: string[];
+  /** 检验 / 验证项的类别 */
+  @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayMaxSize(30) @IsString({ each: true }) @MinLength(1, { each: true }) @MaxLength(30, { each: true }) inspectionCategories?: string[];
 }
 
 /** 品牌：企业内所有人都能读，用于顶栏显示 */
@@ -29,8 +31,8 @@ export class UpdateTenantSettingsDto {
 export class BrandingController {
   constructor(private readonly prisma: PrismaService) {}
   @Get() async get(@CurrentUser() u: AuthUser) {
-    const t = await this.prisma.tenant.findUniqueOrThrow({ where: { id: requireTenantId(u) }, select: { systemName: true, name: true, allowDirectProject: true } });
-    return { systemName: t.systemName, companyName: t.name, allowDirectProject: t.allowDirectProject };
+    const t = await this.prisma.tenant.findUniqueOrThrow({ where: { id: requireTenantId(u) }, select: { systemName: true, name: true, allowDirectProject: true, inspectionCategories: true } });
+    return { systemName: t.systemName, companyName: t.name, allowDirectProject: t.allowDirectProject, inspectionCategories: t.inspectionCategories };
   }
 }
 
@@ -41,12 +43,13 @@ export class SettingsController {
 
   @Get() async get(@CurrentUser() u: AuthUser) {
     const t = await this.prisma.tenant.findUniqueOrThrow({
-      where: { id: requireTenantId(u) }, select: { systemName: true, name: true, requireCosign: true, allowDirectProject: true, evmAmber: true, evmRed: true, workWeek: true, holidays: true, extraWorkdays: true },
+      where: { id: requireTenantId(u) }, select: { systemName: true, name: true, requireCosign: true, allowDirectProject: true, evmAmber: true, evmRed: true, workWeek: true, holidays: true, extraWorkdays: true, inspectionCategories: true },
     });
     return {
       systemName: t.systemName, companyName: t.name, requireCosign: t.requireCosign, allowDirectProject: t.allowDirectProject,
       evmAmber: Number(t.evmAmber), evmRed: Number(t.evmRed), workWeek: t.workWeek,
       holidays: (t.holidays as string[]) ?? [], extraWorkdays: (t.extraWorkdays as string[]) ?? [],
+      inspectionCategories: t.inspectionCategories,
     };
   }
 
@@ -62,6 +65,7 @@ export class SettingsController {
       workWeek: dto.workWeek ? [...new Set(dto.workWeek)].sort() : cur.workWeek,
       holidays: dto.holidays ? uniqSorted(dto.holidays) : cur.holidays,
       extraWorkdays: dto.extraWorkdays ? uniqSorted(dto.extraWorkdays) : cur.extraWorkdays,
+      inspectionCategories: dto.inspectionCategories ? [...new Set(dto.inspectionCategories.map((c) => c.trim()).filter(Boolean))] : cur.inspectionCategories,
     };
     if (next.evmRed >= next.evmAmber) throw new BadRequestException('The red threshold must be below the amber threshold');
     if (next.workWeek.length === 0) throw new BadRequestException('At least one working day per week is required');

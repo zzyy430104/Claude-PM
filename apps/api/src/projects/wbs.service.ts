@@ -13,6 +13,8 @@ import type { Project } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectAccess, ProjectCtx } from './access.service.js';
 import { ChangeGuard } from './change-guard.service.js';
+import { CostControlService } from './cost-control.service.js';
+import { InspectionGate } from './inspection-gate.js';
 import { AddDependencyDto, CreateWpDto, UpdateWpDto } from './dto.js';
 import { computeSchedule, CycleError, topoOrder } from './schedule.js';
 import { CalendarService } from './calendar.service.js';
@@ -27,6 +29,7 @@ export class WbsService {
     private readonly access: ProjectAccess,
     private readonly guard: ChangeGuard,
     private readonly calendars: CalendarService,
+    private readonly cost: CostControlService,
   ) {}
 
   /** WBS 树、依赖、按 CPM 计算的排程；父节点的日期由子节点汇总 */
@@ -205,7 +208,7 @@ export class WbsService {
           ? WpStatus.IN_PROGRESS
           : undefined);
 
-    return this.audit.tx(
+    const updated = await this.audit.tx(
       actor,
       {
         action: 'workPackage.update',
@@ -237,6 +240,8 @@ export class WbsService {
           },
         }),
     );
+    if (dto.percentComplete !== undefined || dto.resourceDays !== undefined) await this.cost.evaluate(ctx.tenantId, projectId);
+    return updated;
   }
 
   /** 工作包核验：核验人不能是负责人本人 */
@@ -247,6 +252,8 @@ export class WbsService {
     const wp = await this.findWp(ctx, id);
     if (wp.status !== WpStatus.DONE) throw new ConflictException('Only completed work packages can be verified');
     if (wp.ownerId === actor.id) throw new ForbiddenException('Owner cannot verify own work package');
+    const blockers = await InspectionGate.check(this.prisma, id);
+    if (blockers.length) throw new ConflictException({ code: 'INSPECTION_INCOMPLETE', message: blockers.join('；'), blockers });
     return this.audit.tx(
       actor,
       { action: 'workPackage.verify', entity: 'WorkPackage', entityId: () => id },

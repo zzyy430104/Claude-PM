@@ -39,8 +39,8 @@ export class FunctionalRolesController {
     if (!cur) throw new NotFoundException('Functional role not found');
     return this.unique(() => this.audit.tx(
       u,
-      { action: 'functionalRole.update', entity: 'FunctionalRole', entityId: () => id, before: { name: cur.name, active: cur.active, sortOrder: cur.sortOrder }, after: (r) => ({ name: r.name, active: r.active, sortOrder: r.sortOrder }) },
-      (tx) => tx.functionalRole.update({ where: { id }, data: { name: dto.name?.trim(), sortOrder: dto.sortOrder, active: dto.active } }),
+      { action: 'functionalRole.update', entity: 'FunctionalRole', entityId: () => id, before: { name: cur.name, active: cur.active, sortOrder: cur.sortOrder, rate: cur.rate.toString() }, after: (r) => ({ name: r.name, active: r.active, sortOrder: r.sortOrder, rate: r.rate.toString() }) },
+      (tx) => tx.functionalRole.update({ where: { id }, data: { name: dto.name?.trim(), sortOrder: dto.sortOrder, active: dto.active, rate: dto.rate } }),
     ));
   }
 

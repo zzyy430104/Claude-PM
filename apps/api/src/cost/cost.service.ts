@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectAccess, ProjectCtx } from '../projects/access.service.js';
+import { CostControlService } from '../projects/cost-control.service.js';
 import { CreateCostAccountDto, CreateCostEntryDto, UpdateCostAccountDto } from './cost.dto.js';
 
 const money = (n: number) => Math.round(n * 100) / 100;
@@ -15,6 +16,7 @@ export class CostService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly access: ProjectAccess,
+    private readonly control: CostControlService,
   ) {}
 
   /** 各科目的预算、实际、完工尚需（ETC）、完工估算（EAC）与偏差 */
@@ -111,7 +113,7 @@ export class CostService {
     if (Number(current._sum.amount ?? 0) + dto.amount < 0) {
       throw new BadRequestException('A reversal cannot make the account total negative');
     }
-    return this.audit.tx(
+    const entry = await this.audit.tx(
       actor,
       { action: 'costEntry.create', entity: 'CostEntry', entityId: (e) => e.id, after: (e) => ({ account: account.code, amount: e.amount.toString() }) },
       (tx) =>
@@ -119,6 +121,8 @@ export class CostService {
           data: { tenantId: ctx.tenantId, projectId, accountId: account.id, workPackageId: dto.workPackageId, amount: dto.amount, entryDate: new Date(dto.entryDate), description: dto.description, createdById: actor.id },
         }),
     );
+    await this.control.evaluate(ctx.tenantId, projectId);
+    return entry;
   }
 
   /** 各科目预算之和不得超过项目预算（预算分配依据投标测算，超出须走预算变更） */

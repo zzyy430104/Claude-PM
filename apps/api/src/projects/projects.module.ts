@@ -11,11 +11,12 @@ import { RequirementsService } from './requirements.service.js';
 import { CalendarService } from './calendar.service.js';
 import { WbsExcelService } from './wbs-excel.service.js';
 import { WbsTemplatesService } from './wbs-templates.service.js';
+import { CostControlService } from './cost-control.service.js';
 
 @Global()
 @Module({
   controllers: [ProjectsController],
-  providers: [ProjectAccess, ChangeGuard, ProjectsService, WbsService, TemplatesService, DeliverablesService, PlanVersionsService, RequirementsService, CalendarService, WbsExcelService, WbsTemplatesService],
-  exports: [ProjectAccess, ChangeGuard, PlanVersionsService, WbsService, CalendarService],
+  providers: [ProjectAccess, ChangeGuard, ProjectsService, WbsService, TemplatesService, DeliverablesService, PlanVersionsService, RequirementsService, CalendarService, WbsExcelService, WbsTemplatesService, CostControlService],
+  exports: [ProjectAccess, ChangeGuard, PlanVersionsService, WbsService, CalendarService, CostControlService],
 })
 export class ProjectsModule {}

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { DeliverableKind, ProjectRole, ProjectType, RiskKind } from '../generated/prisma/enums.js';
+import { DEFAULT_ACCOUNTS } from '../projects/cost-control.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DEFAULT_TEMPLATES, DELIVERY_MILESTONE, generatePlan, isGroup, phaseRule, type TemplateRow } from './plan-templates.js';
 import { effectiveDeliveryDate, type Requirements } from './requirements.js';
@@ -33,7 +34,7 @@ export class PlanBuilderService {
       data: {
         tenantId: s.tenantId, code: s.code, name: s.name, description: s.description, riskLevel: s.riskLevel, type: s.type,
         startDate: s.startDate, endDate: end, customerDeliveryDate: due ? new Date(due) : null,
-        budget: req.cost.target ?? null, reviewIntervalDays: REVIEW_INTERVAL[s.riskLevel],
+        budget: req.cost.target ?? (req.cost.cap || null), reviewIntervalDays: REVIEW_INTERVAL[s.riskLevel],
         initiationId: s.initiationId, requirementVersion: 1, createdById: s.actorId,
       },
     });
@@ -66,6 +67,13 @@ export class PlanBuilderService {
     const roles = await tx.functionalRole.findMany({ where: { tenantId, active: true } });
     const roleId = (name: string) => roles.find((r) => r.name === name)?.id ?? null;
 
+    // 默认成本科目；工作包人工 = 工期（按 1 人全职估算的人天）× 职能角色标准费率
+    await tx.costAccount.createMany({ data: DEFAULT_ACCOUNTS.map((a) => ({ tenantId, projectId, code: a.code, name: a.name, budget: 0, isLabor: !!a.isLabor })) });
+    const laborAcc = await tx.costAccount.findFirstOrThrow({ where: { projectId, isLabor: true } });
+    let laborTotal = 0;
+    const cats = (await tx.tenant.findUnique({ where: { id: tenantId }, select: { inspectionCategories: true } }))?.inspectionCategories ?? [];
+    const cat = (want: string) => (cats.includes(want) ? want : cats[0] ?? want);
+
     const wpIds = new Map<string, string>();
     const usedGroups = new Set(plan.items.map((i) => i.parentCode));
     for (const grp of rows.filter(isGroup).filter((x) => usedGroups.has(x.code))) {
@@ -81,10 +89,29 @@ export class PlanBuilderService {
           phaseId: it.phase ? phaseIds.get(it.phase) : null, durationDays: it.milestone ? 0 : Math.max(it.durationDays, 1), isMilestone: !!it.milestone,
           functionalRoleId: roleId(it.role), isPurchase: it.purchase, longLead: it.condition === 'longLead',
           description: it.deliverable ? `交付物 / 记录：${it.deliverable}` : null,
+          ...(() => {
+            if (it.milestone) return {};
+            const days = Math.max(it.durationDays, 1);
+            const rate = Number(roles.find((r) => r.name === it.role)?.rate ?? 0);
+            const labor = Math.round(days * rate * 100) / 100;
+            laborTotal += labor;
+            return { resourceDays: days, budget: labor, costAccountId: laborAcc.id };
+          })(),
         },
       });
       wpIds.set(it.code, wp.id);
+      // 默认检验 / 验证项：模板里写了交付物或记录的工作包，检查该输出完成并确认
+      if (it.deliverable) {
+        await tx.inspectionItem.create({
+          data: {
+            tenantId, projectId, workPackageId: wp.id, name: it.deliverable, category: cat(it.milestone ? '评审' : '文件'),
+            requirement: it.milestone ? '达到节点要求，经确认' : '内容完整，经审核', method: it.milestone ? '评审 / 确认' : '审核', record: it.deliverable, sortOrder: 1,
+          },
+        });
+      }
     }
+    const target = (await tx.project.findUniqueOrThrow({ where: { id: projectId }, select: { budget: true } })).budget;
+    if (target === null || laborTotal <= Number(target)) await tx.costAccount.update({ where: { id: laborAcc.id }, data: { budget: Math.round(laborTotal * 100) / 100 } });
     const deps = plan.items.flatMap((it) => it.predecessors.filter((p) => wpIds.has(p)).map((p) => ({ tenantId, projectId, predecessorId: wpIds.get(p)!, successorId: wpIds.get(it.code)! })));
     if (deps.length) await tx.wpDependency.createMany({ data: deps, skipDuplicates: true });
 

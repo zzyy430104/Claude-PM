@@ -13,6 +13,7 @@ import { WbsService } from '../projects/wbs.service.js';
 import { ApprovalRolesService } from './approval-roles.service.js';
 import type { AddFromLibraryDto, AssignByRoleDto, DecisionDto, OptionalWpDto, UpdateOptionalWpDto } from './dto.js';
 import { isGroup, type TemplateRow } from './plan-templates.js';
+import { CostControlService } from '../projects/cost-control.service.js';
 import { PlanBuilderService } from './plan-builder.service.js';
 import { asRequirements } from './requirements.js';
 
@@ -35,6 +36,7 @@ export class PlanningService {
     private readonly roles: ApprovalRolesService,
     private readonly builder: PlanBuilderService,
     private readonly notifications: NotificationsService,
+    private readonly costControl: CostControlService,
   ) {}
 
   // ───── 对照项目要求的检查 ─────
@@ -47,7 +49,7 @@ export class PlanningService {
     const req = asRequirements(ver?.data);
     const [sched, leaves, deliverables, risks, pm] = await Promise.all([
       this.wbs.scheduleOf(tenantId, project),
-      this.prisma.workPackage.findMany({ where: { projectId: project.id, tenantId, children: { none: {} } }, select: { code: true, name: true, ownerId: true, budget: true } }),
+      this.prisma.workPackage.findMany({ where: { projectId: project.id, tenantId, children: { none: {} } }, select: { id: true, code: true, name: true, ownerId: true, budget: true, deliverableId: true, description: true } }),
       this.prisma.deliverable.findMany({ where: { projectId: project.id, tenantId }, select: { name: true, phaseId: true, workPackages: { select: { id: true } } } }),
       this.prisma.risk.count({ where: { projectId: project.id, tenantId } }),
       this.prisma.projectMember.count({ where: { projectId: project.id, projectRole: ProjectRole.PROJECT_MANAGER, active: true } }),
@@ -58,15 +60,18 @@ export class PlanningService {
       const late = (sched.gapDays ?? 0) > 0;
       out.push({ key: 'date', ok: !late, message: `交期：预计完工 ${sched.projectedEnd}，要求 ${sched.requiredEnd}${late ? `，晚 ${sched.gapDays} 个工作日` : ''}` });
     }
-    if (req.cost.cap > 0) {
-      const wpSum = leaves.reduce((n, w) => n + Number(w.budget ?? 0), 0);
-      const budget = Math.max(Number(project.budget ?? 0), wpSum);
-      out.push({ key: 'cost', ok: budget <= req.cost.cap, message: `成本：预算 ${budget.toLocaleString()} 元，上限 ${req.cost.cap.toLocaleString()} 元` });
-    }
+    for (const c of await this.costControl.planChecks(tenantId, project.id, req.cost.cap > 0 ? req.cost.cap : null)) out.push({ ...c, message: `成本：${c.message}` });
     const noOwner = leaves.filter((w) => !w.ownerId);
     out.push({ key: 'owner', ok: noOwner.length === 0, message: noOwner.length ? `责任人：还有 ${noOwner.length} 个工作包未指定（${noOwner.slice(0, 5).map((w) => w.code).join('、')}${noOwner.length > 5 ? ' 等' : ''}）` : '责任人：全部已指定' });
     const orphan = deliverables.filter((d) => !d.phaseId && d.workPackages.length === 0);
     out.push({ key: 'deliverables', ok: orphan.length === 0, message: orphan.length ? `交付物：${orphan.map((d) => d.name).join('、')} 没有所属阶段或工作包` : `交付物：${deliverables.length} 项都已落实到阶段或工作包` });
+    // 质量：有交付物或记录要求的工作包至少有一个检验 / 验证项；关键项要有验证人
+    const items = await this.prisma.inspectionItem.findMany({ where: { projectId: project.id, tenantId }, select: { workPackageId: true, isKey: true, verifierId: true } });
+    const withItems = new Set(items.map((i) => i.workPackageId));
+    const needQ = leaves.filter((w) => (w.deliverableId || w.description?.startsWith('交付物')) && !withItems.has(w.id));
+    out.push({ key: 'quality', ok: needQ.length === 0, message: needQ.length ? `质量：${needQ.slice(0, 5).map((w) => w.code).join('、')}${needQ.length > 5 ? ' 等' : ''} 有交付物但还没有检验 / 验证项` : '质量：有交付物的工作包都有检验 / 验证项' });
+    const keyNoVerifier = items.filter((i) => i.isKey && !i.verifierId).length;
+    out.push({ key: 'qualityKey', ok: keyNoVerifier === 0, message: keyNoVerifier ? `质量：${keyNoVerifier} 个关键检验项没有验证人` : '质量：关键检验项都有验证人' });
     out.push({ key: 'risks', ok: risks > 0, message: risks > 0 ? `风险：已登记 ${risks} 项风险与机会` : '风险：还没有登记风险与机会' });
     return out;
   }
@@ -234,13 +239,22 @@ export class PlanningService {
     return this.audit.tx(
       actor,
       { action: 'wbs.create', entity: 'WorkPackage', entityId: (w) => w.id, after: (w) => ({ code: w.code, name: w.name, fromLibrary: lib.name, changeRequestId: dto.changeRequestId ?? null }) },
-      (tx) => tx.workPackage.create({
+      async (tx) => {
+        const w = await tx.workPackage.create({
         data: {
+          resourceDays: lib.durationDays > 0 ? lib.durationDays : null,
           tenantId: ctx.tenantId, projectId, parentId: parent?.id ?? null, phaseId: parent?.phaseId ?? null, code: `${prefix}${n}`, name: lib.name,
           durationDays: Math.max(lib.durationDays, 0), isMilestone: lib.durationDays === 0, functionalRoleId: role?.id ?? null,
           isPurchase: parent?.isPurchase ?? false, description: lib.deliverable ? `交付物 / 记录：${lib.deliverable}` : null,
         },
-      }),
+      });
+        if (lib.durationDays > 0) await this.costControl.recomputeBudget(tx, w.id);
+        if (lib.deliverable) {
+          const cats = (await tx.tenant.findUnique({ where: { id: ctx.tenantId }, select: { inspectionCategories: true } }))?.inspectionCategories ?? [];
+          await tx.inspectionItem.create({ data: { tenantId: ctx.tenantId, projectId, workPackageId: w.id, name: lib.deliverable, category: cats.includes('文件') ? '文件' : cats[0] ?? '文件', requirement: '内容完整，经审核', method: '审核', record: lib.deliverable, sortOrder: 1 } });
+        }
+        return w;
+      },
     );
   }
 

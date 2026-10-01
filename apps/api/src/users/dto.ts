@@ -3,7 +3,7 @@ import {
   IsEmail,
   IsEnum,
   IsOptional,
-  IsInt,
+  IsInt, IsNumber,
   IsString,
   IsUUID,
   Max,
@@ -39,4 +39,6 @@ export class UpdateFunctionalRoleDto {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(30) name?: string;
   @IsOptional() @IsInt() @Min(0) @Max(999) sortOrder?: number;
   @IsOptional() @IsBoolean() active?: boolean;
+  /** 标准费率（元 / 人天） */
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(1_000_000) rate?: number;
 }
