@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength, ValidateIf, ValidateNested } from 'class-validator';
-import { MeetingRecurrence, MeetingType, RsvpStatus } from '../generated/prisma/enums.js';
+import { CommentEntity, MeetingRecurrence, MeetingType, RsvpStatus } from '../generated/prisma/enums.js';
 
 export class AttendeeDto {
   @IsOptional() @IsUUID('all') userId?: string;
@@ -55,4 +55,14 @@ export class AnnouncementDto {
   @IsOptional() @IsBoolean() requireRead?: boolean;
   /** 为空表示全项目组 */
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsUUID('all', { each: true }) recipients?: string[];
+}
+export class CommentDto {
+  @IsEnum(CommentEntity) entityType: CommentEntity;
+  @IsUUID('all') entityId: string;
+  @IsString() @MinLength(1) @MaxLength(5000) body: string;
+  @IsOptional() @IsArray() @ArrayMaxSize(50) @IsUUID('all', { each: true }) mentions?: string[];
+}
+export class CommentQuery {
+  @IsEnum(CommentEntity) type: CommentEntity;
+  @IsOptional() @IsUUID('all') entityId?: string;
 }

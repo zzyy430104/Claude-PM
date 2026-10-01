@@ -71,6 +71,8 @@ model User {
   functionalRoleId   String?   @map("functional_role_id")
   /// 所属部门（项目绩效评价单发给部门负责人）
   departmentId       String?   @map("department_id")
+  /// 哪些类别的通知同时发邮件 { 类别: boolean }，没写的类别默认发
+  emailPrefs         Json      @default("{}") @map("email_prefs")
   active             Boolean   @default(true)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -1743,4 +1745,30 @@ model AnnouncementRead {
   @@unique([announcementId, userId])
   @@index([tenantId, userId])
   @@map("announcement_reads")
+}
+
+enum CommentEntity {
+  WORK_PACKAGE
+  RISK
+  CHANGE
+  NONCONFORMITY
+  DELIVERABLE
+}
+
+/// 讨论：在工作包、风险、变更、不符合项、交付物上讨论和 @
+model Comment {
+  id         String        @id @default(uuid())
+  tenantId   String        @map("tenant_id")
+  projectId  String        @map("project_id")
+  entityType CommentEntity @map("entity_type")
+  entityId   String        @map("entity_id")
+  authorId   String        @map("author_id")
+  body       String
+  /// 被 @ 的用户 id
+  mentions   Json          @default("[]")
+  deletedAt  DateTime?     @map("deleted_at")
+  createdAt  DateTime      @default(now())
+
+  @@index([tenantId, projectId, entityType, entityId])
+  @@map("comments")
 }

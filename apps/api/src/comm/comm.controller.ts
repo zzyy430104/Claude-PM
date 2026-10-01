@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Header, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Header, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { AnnouncementsService } from './announcements.service.js';
-import { AnnouncementDto, ExternalRsvpDto, MeetingDto, MinutesDto, RsvpDto, UpdateMeetingDto } from './dto.js';
+import { CommentsService } from './comments.service.js';
+import { AnnouncementDto, CommentDto, CommentQuery, ExternalRsvpDto, MeetingDto, MinutesDto, RsvpDto, UpdateMeetingDto } from './dto.js';
 import { MeetingsService } from './meetings.service.js';
 
 const P = () => Param('id', ParseUUIDPipe);
@@ -11,7 +12,7 @@ const U = (name: string) => Param(name, ParseUUIDPipe);
 /** 会议与公告 */
 @Controller()
 export class CommController {
-  constructor(private readonly meetings: MeetingsService, private readonly ann: AnnouncementsService) {}
+  constructor(private readonly meetings: MeetingsService, private readonly ann: AnnouncementsService, private readonly comments: CommentsService) {}
 
   @Get('projects/:id/meetings') list(@CurrentUser() u: AuthUser, @P() id: string) { return this.meetings.list(u, id); }
   @Post('projects/:id/meetings') create(@CurrentUser() u: AuthUser, @P() id: string, @Body() dto: MeetingDto) { return this.meetings.create(u, id, dto); }
@@ -33,5 +34,14 @@ export class CommController {
   @Post('projects/:id/announcements') annCreate(@CurrentUser() u: AuthUser, @P() id: string, @Body() dto: AnnouncementDto) { return this.ann.create(u, id, dto); }
   @Post('projects/:id/announcements/:aid/read') @HttpCode(200) annRead(@CurrentUser() u: AuthUser, @P() id: string, @U('aid') aid: string) { return this.ann.markRead(u, id, aid); }
   @Post('projects/:id/announcements/:aid/remind') @HttpCode(200) annRemind(@CurrentUser() u: AuthUser, @P() id: string, @U('aid') aid: string) { return this.ann.remind(u, id, aid); }
+  @Get('projects/:id/comments') commentList(@CurrentUser() u: AuthUser, @P() id: string, @Query() q: CommentQuery) {
+    if (!q.entityId) throw new BadRequestException('entityId is required');
+    return this.comments.list(u, id, q.type, q.entityId);
+  }
+  @Get('projects/:id/comment-counts') commentCounts(@CurrentUser() u: AuthUser, @P() id: string, @Query() q: CommentQuery) { return this.comments.counts(u, id, q.type); }
+  @Post('projects/:id/comments') commentCreate(@CurrentUser() u: AuthUser, @P() id: string, @Body() dto: CommentDto) { return this.comments.create(u, id, dto); }
+  @Delete('projects/:id/comments/:cid') commentRemove(@CurrentUser() u: AuthUser, @P() id: string, @U('cid') cid: string) { return this.comments.remove(u, id, cid); }
+  @Get('me/mentions') mentions(@CurrentUser() u: AuthUser) { return this.comments.mentions(u); }
+
   @Get('announcements/unread') unread(@CurrentUser() u: AuthUser) { return this.ann.unreadForMe(u); }
 }

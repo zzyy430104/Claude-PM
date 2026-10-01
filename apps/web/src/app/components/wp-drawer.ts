@@ -1,6 +1,7 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, errorMessage } from '../core/api';
+import { Discussion } from './discussion';
 import { AuthService } from '../core/auth.service';
 import { Brand } from '../core/brand';
 import {
@@ -8,13 +9,13 @@ import {
 } from '../core/models';
 
 interface Person { id: string; name: string }
-export type DrawerTab = 'time' | 'cost' | 'qual';
+export type DrawerTab = 'time' | 'cost' | 'qual' | 'talk';
 const yuan = (n: number) => Math.round(n).toLocaleString('zh-CN');
 
 /** 工作包详情：时间、成本（预算策划 + 执行）、质量（检验 / 验证项与结果） */
 @Component({
   selector: 'app-wp-drawer',
-  imports: [MatButtonModule],
+  imports: [MatButtonModule, Discussion],
   styles: `
     .shade { position: fixed; inset: 0; background: rgba(20, 26, 24, .38); z-index: 1000; display: flex; justify-content: flex-end; }
     .win { background: var(--pm-card); width: min(640px, 100%); height: 100%; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(0,0,0,.15); }
@@ -108,6 +109,7 @@ const yuan = (n: number) => Math.round(n).toLocaleString('zh-CN');
                 @if (c.state) { <div class="warn">预计超出工作包预算 {{ y(c.eac - c.budget) }} 元，已提醒项目经理和负责人。需要追加预算时走变更。</div> }
               } @else { <p class="muted">加载中…</p> }
             }
+            @case ('talk') { <app-discussion [projectId]="project().id" entityType="WORK_PACKAGE" [entityId]="wp().id" [canPost]="project().status !== 'CLOSED'" /> }
             @case ('qual') {
               <p class="muted" style="font-size: 13px; margin: 0 0 10px">检验 / 验证项可以是产品、过程、文件、评审、试验或企业自定义的类别。全部有结果、没有不合格、关联的不符合项已关闭，工作包才能核验通过。</p>
               @for (q of items(); track q.id) {
@@ -174,7 +176,7 @@ export class WpDrawer {
   readonly initialTab = input<DrawerTab>('time');
   readonly closed = output<void>();
   readonly changed = output<void>();
-  readonly tabs: [DrawerTab, string][] = [['time', '时间'], ['cost', '成本'], ['qual', '质量']];
+  readonly tabs: [DrawerTab, string][] = [['time', '时间'], ['cost', '成本'], ['qual', '质量'], ['talk', '讨论']];
   readonly fields: [keyof InspectionItem, string][] = [['requirement', '要求 / 准则'], ['method', '方法'], ['record', '需要的记录']];
   readonly results: InspectionResult[] = ['PENDING', 'PASS', 'FAIL', 'NA'];
   readonly tab = signal<DrawerTab>('time');

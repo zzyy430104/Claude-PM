@@ -11,7 +11,8 @@ await call('POST', `/projects/${proj.id}/changes/${cr.id}/submit`, u.member.acce
 const { b, p, errors } = await launch();
 await loginAs(p, u.pm);
 await p.waitForSelector('text=项目组合');
-await p.waitForSelector('text=待办'); step('首页：项目组合与待办');
+await p.waitForSelector('[data-box=pending] h3:has-text("待我处理")');
+await p.waitForSelector('[data-box=pending] li:has-text("待审批变更")'); step('工作台：待我处理（待审批变更）、项目组合');
 const home = await p.locator('.page').innerText();
 if (!home.includes('高分风险') && !home.includes('1 个高分风险')) throw new Error('健康度原因缺失: ' + home);
 step('健康度原因展示');

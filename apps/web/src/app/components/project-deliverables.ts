@@ -5,12 +5,13 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
+import { Discussion } from './discussion';
 import { Api, errorMessage } from '../core/api';
 import { DELIVERABLE_KIND_LABELS, DELIVERABLE_STATUS_LABELS, Deliverable, Phase, Project } from '../core/models';
 
 @Component({
   selector: 'app-project-deliverables',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatTableModule],
+  imports: [Discussion, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatTableModule],
   template: `
     @if (canWrite()) {
       <form class="row" [formGroup]="form" (ngSubmit)="add()">
@@ -50,16 +51,27 @@ import { DELIVERABLE_KIND_LABELS, DELIVERABLE_STATUS_LABELS, Deliverable, Phase,
           } @else { {{ statusLabel(d) }} }
         </td>
       </ng-container>
+      <ng-container matColumnDef="talk"><th mat-header-cell *matHeaderCellDef></th><td mat-cell *matCellDef="let d"><button mat-button (click)="toggleTalk(d.id)">{{ talkLabel(d.id) }}</button></td></ng-container>
       <tr mat-header-row *matHeaderRowDef="cols"></tr>
       <tr mat-row *matRowDef="let row; columns: cols"></tr>
     </table>
+    @if (talk(); as tid) {
+      <section class="pcard" style="margin-top: 12px"><header><h3>讨论：{{ deliverableName(tid) }}</h3></header><div class="body"><app-discussion [projectId]="project().id" entityType="DELIVERABLE" [entityId]="tid" [canPost]="project().status !== 'CLOSED'" /></div></section>
+    }
   `,
 })
 export class ProjectDeliverables {
   private readonly api = inject(Api);
   private readonly fb = inject(FormBuilder).nonNullable;
   readonly project = input.required<Project>();
-  readonly cols = ['name', 'kind', 'phase', 'supplier', 'due', 'status'];
+  /** 展开讨论的对象，以及各对象的讨论条数 */
+  readonly talk = signal<string | null>(null);
+  readonly talkCounts = signal<Record<string, number>>({});
+  talkLabel(id: string) { const n = this.talkCounts()[id]; return n ? `讨论 (${n})` : '讨论'; }
+  toggleTalk(id: string) { this.talk.set(this.talk() === id ? null : id); void this.loadTalk(); }
+  async loadTalk() { try { this.talkCounts.set(await this.api.get<Record<string, number>>(`/projects/${this.project().id}/comment-counts?type=DELIVERABLE`)); } catch { /* 忽略 */ } }
+  readonly cols = ['name', 'kind', 'phase', 'supplier', 'due', 'status', 'talk'];
+  deliverableName(id: string) { return this.rows().find((d) => d.id === id)?.name ?? ''; }
   readonly kinds = Object.keys(DELIVERABLE_KIND_LABELS) as Deliverable['kind'][];
   readonly statuses = Object.keys(DELIVERABLE_STATUS_LABELS) as Deliverable['status'][];
   readonly kindLabels = DELIVERABLE_KIND_LABELS;
@@ -84,7 +96,8 @@ export class ProjectDeliverables {
     this.phases.set(await this.api.get<Phase[]>(`/projects/${this.project().id}/phases`));
     await this.load();
   }
-  async load() { this.rows.set(await this.api.get<Deliverable[]>(`/projects/${this.project().id}/deliverables`)); }
+  async load() {
+    void this.loadTalk(); this.rows.set(await this.api.get<Deliverable[]>(`/projects/${this.project().id}/deliverables`)); }
 
   async add() {
     this.error.set('');

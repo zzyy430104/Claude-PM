@@ -5,6 +5,7 @@ import type { AuthUser } from '../common/auth.types.js';
 import { CostService } from '../cost/cost.service.js';
 import { MetricsService } from '../governance/metrics.service.js';
 import { PerformanceService } from '../governance/performance.service.js';
+import { WbsService } from '../projects/wbs.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { importanceOf, loadRiskSettings } from '../governance/risk-settings.js';
 
@@ -20,6 +21,7 @@ export class DashboardService {
     private readonly metrics: MetricsService,
     private readonly cost: CostService,
     private readonly performance: PerformanceService,
+    private readonly wbs: WbsService,
   ) {}
 
   private visibleProjects(actor: AuthUser) {
@@ -123,9 +125,10 @@ export class DashboardService {
     ]);
     const memberOf = new Map(members.map((m) => [m.projectId, m]));
     const link = (projectId: string) => `/projects/${projectId}`;
+    const linkOf: Record<string, string> = { ISSUE: 'g=ctrl&s=issues', WORK_PACKAGE: 'g=plan&s=wbs', NONCONFORMITY: 'g=qual&s=quality', CHANGE_APPROVAL: 'g=ctrl&s=changes', GATE_REVIEW: 'g=exec&s=phases' };
     const todos: { kind: string; title: string; projectId: string; projectCode: string; link: string; dueDate?: string | null }[] = [];
     const add = (kind: string, title: string, projectId: string, dueDate?: Date | null) =>
-      todos.push({ kind, title, projectId, projectCode: pid.get(projectId) ?? '', link: link(projectId), dueDate: dueDate ? dueDate.toISOString().slice(0, 10) : null });
+      todos.push({ kind, title, projectId, projectCode: pid.get(projectId) ?? '', link: link(projectId) + (linkOf[kind] ? `?${linkOf[kind]}` : ''), dueDate: dueDate ? dueDate.toISOString().slice(0, 10) : null });
 
     for (const c of submitted) {
       const m = memberOf.get(c.projectId);
@@ -137,7 +140,17 @@ export class DashboardService {
     }
     for (const i of issues) add('ISSUE', `${i.kind === 'ISSUE' ? '问题' : '行动项'}：${i.title}`, i.projectId, i.dueDate);
     for (const n of ncs) add('NONCONFORMITY', `执行纠正措施 ${n.code}：${n.title}`, n.projectId, n.actionDueDate);
-    for (const w of wps) add('WORK_PACKAGE', `工作包 ${w.code} ${w.name}（${w.percentComplete}%）`, w.projectId);
+    // 我负责的工作包：带计划完成日期（本周到期和已逾期排在前面）
+    const ends = new Map<string, string>();
+    for (const projectId of new Set(wps.map((w) => w.projectId))) {
+      const p = projects.find((x) => x.id === projectId);
+      if (!p) continue;
+      for (const i of (await this.wbs.scheduleOf(tenantId, p)).items) ends.set(i.id, i.scheduledEnd);
+    }
+    for (const w of wps) {
+      const end = ends.get(w.id);
+      add('WORK_PACKAGE', `工作包 ${w.code} ${w.name}（${w.percentComplete}%）`, w.projectId, end ? new Date(end) : null);
+    }
     for (const t of trainings) add('TRAINING', `培训：${t.title}`, t.projectId, t.dueDate);
     return todos.sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'));
   }

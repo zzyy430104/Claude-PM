@@ -1,3 +1,4 @@
+import { EmailPrefs } from '../components/email-prefs';
 import { Component, inject, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -12,7 +13,7 @@ const sameAsNew = (c: AbstractControl): ValidationErrors | null =>
 
 @Component({
   selector: 'app-account',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, EmailPrefs],
   styles: `
     form { max-width: 420px; display: flex; flex-direction: column; gap: 4px; }
     .notice { max-width: 420px; background: var(--pm-amber-bg); color: #7a5206; border-radius: 8px; padding: 10px 14px; margin: 0 0 16px; }
@@ -39,6 +40,7 @@ const sameAsNew = (c: AbstractControl): ValidationErrors | null =>
         @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
         <button mat-flat-button type="submit" [disabled]="form.invalid || busy()">修改密码</button>
       </form>
+      @if (!auth.user()?.mustChangePassword) { <app-email-prefs /> }
     </div>
   `,
 })

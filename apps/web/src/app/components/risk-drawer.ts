@@ -1,6 +1,7 @@
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, errorMessage } from '../core/api';
+import { Discussion } from './discussion';
 import { AuthService } from '../core/auth.service';
 import { askText } from '../core/i18n';
 import {
@@ -9,7 +10,7 @@ import {
 } from '../core/models';
 
 export interface RiskPerson { id: string; name: string }
-export type RiskStep = 'id' | 'ev' | 'plan' | 'warn' | 'close';
+export type RiskStep = 'id' | 'ev' | 'plan' | 'warn' | 'close' | 'talk';
 const IMP: Importance[] = ['LOW', 'MEDIUM', 'HIGH'];
 const ACCEPT = '接受';
 /** 与后端一致：5 级 10/30/50/70/90%；3 级按 1、3、5 级取 */
@@ -27,7 +28,7 @@ interface Draft {
 /** 风险 / 机会详情：识别 → 评价 → 应对 → 预警 → 复评与关闭（企业级、项目级、工作包级共用） */
 @Component({
   selector: 'app-risk-drawer',
-  imports: [MatButtonModule],
+  imports: [MatButtonModule, Discussion],
   styles: `
     .shade { position: fixed; inset: 0; background: rgba(20, 26, 24, .38); z-index: 1000; display: flex; justify-content: flex-end; }
     .win { background: var(--pm-card); width: min(680px, 100%); height: 100%; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(0,0,0,.15); }
@@ -73,7 +74,7 @@ interface Draft {
           <button class="x" type="button" (click)="closed.emit()" aria-label="关闭">✕</button>
         </header>
         <nav role="tablist">
-          @for (t of steps; track t[0]) { <button type="button" role="tab" [attr.aria-selected]="step() === t[0]" [disabled]="!risk() && (t[0] === 'warn' || t[0] === 'close')" (click)="step.set(t[0])">{{ t[1] }}</button> }
+          @for (t of steps; track t[0]) { <button type="button" role="tab" [attr.aria-selected]="step() === t[0]" [disabled]="(!risk() && (t[0] === 'warn' || t[0] === 'close' || t[0] === 'talk')) || (t[0] === 'talk' && (!projectId() || risk()?.level === 'ENTERPRISE'))" (click)="step.set(t[0])">{{ t[1] }}</button> }
         </nav>
         <div class="body">
           @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
@@ -213,6 +214,7 @@ interface Draft {
                 @empty { <tr><td class="muted">还没有复查记录</td></tr> }
               </tbody></table></div>
             }
+            @case ('talk') { @if (risk() && projectId()) { <app-discussion [projectId]="projectId()!" entityType="RISK" [entityId]="risk()!.id" /> } }
             @case ('close') {
               @if (risk(); as r) {
                 <p class="muted" style="margin: 0 0 10px">措施完成后重新评价剩余的可能性和影响。关闭前提：措施全部完成；选“接受”且规则要求时已经管理层确认。</p>
@@ -267,7 +269,7 @@ export class RiskDrawer {
   /** 保存或操作后，父组件重新加载；新登记时带回 id */
   readonly changed = output<string>();
 
-  readonly steps: [RiskStep, string][] = [['id', '1 识别'], ['ev', '2 评价'], ['plan', '3 应对'], ['warn', '4 预警'], ['close', '5 复评与关闭']];
+  readonly steps: [RiskStep, string][] = [['id', '1 识别'], ['ev', '2 评价'], ['plan', '3 应对'], ['warn', '4 预警'], ['close', '5 复评与关闭'], ['talk', '讨论']];
   readonly accept = ACCEPT;
   readonly today = new Date().toISOString().slice(0, 10);
   readonly step = signal<RiskStep>('id');

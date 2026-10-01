@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { Discussion } from './discussion';
 import { Api, errorMessage } from '../core/api';
 import { AuthService } from '../core/auth.service';
 import { CHANGE_STATUS_LABELS, CHANGE_TYPE_LABELS, ChangeRequest, ChangeType, Project } from '../core/models';
@@ -14,7 +15,7 @@ interface HistoryRow { id: string; action: string; createdAt: string; actorId: s
 
 @Component({
   selector: 'app-project-changes',
-  imports: [ReactiveFormsModule, DatePipe, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [Discussion, ReactiveFormsModule, DatePipe, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   styles: `.cr { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 12px 16px; margin: 12px 0; } h3 { margin: 0 0 4px; } .meta { color: var(--mat-sys-on-surface-variant); font-size: 13px; } .hist { font-size: 12px; color: var(--mat-sys-on-surface-variant); }`,
   template: `
     <h2>{{ editingId() ? '编辑草稿 ' + editingCode() : '提交变更申请' }}</h2>
@@ -75,7 +76,9 @@ interface HistoryRow { id: string; action: string; createdAt: string; actorId: s
           @if (c.status === 'IMPLEMENTED' && (manage() || quality()) && c.implementedById !== me()?.id) { <button mat-button (click)="verify(c)">验证有效性</button> }
           @if (c.status === 'VERIFIED' && manage()) { <button mat-button (click)="act(c, 'close')">关闭</button> }
           <button mat-button (click)="toggleHistory(c)">{{ history()[c.id] ? '收起记录' : '变更记录' }}</button>
+          <button mat-button (click)="toggleTalk(c.id)">{{ talkLabel(c.id) }}</button>
         </div>
+        @if (talk() === c.id) { <app-discussion [projectId]="project().id" entityType="CHANGE" [entityId]="c.id" [canPost]="project().status !== 'CLOSED'" /> }
         @if (history()[c.id]; as h) {
           @for (x of h; track x.id) { <div class="hist">{{ x.createdAt | date: 'yyyy-MM-dd HH:mm' }} · {{ x.action }}</div> }
         }
@@ -89,6 +92,12 @@ export class ProjectChanges {
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder).nonNullable;
   readonly project = input.required<Project>();
+  /** 展开讨论的对象，以及各对象的讨论条数 */
+  readonly talk = signal<string | null>(null);
+  readonly talkCounts = signal<Record<string, number>>({});
+  talkLabel(id: string) { const n = this.talkCounts()[id]; return n ? `讨论 (${n})` : '讨论'; }
+  toggleTalk(id: string) { this.talk.set(this.talk() === id ? null : id); void this.loadTalk(); }
+  async loadTalk() { try { this.talkCounts.set(await this.api.get<Record<string, number>>(`/projects/${this.project().id}/comment-counts?type=CHANGE`)); } catch { /* 忽略 */ } }
   readonly types = Object.keys(CHANGE_TYPE_LABELS) as ChangeType[];
   readonly typeLabels = CHANGE_TYPE_LABELS;
   readonly statusLabels = CHANGE_STATUS_LABELS;
@@ -118,7 +127,8 @@ export class ProjectChanges {
   }
 
   async ngOnInit() { await this.load(); }
-  async load() { this.rows.set(await this.api.get<ChangeRequest[]>(`/projects/${this.project().id}/changes`)); }
+  async load() {
+    void this.loadTalk(); this.rows.set(await this.api.get<ChangeRequest[]>(`/projects/${this.project().id}/changes`)); }
 
   private async run(fn: () => Promise<unknown>, fallback: string) {
     this.error.set('');

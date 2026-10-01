@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { Discussion } from './discussion';
 import { Api, errorMessage } from '../core/api';
 import { AuthService } from '../core/auth.service';
 import { Member, NC_SEVERITY_LABELS, NC_SOURCE_LABELS, NC_STATUS_LABELS, Nonconformity, Project, QualityPlan } from '../core/models';
@@ -18,7 +19,7 @@ const NEXT: Record<string, { to: string; label: string }> = {
 
 @Component({
   selector: 'app-project-quality',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [Discussion, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   styles: `.box { border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; padding: 12px 16px; margin: 12px 0; } .meta { font-size: 13px; color: var(--mat-sys-on-surface-variant); } .bad { color: var(--mat-sys-error); }`,
   template: `
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
@@ -65,6 +66,8 @@ const NEXT: Record<string, { to: string; label: string }> = {
           @if (next(n); as nx) { <button mat-button (click)="move(n, nx.to)">{{ nx.label }}</button> }
           @if (n.status === 'VERIFICATION') { <button mat-button (click)="move(n, 'ACTION', true)">措施无效，退回</button> }
         }
+        <button mat-button (click)="toggleTalk(n.id)">{{ talkLabel(n.id) }}</button>
+        @if (talk() === n.id) { <app-discussion [projectId]="project().id" entityType="NONCONFORMITY" [entityId]="n.id" [canPost]="project().status !== 'CLOSED'" /> }
       </div>
     }
     @if (ncs().length === 0) { <p>暂无不符合项。</p> }
@@ -76,6 +79,12 @@ export class ProjectQuality {
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder).nonNullable;
   readonly project = input.required<Project>();
+  /** 展开讨论的对象，以及各对象的讨论条数 */
+  readonly talk = signal<string | null>(null);
+  readonly talkCounts = signal<Record<string, number>>({});
+  talkLabel(id: string) { const n = this.talkCounts()[id]; return n ? `讨论 (${n})` : '讨论'; }
+  toggleTalk(id: string) { this.talk.set(this.talk() === id ? null : id); void this.loadTalk(); }
+  async loadTalk() { try { this.talkCounts.set(await this.api.get<Record<string, number>>(`/projects/${this.project().id}/comment-counts?type=NONCONFORMITY`)); } catch { /* 忽略 */ } }
   /** plan：只显示质量计划（质量策划页）；nc：只显示不符合项；all：都显示 */
   readonly part = input<'all' | 'plan' | 'nc'>('all');
   readonly plan = signal<QualityPlan | null>(null);
@@ -102,6 +111,7 @@ export class ProjectQuality {
     await this.load();
   }
   async load() {
+    void this.loadTalk();
     const id = this.project().id;
     const plan = await this.api.get<QualityPlan>(`/projects/${id}/quality-plan`);
     this.plan.set(plan);
