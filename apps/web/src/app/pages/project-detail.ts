@@ -29,7 +29,7 @@ import { ProjectReqVersions } from '../components/project-req-versions';
 /** 项目内按工作顺序分 7 组，每组下面再分子页；组和子页记在网址里（?g=组&s=子页），刷新和分享链接都回到同一页 */
 const GROUPS: { key: string; label: string; subs: { key: string; label: string }[] }[] = [
   { key: 'overview', label: '总览', subs: [{ key: 'overview', label: '总览' }] },
-  { key: 'plan', label: '计划', subs: [{ key: 'requirements', label: '项目要求与需求' }, { key: 'wbs', label: 'WBS 与进度' }, { key: 'costplan', label: '成本策划' }, { key: 'qualityplan', label: '质量策划' }, { key: 'members', label: '团队与职责' }, { key: 'approval', label: '计划批准' }] },
+  { key: 'plan', label: '计划', subs: [{ key: 'requirements', label: '项目要求与需求' }, { key: 'wbs', label: 'WBS 与进度' }, { key: 'costplan', label: '成本策划' }, { key: 'qualityplan', label: '质量策划' }, { key: 'objr', label: '目标与风险' }, { key: 'members', label: '团队与职责' }, { key: 'approval', label: '计划批准' }] },
   { key: 'exec', label: '执行', subs: [{ key: 'phases', label: '阶段与评审' }, { key: 'deliverables', label: '交付物' }] },
   { key: 'ctrl', label: '控制', subs: [{ key: 'issues', label: '问题与行动' }, { key: 'changes', label: '变更' }, { key: 'risks', label: '风险与机会' }, { key: 'cost', label: '成本' }] },
   { key: 'qual', label: '质量', subs: [{ key: 'inspections', label: '检验记录' }, { key: 'quality', label: '不符合项' }, { key: 'documents', label: '文档与配置' }] },
@@ -85,7 +85,8 @@ const DEFAULT_SUB: Record<string, string> = { overview: 'overview', plan: 'wbs',
           @case ('members') { <app-project-members [project]="p" /> }
           @case ('reviews') { <app-project-reviews [project]="p" /> }
           @case ('changes') { <app-project-changes [project]="p" /> }
-          @case ('risks') { <app-project-risks [project]="p" /> }
+          @case ('risks') { <app-project-risks [project]="p" mode="ctrl" /> }
+          @case ('objr') { <app-project-risks [project]="p" mode="plan" /> }
           @case ('issues') { <app-project-issues [project]="p" /> }
           @case ('cost') { <div class="stack"><app-project-cost-control [project]="p" /><app-project-cost [project]="p" /></div> }
           @case ('quality') { <app-project-quality [project]="p" part="nc" /> }

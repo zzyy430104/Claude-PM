@@ -69,6 +69,7 @@ import { MyApprovalRoles, NotificationRow, ROLE_LABELS } from '../core/models';
               <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">我的工作台</a>
               @if (showInitiations()) { <a routerLink="/initiations" routerLinkActive="active">立项管理</a> }
               <a routerLink="/projects" routerLinkActive="active">项目</a>
+              <a routerLink="/enterprise-risks" routerLinkActive="active">企业风险</a>
               @if (auth.hasRole('TENANT_ADMIN', 'TOP_MANAGEMENT', 'PROJECT_MANAGER', 'FUNCTION_MANAGER')) {
                 <a routerLink="/resources" routerLinkActive="active">资源</a>
               }

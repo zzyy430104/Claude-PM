@@ -56,7 +56,7 @@ export class PlanBuilderService {
         data: req.risks.map((r) => ({
           nextReviewAt: new Date(next.toISOString().slice(0, 10)), reviewCycleDays: days,
           tenantId: s.tenantId, projectId: project.id, kind: r.kind === 'OPPORTUNITY' ? RiskKind.OPPORTUNITY : RiskKind.RISK, title: r.text,
-          probability: mid, impact: mid, exposureAmount: 0, responseCost: 0, costBenefitAnalysis: '立项时识别，待项目经理评估', createdById: s.actorId, ownerId: s.managerId,
+          probability: mid, impact: mid, exposureAmount: 0, responseCost: 0, costBenefitAnalysis: '', description: '立项时识别，待项目经理评估', createdById: s.actorId, ownerId: s.managerId,
         })),
       });
     }

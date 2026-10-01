@@ -64,14 +64,20 @@ step('另存为 WBS 模板');
 
 // 风险增强
 await tab(p, '风险与机会');
-await p.click('mat-select[formcontrolname=kind]'); await p.click('mat-option:has-text("机会")');
-await p.fill('input[formcontrolname=title]', '国产轴承替代');
-await p.fill('input[formcontrolname=costBenefitAnalysis]', '节省成本明显');
-await p.fill('input[formcontrolname=maturityLevel]', 'TRL 7');
-await p.fill('input[formcontrolname=functionalReviewers]', '采购部张经理');
-await p.fill('input[formcontrolname=budgetRecovery]', '30000');
-await p.click('button:has-text("登记")');
-await p.waitForSelector('td:has-text("成熟度：TRL 7"):has-text("可弥补预算：30,000")'); step('风险与机会：成熟度、职能评审、可弥补预算');
+await p.click('button:has-text("+ 新增")');
+await p.selectOption('select[aria-label=类型]', 'OPPORTUNITY');
+await p.fill('input[aria-label=风险描述]', '国产轴承替代');
+await p.click('[role=tab]:has-text("2 评价")');
+await p.fill('input[aria-label=产品成熟度]', 'TRL 7');
+await p.fill('input[aria-label=参与评审的职能经理]', '采购部张经理');
+await p.fill('input[aria-label=可弥补预算]', '30000');
+await p.click('.win footer button:has-text("登记")');
+await p.waitForSelector('.win', { state: 'detached' });
+await p.click('tr[data-risk="国产轴承替代"] a');
+await p.click('[role=tab]:has-text("2 评价")');
+if (await p.inputValue('input[aria-label=产品成熟度]') !== 'TRL 7' || await p.inputValue('input[aria-label=可弥补预算]') !== '30000') throw new Error('成熟度或可弥补预算未保存');
+await p.click('.win button[aria-label=关闭]');
+step('风险与机会：成熟度、职能评审、可弥补预算');
 
 // SWOT
 await tab(p, '项目评审');

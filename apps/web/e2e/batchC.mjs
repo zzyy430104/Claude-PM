@@ -55,13 +55,17 @@ await p.waitForSelector('dd:has-text("1,200,000")'); step('预算已更新为 12
 
 // 3. 风险、问题、项目评审
 await tab(p, '风险与机会');
-await p.fill('input[formcontrolname=title]', '关键供应商延期');
-await p.fill('input[formcontrolname=exposureAmount]', '200000');
-await p.fill('input[formcontrolname=responseCost]', '30000');
-await p.fill('input[formcontrolname=costBenefitAnalysis]', '提前下单可避免大部分损失');
-await p.click('button:has-text("登记")');
-await p.waitForSelector('td:has-text("关键供应商延期")');
-await p.waitForSelector('text=应对划算'); step('风险登记并给出成本收益判断');
+await p.click('button:has-text("+ 新增")');
+await p.fill('input[aria-label=风险描述]', '关键供应商延期');
+await p.click('[role=tab]:has-text("2 评价")');
+await p.click('button[aria-label="可能性 高 影响 高"]');
+await p.fill('input[aria-label=潜在金额]', '200000');
+await p.click('[role=tab]:has-text("3 应对")');
+await p.fill('input[aria-label=应对成本]', '30000');
+await p.fill('textarea[aria-label=成本收益分析]', '提前下单可避免大部分损失');
+await p.waitForSelector('text=应对划算');
+await p.click('.win footer button:has-text("登记")');
+await p.waitForSelector('tr[data-risk="关键供应商延期"]:has-text("高")'); step('风险登记并给出成本收益判断');
 await tab(p, '问题与行动');
 await p.fill('input[formcontrolname=title]', '图纸版本冲突');
 await p.click('button:has-text("登记")');

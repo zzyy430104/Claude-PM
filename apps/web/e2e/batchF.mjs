@@ -3,7 +3,7 @@ import { seedTenant, seedProject, call } from './seed.mjs';
 const u = await seedTenant('f-' + Date.now().toString(36));
 const proj = await seedProject(u);
 // 造一点数据：高分风险、逾期行动项、一次待审批变更
-await call('POST', `/projects/${proj.id}/risks`, u.pm.access, { kind: 'RISK', title: '关键件延期', probability: 5, impact: 4, exposureAmount: 200000, responseCost: 30000, costBenefitAnalysis: '提前下单' });
+await call('POST', `/projects/${proj.id}/risks`, u.pm.access, { kind: 'RISK', title: '关键件延期', probability: 3, impact: 3, exposureAmount: 200000, responseCost: 30000, costBenefitAnalysis: '提前下单' });
 await call('POST', `/projects/${proj.id}/issues`, u.pm.access, { title: '补充设计评审记录', kind: 'ACTION', ownerId: u.member.id, dueDate: '2020-01-01' });
 const cr = await call('POST', `/projects/${proj.id}/changes`, u.member.access, { type: 'OTHER', title: '流程调整', description: 'd', reason: 'r', impactAnalysis: 'i' });
 await call('POST', `/projects/${proj.id}/changes/${cr.id}/submit`, u.member.access);

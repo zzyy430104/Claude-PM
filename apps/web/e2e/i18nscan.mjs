@@ -2,7 +2,7 @@ import { launch, loginAs, openProject, tab } from './lib.mjs';
 import { seedTenant, seedProject, call } from './seed.mjs';
 const u = await seedTenant('i-' + Date.now().toString(36));
 const proj = await seedProject(u);
-await call('POST', `/projects/${proj.id}/risks`, u.pm.access, { kind: 'RISK', title: 'Supplier delay', probability: 5, impact: 4, exposureAmount: 200000, responseCost: 30000, costBenefitAnalysis: 'Order early' });
+await call('POST', `/projects/${proj.id}/risks`, u.pm.access, { kind: 'RISK', title: 'Supplier delay', probability: 3, impact: 3, exposureAmount: 200000, responseCost: 30000, costBenefitAnalysis: 'Order early' });
 const { b, p } = await launch();
 await loginAs(p, u.pm);
 await p.evaluate(() => localStorage.setItem('pm.lang', 'en'));

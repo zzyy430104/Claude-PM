@@ -13,7 +13,8 @@ import {
 import { IssuesService } from './issues.service.js';
 import { ACCEPT, type Importance, importanceOf, loadRiskSettings, type RiskSettings, type Rule, ruleOf, type Who } from './risk-settings.js';
 
-const PROBABILITY_PERCENT = [0, 10, 30, 50, 70, 90];
+/** 可能性对应的概率：5 级 10/30/50/70/90%，3 级 10/50/90% */
+const PROBABILITY_PERCENT: Record<number, number[]> = { 3: [0, 10, 50, 90], 5: [0, 10, 30, 50, 70, 90] };
 const OPEN_STATUSES: RiskStatus[] = [RiskStatus.OPEN, RiskStatus.MITIGATING, RiskStatus.REVIEW];
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (n: number) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return new Date(day(d)); };
@@ -64,7 +65,7 @@ export class RisksService {
     const today = day(new Date());
     return risks.map((r) => {
       const exposure = Number(r.exposureAmount);
-      const expected = (exposure * (PROBABILITY_PERCENT[r.probability] ?? 0)) / 100;
+      const expected = (exposure * (PROBABILITY_PERCENT[s.scale][Math.min(r.probability, s.scale)] ?? 0)) / 100;
       const imp = importanceOf(s, r.probability, r.impact);
       const measures = r.level === RiskLevel3.ENTERPRISE
         ? r.measures.map((m) => ({ id: m.id, title: m.title, ownerId: m.ownerId, dueDate: m.dueDate ? day(m.dueDate) : null, done: !!m.doneAt, cost: Number(m.cost), issue: false }))

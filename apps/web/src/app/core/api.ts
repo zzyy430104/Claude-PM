@@ -69,6 +69,13 @@ export function errorMessage(e: unknown, fallback = '操作失败'): string {
   if (body?.code === 'INSPECTION_INCOMPLETE') return `还不能核验：${(e.error as { blockers?: string[] }).blockers?.join('；')}`;
   if (body?.code === 'RATE_REASON_REQUIRED') return '人工费率与标准费率不同，请写明原因';
   if (body?.code === 'NA_REASON_REQUIRED') return '选“不适用”时请写明理由';
+  if (body?.code === 'CBA_REQUIRED') return '选了应对策略，请先写成本收益分析';
+  if (body?.code === 'ACCEPT_REASON_REQUIRED') return '选“接受”时请写明理由';
+  if (body?.code === 'CONTINGENCY_REQUIRED') return '按规则，选“接受”还需要写应急预案';
+  if (body?.code === 'CLOSE_NOT_ALLOWED') return '按规则，这条风险由项目经理或管理层确认关闭';
+  if (body?.code === 'MEASURES_OPEN') return '还有措施没有完成，不能关闭';
+  if (body?.code === 'ACCEPT_NOT_APPROVED') return '“接受”还没有经管理层确认，不能关闭';
+  if (body?.code === 'UNKNOWN_STRATEGY') return '应对策略不在企业设置的列表里';
   if (body?.code === 'UNKNOWN_CATEGORY') return '检验类别不存在，请先在企业设置里添加';
   if (body?.code === 'PLAN_CHECK_FAILED') return `计划还有未通过的检查：${(e.error as { problems?: string[] }).problems?.join('；')}`;
   if (body?.code === 'WRONG_PASSWORD') return '当前密码不正确';

@@ -313,27 +313,79 @@ export interface ChangeRequest {
   effectivenessNote: string | null;
 }
 
+export type RiskLevelKey = 'ENTERPRISE' | 'PROJECT' | 'WORK_PACKAGE';
+export type Importance = 'LOW' | 'MEDIUM' | 'HIGH';
+export type RiskWho = 'OWNER' | 'PM' | 'MANAGEMENT';
+export interface RiskRule { approve: RiskWho; close: RiskWho; accept: 'REASON' | 'REASON_PLAN' | 'REASON_PLAN_APPROVAL'; notify: RiskWho[]; reviewDays: number }
+export interface RiskMeasureRow { id: string; title: string; ownerId: string | null; dueDate: string | null; done: boolean; cost: number; issue: boolean }
 export interface RiskRow {
   id: string;
   kind: 'RISK' | 'OPPORTUNITY';
+  level: RiskLevelKey;
+  projectId: string | null;
   title: string;
+  description?: string | null;
   probability: number;
   impact: number;
   score: number;
+  importance: Importance;
+  residualImportance: Importance | null;
+  rule: RiskRule;
   exposureAmount: string;
   responseCost: string;
   expectedValue: number;
   netBenefitOfResponse: number;
   costBenefitAnalysis: string;
-  status: 'OPEN' | 'MITIGATING' | 'OCCURRED' | 'CLOSED';
+  status: 'OPEN' | 'MITIGATING' | 'REVIEW' | 'OCCURRED' | 'CLOSED';
   ownerId: string | null;
   openActions: number;
   closedActions: number;
+  overdueMeasures: number;
   maturityLevel?: string | null;
   functionalReviewers?: string | null;
   budgetRecovery?: string | null;
+  workPackageId: string | null;
+  objectiveId: string | null;
+  cause: string;
+  effect: string;
+  strategy: string | null;
+  acceptReason: string | null;
+  contingencyPlan: string | null;
+  acceptApprovedById: string | null;
+  acceptApprovedAt: string | null;
+  trigger: string;
+  triggeredAt: string | null;
+  reviewCycleDays: number | null;
+  nextReviewAt: string | null;
+  reviewDue: boolean;
+  residualProbability: number | null;
+  residualImpact: number | null;
+  closureNote: string | null;
+  closedAt: string | null;
+  measures: RiskMeasureRow[];
+  projects: { id: string; code: string; name: string }[];
+  issues: { id: string; title: string; status: string }[];
 }
-export const RISK_STATUS_LABELS = { OPEN: '未处理', MITIGATING: '应对中', OCCURRED: '已发生', CLOSED: '已关闭' } as const;
+export interface RiskWarning { riskId: string; title: string; importance: Importance; kind: string; message: string; severity: 'red' | 'amber'; ownerId: string | null }
+export interface RiskReviewRow { id: string; probability: number; impact: number; note: string; reviewedById: string; createdAt: string; reviewedBy?: { name: string } }
+export interface RiskSettings {
+  scale: 3 | 5;
+  matrix: number[][];
+  criteria: Record<string, string[]>;
+  strategies: { RISK: string[]; OPPORTUNITY: string[] };
+  rules: Record<string, RiskRule>;
+}
+export interface Objective {
+  id: string; dimension: string; name: string; target: string; metric: 'DELIVERY' | 'COST' | 'FAI' | 'FIRST_PASS_YIELD' | 'MANUAL'; auto: boolean;
+  current: string | null; manualState: 'GREEN' | 'AMBER' | 'RED' | null;
+  currentText: string | null; metricState: string; state: 'GREEN' | 'AMBER' | 'RED' | 'GREY'; highRisk: boolean;
+  risks: { id: string; kind: string; title: string; importance: Importance; status: string }[];
+}
+export const RISK_STATUS_LABELS = { OPEN: '识别', MITIGATING: '应对中', REVIEW: '待复评', OCCURRED: '已发生', CLOSED: '已关闭' } as const;
+export const RISK_LEVEL_LABELS: Record<RiskLevelKey, string> = { ENTERPRISE: '企业级', PROJECT: '项目级', WORK_PACKAGE: '工作包级' };
+export const IMPORTANCE_LABELS: Record<Importance, string> = { LOW: '低', MEDIUM: '中', HIGH: '高' };
+export const RISK_WHO_LABELS: Record<RiskWho, string> = { OWNER: '责任人', PM: '项目经理', MANAGEMENT: '管理层' };
+export const ACCEPT_NEED_LABELS = { REASON: '写明理由', REASON_PLAN: '理由 + 应急预案', REASON_PLAN_APPROVAL: '理由 + 应急预案 + 管理层确认' } as const;
 
 export interface CostAccountRow {
   id: string; code: string; name: string; budget: number; actual: number; etc: number;

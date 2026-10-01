@@ -65,6 +65,10 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/audit').then((m) => m.AuditPage),
       },
       {
+        path: 'enterprise-risks',
+        loadComponent: () => import('./pages/enterprise-risks').then((m) => m.EnterpriseRisksPage),
+      },
+      {
         path: 'resources',
         canActivate: [roleGuard('TENANT_ADMIN', 'TOP_MANAGEMENT', 'PROJECT_MANAGER', 'FUNCTION_MANAGER')],
         loadComponent: () => import('./pages/resources').then((m) => m.ResourcesPage),
