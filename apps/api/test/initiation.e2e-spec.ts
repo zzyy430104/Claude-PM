@@ -42,6 +42,9 @@ describe('立项、项目要求、计划批准', () => {
     await http().post(`/initiations/${draft.id}/submit`).set(bearer(t.pm.token)).expect(200);
     await http().patch(`/initiations/${draft.id}`).set(bearer(t.pm.token)).send({ customer: 'y' }).expect(409); // 提交后锁定
     expect((await http().get('/notifications').set(bearer(t.top.token)).expect(200)).body.map((n: { kind: string }) => n.kind)).toContain('INITIATION_SUBMITTED');
+    // 工作台“待我处理”里有这条立项审批（申请人自己看不到）
+    expect((await http().get('/me/todos').set(bearer(t.top.token)).expect(200)).body.map((x: { kind: string; link: string }) => `${x.kind} ${x.link}`)).toContain(`INITIATION_APPROVAL /initiations/${draft.id}`);
+    expect((await http().get('/me/todos').set(bearer(t.pm.token)).expect(200)).body.map((x: { kind: string }) => x.kind)).not.toContain('INITIATION_APPROVAL');
 
     await http().post(`/initiations/${draft.id}/approve`).set(bearer(t.pm.token)).send({}).expect(403); // 不是批准人
     await http().post(`/initiations/${draft.id}/reject`).set(bearer(t.top.token)).send({}).expect(400); // 驳回要写原因

@@ -17,9 +17,10 @@ const start = new Date(Date.now() + 2 * 86_400_000); start.setHours(9, 30, 0, 0)
 const m = await call('POST', `/projects/${pid}/meetings`, u.pm.access, { title: '技术准备评审会', type: 'PHASE_REVIEW', startAt: start.toISOString(), endAt: new Date(start.getTime() + 3_600_000).toISOString(), location: '3 号会议室', attendees: [{ userId: u.member.id }] });
 await call('POST', `/projects/${pid}/meetings/${m.id}/notify`, u.pm.access);
 await call('POST', `/projects/${pid}/announcements`, u.pm.access, { title: '焊缝检验标准更新', body: '自下周起抽检比例提高到 100%。', requireRead: true });
+await call('POST', `/projects/${pid}/issues`, u.pm.access, { kind: 'ACTION', title: '催铸件供应商出排产计划', ownerId: u.member.id, dueDate: '2026-10-09' });
 
 const { b, p, errors } = await launch();
-p.on('dialog', (d) => d.accept());
+p.on('dialog', (d) => d.accept(d.type() === 'prompt' ? '已拿到排产计划' : undefined));
 
 // 1. 工作包上讨论并 @ 成员
 await loginAs(p, u.pm);
@@ -55,6 +56,11 @@ await p.waitForSelector(`[data-box=wps] li:has-text("${wp.code}"):has-text("计�
 await p.click('[data-meeting="技术准备评审会"] button:has-text("参加"):not(:has-text("不"))');
 await p.waitForSelector('[data-meeting="技术准备评审会"] .pill:text-is("已确认")');
 step('工作台：待我处理（@我、待读公告、待确认会议）、近期会议里直接确认参加、我负责的工作包带计划完成日期');
+await p.click('[data-box=actions] li:has-text("催铸件供应商出排产计划") button.done');
+await p.waitForSelector('[data-box=actions] li:has-text("催铸件供应商出排产计划")', { state: 'detached' });
+const closed = (await call('GET', `/projects/${pid}/issues`, u.pm.access)).find((i) => i.title === '催铸件供应商出排产计划');
+if (closed.status !== 'CLOSED' || closed.closureNote !== '已拿到排产计划') throw new Error('行动项没有按结论关闭');
+step('工作台：行动项直接点“完成”，填写关闭结论后关闭');
 
 await p.click('[data-box=pending] li:has-text("夹具图纸") a');
 await p.waitForSelector('.stabs [role=tab][aria-selected=true]:text-is("WBS 与进度")');

@@ -10,5 +10,6 @@ import { PlanTemplateExcelService } from './plan-template-excel.service.js';
 @Module({
   controllers: [InitiationsController],
   providers: [ApprovalRolesService, InitiationsService, PlanBuilderService, PlanningService, RequirementChangesService, PlanTemplateExcelService],
+  exports: [ApprovalRolesService],
 })
 export class InitiationsModule {}

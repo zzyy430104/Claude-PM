@@ -1,12 +1,12 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { Api } from '../core/api';
+import { Api, errorMessage } from '../core/api';
 import { AuthService } from '../core/auth.service';
 import { Dashboard, MeetingRow, Todo } from '../core/models';
-import { I18n } from '../core/i18n';
+import { askText, I18n } from '../core/i18n';
 
 const HEALTH = { RED: '告警', AMBER: '关注', GREEN: '正常' } as const;
-const TAG: Record<string, string> = { CHANGE_APPROVAL: '审批', GATE_REVIEW: '评审', NONCONFORMITY: '不符合项', TRAINING: '培训' };
+const TAG: Record<string, string> = { CHANGE_APPROVAL: '审批', INITIATION_APPROVAL: '审批', REQ_CHANGE_APPROVAL: '审批', PLAN_APPROVAL: '审批', INITIATION_COSIGN: '会签', GATE_REVIEW: '评审', NONCONFORMITY: '不符合项', TRAINING: '培训' };
 
 @Component({
   selector: 'app-home',
@@ -21,8 +21,10 @@ const TAG: Record<string, string> = { CHANGE_APPROVAL: '审批', GATE_REVIEW: '�
     .todo li:last-child { border-bottom: 0; }
     .wb { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; margin: 0 0 8px; }
     .wb .pcard { margin: 0; } .wb .body { padding-top: 4px; padding-bottom: 4px; }
-    ul.body { padding: 4px 20px; } .meet li.muted { display: block; }
-    @media (max-width: 760px) { .wb { grid-template-columns: 1fr; } ul.body { padding: 4px 14px; } }
+    ul.body { padding: 4px 20px; }
+    li.act { display: flex; gap: 10px; align-items: flex-start; } li.act > span { flex: 1; min-width: 0; }
+    .done { flex: none; border: 1px solid var(--pm-line); background: var(--pm-card); border-radius: 14px; padding: 2px 12px; font: inherit; font-size: 13px; color: var(--pm-primary); cursor: pointer; } .meet li.muted { display: block; }
+    @media (max-width: 760px) { .wb { grid-template-columns: 1fr; } ul.body { padding: 4px 14px; } .meet .rs .lnk { border: 1px solid var(--pm-line); border-radius: 14px; padding: 4px 12px; text-decoration: none; font-size: 13.5px; } .done { padding: 4px 14px; } }
     .todo small { color: var(--pm-muted); } .todo small.late { color: var(--pm-red); } .todo small.soon { color: var(--pm-amber); }
     .meet { list-style: none; margin: 0; padding: 0; }
     .meet li { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--pm-line); }
@@ -36,6 +38,7 @@ const TAG: Record<string, string> = { CHANGE_APPROVAL: '审批', GATE_REVIEW: '�
   template: `
     <div class="page">
       <h1>{{ i18n.t('欢迎，') }}{{ i18n.lang() === 'en' ? ' ' : '' }}{{ auth.user()?.name }}</h1>
+      @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
       @if (!auth.hasRole('PLATFORM_ADMIN')) {
         <div class="wb">
           <section class="pcard" data-box="pending">
@@ -68,7 +71,8 @@ const TAG: Record<string, string> = { CHANGE_APPROVAL: '审批', GATE_REVIEW: '�
             <header><h3>{{ i18n.t('我的行动项') }}</h3><span class="sub">{{ actions().length }}</span></header>
             <ul class="todo body">
               @for (t of actions(); track $index) {
-                <li><a [href]="t.link" (click)="go($event, t.link)">{{ t.projectCode }}</a> · {{ t.title }}@if (t.dueDate) { <small [class.late]="t.dueDate < today"> · {{ t.dueDate }}{{ t.dueDate < today ? ' ' + i18n.t('已逾期') : '' }}</small> }</li>
+                <li class="act"><span><a [href]="t.link" (click)="go($event, t.link)">{{ t.projectCode }}</a> · {{ t.title }}@if (t.dueDate) { <small [class.late]="t.dueDate < today"> · {{ t.dueDate }}{{ t.dueDate < today ? ' ' + i18n.t('已逾期') : '' }}</small> }</span>
+                  @if (t.refId) { <button type="button" class="done" (click)="closeAction(t)">{{ i18n.t('完成') }}</button> }</li>
               } @empty { <li class="muted">{{ i18n.t('没有未关闭的行动项') }}</li> }
             </ul>
           </section>
@@ -129,6 +133,7 @@ export class HomePage {
 
   private readonly router = inject(Router);
   readonly meetings = signal<(MeetingRow & { project?: { id: string; code: string; name: string }; projectId: string })[]>([]);
+  readonly error = signal('');
   readonly extra = signal<{ tag: string; title: string; link: string; sub?: string }[]>([]);
   readonly today = new Date().toISOString().slice(0, 10);
   readonly weekEnd = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
@@ -160,6 +165,17 @@ export class HomePage {
       ...mentions.filter((m) => m.createdAt >= recent).map((m) => ({ tag: '@我', title: `${m.author}：${m.body}`, link: m.link, sub: m.project })),
       ...handovers.filter((h) => h.status === 'PENDING').map((h) => ({ tag: '交接', title: `确认接收售后交接：${h.project?.code} ${h.project?.name}`, link: '/handovers' })),
     ]);
+  }
+
+  /** 工作台上直接关闭行动项（写关闭结论），手机上不用再进项目 */
+  async closeAction(t: Todo) {
+    this.error.set('');
+    const closureNote = await askText('请填写关闭结论（做了什么、结果如何）');
+    if (!closureNote?.trim()) return;
+    try {
+      await this.api.patch(`/projects/${t.projectId}/issues/${t.refId}`, { status: 'CLOSED', closureNote: closureNote.trim() });
+      this.todos.update((xs) => xs.filter((x) => x !== t));
+    } catch (e) { this.error.set(errorMessage(e, '关闭失败')); }
   }
 
   go(e: Event, link: string) { e.preventDefault(); void this.router.navigateByUrl(link); }

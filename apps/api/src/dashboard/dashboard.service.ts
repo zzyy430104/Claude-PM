@@ -5,6 +5,7 @@ import type { AuthUser } from '../common/auth.types.js';
 import { MetricsService } from '../governance/metrics.service.js';
 import { PerformanceService } from '../governance/performance.service.js';
 import { WbsService } from '../projects/wbs.service.js';
+import { ApprovalRolesService } from '../initiations/approval-roles.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { importanceOf, loadRiskSettings } from '../governance/risk-settings.js';
 
@@ -20,6 +21,7 @@ export class DashboardService {
     private readonly metrics: MetricsService,
     private readonly performance: PerformanceService,
     private readonly wbs: WbsService,
+    private readonly roles: ApprovalRolesService,
   ) {}
 
   private visibleProjects(actor: AuthUser) {
@@ -143,9 +145,9 @@ export class DashboardService {
     const memberOf = new Map(members.map((m) => [m.projectId, m]));
     const link = (projectId: string) => `/projects/${projectId}`;
     const linkOf: Record<string, string> = { ISSUE: 'g=ctrl&s=issues', WORK_PACKAGE: 'g=plan&s=wbs', NONCONFORMITY: 'g=qual&s=quality', CHANGE_APPROVAL: 'g=ctrl&s=changes', GATE_REVIEW: 'g=exec&s=phases' };
-    const todos: { kind: string; title: string; projectId: string; projectCode: string; link: string; dueDate?: string | null }[] = [];
-    const add = (kind: string, title: string, projectId: string, dueDate?: Date | null) =>
-      todos.push({ kind, title, projectId, projectCode: pid.get(projectId) ?? '', link: link(projectId) + (linkOf[kind] ? `?${linkOf[kind]}` : ''), dueDate: dueDate ? dueDate.toISOString().slice(0, 10) : null });
+    const todos: { kind: string; title: string; projectId: string; projectCode: string; link: string; dueDate?: string | null; refId?: string }[] = [];
+    const add = (kind: string, title: string, projectId: string, dueDate?: Date | null, refId?: string) =>
+      todos.push({ kind, title, projectId, projectCode: pid.get(projectId) ?? '', link: link(projectId) + (linkOf[kind] ? `?${linkOf[kind]}` : ''), dueDate: dueDate ? dueDate.toISOString().slice(0, 10) : null, refId });
 
     for (const c of submitted) {
       const m = memberOf.get(c.projectId);
@@ -155,7 +157,7 @@ export class DashboardService {
       const m = memberOf.get(g.projectId);
       if (m?.projectRole === ProjectRole.PROJECT_MANAGER) add('GATE_REVIEW', '有一个进行中的关口评审待记录结论', g.projectId);
     }
-    for (const i of issues) add('ISSUE', `${i.kind === 'ISSUE' ? '问题' : '行动项'}：${i.title}`, i.projectId, i.dueDate);
+    for (const i of issues) add('ISSUE', `${i.kind === 'ISSUE' ? '问题' : '行动项'}：${i.title}`, i.projectId, i.dueDate, i.id);
     for (const n of ncs) add('NONCONFORMITY', `执行纠正措施 ${n.code}：${n.title}`, n.projectId, n.actionDueDate);
     // 我负责的工作包：带计划完成日期（本周到期和已逾期排在前面）
     const ends = new Map<string, string>();
@@ -169,6 +171,27 @@ export class DashboardService {
       add('WORK_PACKAGE', `工作包 ${w.code} ${w.name}（${w.percentComplete}%）`, w.projectId, end ? new Date(end) : null);
     }
     for (const t of trainings) add('TRAINING', `培训：${t.title}`, t.projectId, t.dueDate);
+    // 立项、项目要求变更、计划批准：按审批角色（企业级，不限于我参与的项目）
+    const mine = await this.roles.mine(actor);
+    const [inits, reqChanges, plans] = await Promise.all([
+      mine.approver || mine.cosigner
+        ? this.prisma.initiation.findMany({ where: { tenantId, status: { in: ['PENDING', 'COSIGN'] }, applicantId: { not: actor.id } }, include: { opinions: { select: { userId: true } } }, orderBy: { createdAt: 'asc' } })
+        : Promise.resolve([]),
+      mine.approver
+        ? this.prisma.requirementChange.findMany({ where: { tenantId, status: 'PENDING', applicantId: { not: actor.id } }, orderBy: { createdAt: 'asc' } })
+        : Promise.resolve([]),
+      mine.planApprover
+        ? this.prisma.project.findMany({ where: { tenantId, planSubmittedAt: { not: null }, initiationId: { not: null } }, select: { id: true, code: true, name: true } })
+        : Promise.resolve([]),
+    ]);
+    const push = (kind: string, title: string, link: string, projectId = '', projectCode = '') => todos.push({ kind, title, projectId, projectCode, link, dueDate: null });
+    for (const i of inits) {
+      if (i.status === 'PENDING' && mine.approver) push('INITIATION_APPROVAL', `立项待审批：${i.name}（${i.type} 类）`, `/initiations/${i.id}`, '', i.code);
+      if (i.status === 'COSIGN' && mine.cosigner && !i.opinions.some((o) => o.userId === actor.id)) push('INITIATION_COSIGN', `立项待会签：${i.name}（${i.type} 类）`, `/initiations/${i.id}`, '', i.code);
+    }
+    const rcCodes = new Map((reqChanges.length ? await this.prisma.project.findMany({ where: { tenantId, id: { in: reqChanges.map((c) => c.projectId) } }, select: { id: true, code: true } }) : []).map((p) => [p.id, p.code]));
+    for (const c of reqChanges) push('REQ_CHANGE_APPROVAL', `项目要求变更待审批 ${c.code}：${c.reason}`, `/initiations?tab=rc&id=${c.id}`, c.projectId, rcCodes.get(c.projectId) ?? '');
+    for (const p of plans) push('PLAN_APPROVAL', `计划待批准：${p.code} ${p.name}`, `/projects/${p.id}?g=plan&s=approval`, p.id, p.code);
     return todos.sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'));
   }
 }

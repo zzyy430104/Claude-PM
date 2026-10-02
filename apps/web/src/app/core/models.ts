@@ -433,7 +433,7 @@ export interface DashboardProject {
   triangle?: { quality: Health; schedule: Health; cost: Health }; spi?: number | null; cpi?: number | null;
 }
 export interface Dashboard { totals: { projects: number; red: number; amber: number; green: number }; projects: DashboardProject[] }
-export interface Todo { kind: string; title: string; projectId: string; projectCode: string; link: string; dueDate: string | null }
+export interface Todo { kind: string; title: string; projectId: string; projectCode: string; link: string; dueDate: string | null; refId?: string }
 export interface NotificationRow { id: string; kind: string; title: string; body: string; link: string | null; readAt: string | null; createdAt: string }
 
 export type RequirementCategory = 'TIME' | 'COMMERCIAL' | 'TECHNICAL' | 'REGULATORY' | 'OTHER';
