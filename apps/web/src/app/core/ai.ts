@@ -14,10 +14,12 @@ export class Ai {
   private readonly api = inject(Api);
   readonly scenarios = signal<Record<AiScenario, boolean>>({ CONTRACT: false, PLAN: false, QUICK: false, MINUTES: false, ANALYSIS: false, REPORT: false });
   private loaded: Promise<void> | null = null;
+  private loadedAt = 0;
 
-  /** 读取一次可用场景；不可用时 AI 按钮隐藏 */
+  /** 读取可用场景（缓存 1 分钟：管理员刚启用 AI，其他人不用刷新页面）；不可用时 AI 按钮隐藏 */
   load(force = false) {
-    if (!this.loaded || force) {
+    if (!this.loaded || force || Date.now() - this.loadedAt > 60_000) {
+      this.loadedAt = Date.now();
       this.loaded = this.api.get<{ enabled: boolean; scenarios: Record<AiScenario, boolean> }>('/ai/status')
         .then((s) => this.scenarios.set(s.scenarios))
         .catch(() => undefined);

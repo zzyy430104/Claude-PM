@@ -313,6 +313,7 @@ export class RiskDrawer {
 
   constructor() {
     portalToBody();
+    void inject(Ai).load(); // 企业风险页也会打开本抽屉
     effect(() => {
       const r = this.risk();
       const id = r?.id ?? null;
