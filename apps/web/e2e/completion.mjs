@@ -2,7 +2,7 @@
 import { writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { launch, step, loginAs, openProject, tab, WEB } from './lib.mjs';
+import { launch, step, loginAs, openProject, tab, WEB, pick } from './lib.mjs';
 import { seedTenant, seedProject, call } from './seed.mjs';
 import ExcelJS from '../../api/node_modules/exceljs/dist/es5/index.js';
 const slug = 'cm-' + Date.now().toString(36);
@@ -21,16 +21,18 @@ await p.waitForSelector('text=已保存'); step('企业设置节假日');
 // 里程碑与工期按工作日
 await loginAs(p, u.pm); await openProject(p, proj.code);
 await tab(p, 'WBS');
-await p.fill('input[formcontrolname=code]', 'A');
-await p.fill('input[formcontrolname=name]', '方案设计');
-await p.fill('input[formcontrolname=durationDays]', '5');
-await p.click('mat-select[formcontrolname=ownerId]'); await p.click('mat-option:has-text("王成员")');
-await p.click('button:has-text("添加工作包")');
+await p.click('button:has-text("+ 新增工作包")');
+await p.fill('app-modal input[formcontrolname=code]', 'A');
+await p.fill('app-modal input[formcontrolname=name]', '方案设计');
+await p.fill('app-modal input[formcontrolname=durationDays]', '5');
+await pick(p, 'app-modal select[formcontrolname=ownerId]', '王成员');
+await p.click('app-modal button:has-text("添加工作包")');
 await p.waitForSelector('tr:has-text("方案设计"):has-text("2026-10-06")'); step('工期按工作日计算，跳过周末和节假日');
-await p.fill('input[formcontrolname=code]', 'M1');
-await p.fill('input[formcontrolname=name]', '设计评审通过');
-await p.click('mat-checkbox:has-text("里程碑")');
-await p.click('button:has-text("添加工作包")');
+await p.click('button:has-text("+ 新增工作包")');
+await p.fill('app-modal input[formcontrolname=code]', 'M1');
+await p.fill('app-modal input[formcontrolname=name]', '设计评审通过');
+await p.check('app-modal input[formcontrolname=isMilestone]');
+await p.click('app-modal button:has-text("添加工作包")');
 await p.waitForSelector('tr:has-text("◆") :text("设计评审通过")'); step('新增里程碑');
 
 // Excel 导入

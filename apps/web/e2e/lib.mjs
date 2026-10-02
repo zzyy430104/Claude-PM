@@ -117,3 +117,11 @@ export async function tab(p, label) {
   }
   await p.waitForTimeout(300);
 }
+
+/** 原生下拉框：按选项文字（包含即可）选择 */
+export async function pick(p, select, text) {
+  await p.waitForFunction(([sel, t]) => [...(document.querySelector(sel)?.options ?? [])].some((o) => o.textContent.includes(t)), [select, text]);
+  const value = await p.$eval(select, (el, t) => [...el.options].find((o) => o.textContent.includes(t))?.value, text);
+  if (value === undefined) throw new Error(`${select} 没有包含“${text}”的选项`);
+  await p.selectOption(select, value);
+}

@@ -4,6 +4,7 @@ import { Api, errorMessage } from '../core/api';
 import { Discussion } from './discussion';
 import { AuthService } from '../core/auth.service';
 import { Brand } from '../core/brand';
+import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
 import { portalToBody } from '../core/portal';
 import {
   CostPlan, INSPECTION_RESULT_LABELS, InspectionItem, InspectionResult, InspectionTemplate, Project, WorkPackage, WpCost, WP_STATUS_LABELS,
@@ -16,11 +17,11 @@ const yuan = (n: number) => Math.round(n).toLocaleString('zh-CN');
 /** 工作包详情：时间、成本（预算策划 + 执行）、质量（检验 / 验证项与结果） */
 @Component({
   selector: 'app-wp-drawer',
-  imports: [MatButtonModule, Discussion],
+  imports: [CdkDrag, CdkDragHandle, MatButtonModule, Discussion],
   styles: `
     .shade { position: fixed; inset: 0; background: rgba(20, 26, 24, .38); z-index: 1000; display: flex; justify-content: flex-end; }
     .win { background: var(--pm-card); width: min(640px, 100%); height: 100%; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(0,0,0,.15); }
-    .win > header { display: flex; justify-content: space-between; gap: 12px; padding: 16px 20px 6px; }
+    .win > header { display: flex; justify-content: space-between; gap: 12px; padding: 16px 20px 6px; cursor: move; user-select: none; }
     .win > header h2 { margin: 2px 0 0 !important; font-size: 18px; }
     .x { border: 0; background: none; font-size: 20px; cursor: pointer; color: var(--pm-muted); }
     nav { display: flex; gap: 4px; border-bottom: 1px solid var(--pm-line); padding: 0 20px; }
@@ -45,8 +46,8 @@ const yuan = (n: number) => Math.round(n).toLocaleString('zh-CN');
   `,
   template: `
     <div class="shade" (click)="$event.target === $event.currentTarget && closed.emit()">
-      <div class="win" role="dialog" [attr.aria-label]="'工作包 ' + wp().code">
-        <header><div><div class="muted" style="font-size: 12px">工作包</div><h2>{{ wp().code }} {{ wp().name }}</h2></div><button class="x" type="button" (click)="closed.emit()" aria-label="关闭">✕</button></header>
+      <div class="win" cdkDrag cdkDragBoundary=".shade" role="dialog" [attr.aria-label]="'工作包 ' + wp().code">
+        <header cdkDragHandle title="按住拖动"><div><div class="muted" style="font-size: 12px">工作包</div><h2>{{ wp().code }} {{ wp().name }}</h2></div><button class="x" type="button" (click)="closed.emit()" aria-label="关闭">✕</button></header>
         <nav role="tablist">
           @for (t of tabs; track t[0]) { <button type="button" role="tab" [attr.aria-selected]="tab() === t[0]" (click)="tab.set(t[0])">{{ t[1] }}</button> }
         </nav>

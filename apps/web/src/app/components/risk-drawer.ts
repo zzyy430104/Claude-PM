@@ -6,6 +6,7 @@ import { AiMark } from './ai-mark';
 import { Ai } from '../core/ai';
 import { AuthService } from '../core/auth.service';
 import { askText } from '../core/i18n';
+import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
 import { portalToBody } from '../core/portal';
 import {
   ACCEPT_NEED_LABELS, IMPORTANCE_LABELS, Importance, Objective, RISK_LEVEL_LABELS, RISK_STATUS_LABELS, RISK_WHO_LABELS,
@@ -31,11 +32,11 @@ interface Draft {
 /** 风险 / 机会详情：识别 → 评价 → 应对 → 预警 → 复评与关闭（企业级、项目级、工作包级共用） */
 @Component({
   selector: 'app-risk-drawer',
-  imports: [MatButtonModule, Discussion, AiMark],
+  imports: [CdkDrag, CdkDragHandle, MatButtonModule, Discussion, AiMark],
   styles: `
     .shade { position: fixed; inset: 0; background: rgba(20, 26, 24, .38); z-index: 1000; display: flex; justify-content: flex-end; }
     .win { background: var(--pm-card); width: min(680px, 100%); height: 100%; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(0,0,0,.15); }
-    .win > header { display: flex; justify-content: space-between; gap: 12px; padding: 16px 20px 6px; }
+    .win > header { display: flex; justify-content: space-between; gap: 12px; padding: 16px 20px 6px; cursor: move; user-select: none; }
     .win > header h2 { margin: 2px 0 0 !important; font-size: 18px; }
     .x { border: 0; background: none; font-size: 20px; cursor: pointer; color: var(--pm-muted); }
     nav { display: flex; gap: 2px; border-bottom: 1px solid var(--pm-line); padding: 0 20px; overflow-x: auto; }
@@ -68,8 +69,8 @@ interface Draft {
   `,
   template: `
     <div class="shade" (click)="$event.target === $event.currentTarget && closed.emit()">
-      <div class="win" role="dialog" [attr.aria-label]="risk()?.title ?? '新增风险'">
-        <header>
+      <div class="win" cdkDrag cdkDragBoundary=".shade" role="dialog" [attr.aria-label]="risk()?.title ?? '新增风险'">
+        <header cdkDragHandle title="按住拖动">
           <div>
             <div class="muted" style="font-size: 12px">{{ d().kind === 'RISK' ? '风险' : '机会' }} · {{ levelLabel(d().level) }}@if (risk(); as r) { · {{ statusLabel(r) }} }</div>
             <h2>{{ risk()?.title || '新增' + (d().kind === 'RISK' ? '风险' : '机会') }}</h2>

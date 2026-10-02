@@ -1,5 +1,5 @@
 // 改进方案第一步“整合”：需求、工作包四要素、计划批准与版本、按变更增删范围、草稿编辑、组织图、成本记到工作包
-import { launch, step, loginAs, openProject, tab } from './lib.mjs';
+import { launch, step, loginAs, openProject, tab, pick } from './lib.mjs';
 import { seedTenant, seedProject, call } from './seed.mjs';
 const slug = 'in-' + Date.now().toString(36);
 const u = await seedTenant(slug);
@@ -27,23 +27,24 @@ await p.waitForSelector('.stat:not(.red):has-text("未关联交付物")'); step(
 
 // 工作包四要素
 await tab(p, 'WBS');
-await p.fill('input[formcontrolname=code]', '1');
-await p.fill('input[formcontrolname=name]', '构架采购');
-await p.fill('input[formcontrolname=durationDays]', '30');
-await p.click('mat-select[formcontrolname=phaseId]'); await p.click(`mat-option:has-text("${phases[1].name}")`);
-await p.click('mat-select[formcontrolname=deliverableId]'); await p.click('mat-option:has-text("型式试验报告")');
-await p.click('mat-select[formcontrolname=costAccountId]'); await p.click('mat-option:has-text("CA1")');
-await p.fill('input[formcontrolname=budget]', '80000');
-await p.fill('input[formcontrolname=resourceDays]', '12');
-await p.fill('input[formcontrolname=externalProvider]', '某铸造厂');
-await p.click('mat-checkbox:has-text("长周期物料")');
-await p.click('button:has-text("添加工作包")');
+await p.click('button:has-text("+ 新增工作包")');
+await p.fill('app-modal input[formcontrolname=code]', '1');
+await p.fill('app-modal input[formcontrolname=name]', '构架采购');
+await p.fill('app-modal input[formcontrolname=durationDays]', '30');
+await pick(p, 'app-modal select[formcontrolname=phaseId]', phases[1].name);
+await pick(p, 'app-modal select[formcontrolname=deliverableId]', '型式试验报告');
+await pick(p, 'app-modal select[formcontrolname=costAccountId]', 'CA1');
+await p.fill('app-modal input[formcontrolname=budget]', '80000');
+await p.fill('app-modal input[formcontrolname=resourceDays]', '12');
+await p.fill('app-modal input[formcontrolname=externalProvider]', '某铸造厂');
+await p.check('app-modal input[formcontrolname=longLead]');
+await p.click('app-modal button:has-text("添加工作包")');
 await p.waitForSelector('.tag:has-text("外部供方：某铸造厂")');
 await p.waitForSelector('.tag:has-text("长周期")');
 await p.waitForSelector(`.tag:has-text("${phases[1].name}")`); step('新增工作包：阶段、交付物、成本科目、预算、资源、外部供方、长周期');
 await p.click('tr:has-text("构架采购") button:has-text("编辑")');
-await p.click('mat-select[formcontrolname=phaseId]'); await p.click(`mat-option:has-text("${phases[0].name}")`);
-await p.click('button:has-text("保存修改")');
+await pick(p, 'app-modal select[formcontrolname=phaseId]', phases[0].name);
+await p.click('app-modal button:has-text("保存修改")');
 await p.waitForSelector(`.tag:has-text("${phases[0].name}")`); step('编辑工作包，改归属阶段');
 
 // 组织图
@@ -77,12 +78,13 @@ await call('POST', `/projects/${pid}/changes/${cr.id}/submit`, u.pm.access);
 await call('POST', `/projects/${pid}/changes/${cr.id}/approve`, u.top.access, { note: '同意' });
 
 await tab(p, '概览'); await tab(p, 'WBS');
-await p.fill('input[formcontrolname=code]', '2');
-await p.fill('input[formcontrolname=name]', '构架探伤');
-await p.click('button:has-text("添加工作包")');
-await p.waitForSelector('text=需要引用一项已批准的变更申请'); step('未引用变更时新增被拦截');
-await p.click('.scope-cr mat-select'); await p.click('mat-option:has-text("增加构架探伤")');
-await p.click('button:has-text("添加工作包")');
+await p.click('button:has-text("+ 新增工作包")');
+await p.fill('app-modal input[formcontrolname=code]', '2');
+await p.fill('app-modal input[formcontrolname=name]', '构架探伤');
+await p.click('app-modal button:has-text("添加工作包")');
+await p.waitForSelector('app-modal .error:has-text("需要引用一项已批准的变更申请")'); step('未引用变更时新增被拦截（弹窗内提示）');
+await pick(p, 'app-modal select[aria-label=依据的范围变更]', '增加构架探伤');
+await p.click('app-modal button:has-text("添加工作包")');
 await p.waitForSelector('td:has-text("构架探伤")'); step('引用已批准的范围变更后新增工作包');
 
 // 成本记到工作包

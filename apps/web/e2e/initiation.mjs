@@ -74,7 +74,7 @@ await p.click('.pcard:has-text("按职能角色指定责任人") button:has-text
 await p.waitForSelector('.pcard:has-text("按职能角色指定责任人")', { state: 'detached' });
 step('WBS：交期倒排提示；按职能角色一次指定责任人');
 await p.selectOption('select[aria-label=从可选工作包库添加]', { label: '型式试验（20 天）' });
-await p.click('.tools button:has-text("添加")');
+await p.click('.tools button:has-text("添加"):not(:has-text("依赖"))');
 await p.waitForSelector('td:has-text("型式试验")');
 step('从可选工作包库添加“型式试验”');
 await p.reload(); await p.waitForSelector('.gtabs');

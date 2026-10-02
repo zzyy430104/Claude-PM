@@ -2,11 +2,10 @@ import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { AiPlan } from './ai-plan';
+import { Modal } from './modal';
 import { Ai } from '../core/ai';
 import { Api, errorMessage } from '../core/api';
 import { askText } from '../core/i18n';
@@ -22,7 +21,7 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
 
 @Component({
   selector: 'app-project-wbs',
-  imports: [AiPlan, ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, GanttComponent, WpDrawer],
+  imports: [AiPlan, Modal, ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatFormFieldModule, MatSelectModule, GanttComponent, WpDrawer],
   styles: `
     .crit-name { color: var(--pm-red); font-weight: 500; }
     .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
@@ -89,6 +88,11 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
     }
 
     <div class="tools">
+      @if (manage()) {
+        <button mat-flat-button type="button" (click)="openNew()">+ 新增工作包</button>
+        <button mat-stroked-button type="button" (click)="error.set(''); depOpen.set(true)">+ 添加依赖</button>
+        <span class="sep"></span>
+      }
       <button mat-stroked-button type="button" (click)="exportExcel()">导出 Excel</button>
       @if (manage()) {
         <button mat-stroked-button type="button" (click)="templateExcel()">下载导入模板</button>
@@ -148,74 +152,79 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
       </div>
     }
 
-    @if (manage()) {
-      <form class="row" [formGroup]="wpForm" (ngSubmit)="saveWp()">
-        <div class="form-title">{{ editing() ? '编辑工作包 ' + editing()!.code : '新增工作包' }}</div>
-        <mat-form-field><mat-label>编号</mat-label><input matInput formControlName="code" placeholder="1.1" /></mat-form-field>
-        <mat-form-field><mat-label>名称</mat-label><input matInput formControlName="name" /></mat-form-field>
-        @if (!editing()) {
-          <mat-form-field>
-            <mat-label>上级</mat-label>
-            <mat-select formControlName="parentId">
-              <mat-option value="">（顶层）</mat-option>
-              @for (w of items(); track w.id) { <mat-option [value]="w.id">{{ w.code }} {{ w.name }}</mat-option> }
-            </mat-select>
-          </mat-form-field>
+    @if (wpOpen()) {
+      <app-modal [title]="editing() ? '编辑工作包 ' + editing()!.code : '新增工作包'" width="720px" (closed)="cancelEdit()">
+        @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
+        @if (project().baselined && !editing()) {
+          <label class="fld" style="margin-bottom: 8px">依据的范围变更（计划已批准，新增工作包需要引用）<select [formControl]="crControl" aria-label="依据的范围变更">
+            <option value="">（不引用）</option>
+            @for (c of scopeChanges(); track c.id) { <option [value]="c.id">{{ c.code }} {{ c.title }}</option> }
+          </select></label>
         }
-        <mat-checkbox formControlName="isMilestone">里程碑</mat-checkbox>
-        @if (!wpForm.controls.isMilestone.value) {
-          <mat-form-field><mat-label>工期（工作日）</mat-label><input matInput type="number" formControlName="durationDays" /></mat-form-field>
-        }
-        <mat-form-field>
-          <mat-label>负责人</mat-label>
-          <mat-select formControlName="ownerId">
-            <mat-option value="">未分配</mat-option>
-            @for (m of members(); track m.userId) { <mat-option [value]="m.userId">{{ m.user?.name }}</mat-option> }
-          </mat-select>
-        </mat-form-field>
-        <mat-form-field>
-          <mat-label>所属阶段</mat-label>
-          <mat-select formControlName="phaseId">
-            <mat-option value="">未指定</mat-option>
-            @for (ph of phases(); track ph.id) { <mat-option [value]="ph.id">{{ ph.order }}. {{ ph.name }}</mat-option> }
-          </mat-select>
-        </mat-form-field>
-        <mat-form-field>
-          <mat-label>产出的交付物</mat-label>
-          <mat-select formControlName="deliverableId">
-            <mat-option value="">无</mat-option>
-            @for (dl of deliverables(); track dl.id) { <mat-option [value]="dl.id">{{ dl.name }}</mat-option> }
-          </mat-select>
-        </mat-form-field>
-        <mat-form-field>
-          <mat-label>成本科目</mat-label>
-          <mat-select formControlName="costAccountId">
-            <mat-option value="">未指定</mat-option>
-            @for (a of accounts(); track a.id) { <mat-option [value]="a.id">{{ a.code }} {{ a.name }}</mat-option> }
-          </mat-select>
-        </mat-form-field>
-        <mat-form-field><mat-label>预算</mat-label><input matInput type="number" formControlName="budget" /></mat-form-field>
-        <mat-form-field><mat-label>资源估算（人天）</mat-label><input matInput type="number" formControlName="resourceDays" /></mat-form-field>
-        <mat-form-field><mat-label>外部供方（如由供方完成）</mat-label><input matInput formControlName="externalProvider" /></mat-form-field>
-        <mat-checkbox formControlName="longLead">长周期物料</mat-checkbox>
-        <button mat-flat-button type="submit" [disabled]="wpForm.invalid">{{ editing() ? '保存修改' : '添加工作包' }}</button>
-        @if (editing()) { <button mat-button type="button" (click)="cancelEdit()">取消</button> }
-      </form>
-      <form class="row" [formGroup]="depForm" (ngSubmit)="addDep()">
-        <mat-form-field>
-          <mat-label>前置</mat-label>
-          <mat-select formControlName="predecessorId">
-            @for (w of leaves(); track w.id) { <mat-option [value]="w.id">{{ w.code }} {{ w.name }}</mat-option> }
-          </mat-select>
-        </mat-form-field>
-        <mat-form-field>
-          <mat-label>后续（完成后才能开始）</mat-label>
-          <mat-select formControlName="successorId">
-            @for (w of leaves(); track w.id) { <mat-option [value]="w.id">{{ w.code }} {{ w.name }}</mat-option> }
-          </mat-select>
-        </mat-form-field>
-        <button mat-stroked-button type="submit" [disabled]="depForm.invalid">添加依赖</button>
-      </form>
+        <form id="wp-form" [formGroup]="wpForm" (ngSubmit)="saveWp()">
+          <div class="fgrid">
+            <label class="fld">编号 <span class="req">*</span><input formControlName="code" placeholder="1.1" aria-label="编号" /></label>
+            <label class="fld" style="grid-column: span 2">名称 <span class="req">*</span><input formControlName="name" aria-label="名称" /></label>
+            @if (!editing()) {
+              <label class="fld" style="grid-column: span 2">上级<select formControlName="parentId" aria-label="上级">
+                <option value="">（顶层）</option>
+                @for (w of items(); track w.id) { <option [value]="w.id">{{ w.code }} {{ w.name }}</option> }
+              </select></label>
+            }
+            @if (!wpForm.controls.isMilestone.value) {
+              <label class="fld">工期（工作日） <span class="req">*</span><input type="number" min="1" formControlName="durationDays" aria-label="工期" /></label>
+            }
+            <label class="fld">负责人<select formControlName="ownerId" aria-label="负责人">
+              <option value="">未分配</option>
+              @for (m of members(); track m.userId) { <option [value]="m.userId">{{ m.user?.name }}</option> }
+            </select></label>
+            <label class="fld">所属阶段<select formControlName="phaseId" aria-label="所属阶段">
+              <option value="">未指定</option>
+              @for (ph of phases(); track ph.id) { <option [value]="ph.id">{{ ph.order }}. {{ ph.name }}</option> }
+            </select></label>
+            <label class="fld">产出的交付物<select formControlName="deliverableId" aria-label="产出的交付物">
+              <option value="">无</option>
+              @for (dl of deliverables(); track dl.id) { <option [value]="dl.id">{{ dl.name }}</option> }
+            </select></label>
+            <label class="fld">成本科目<select formControlName="costAccountId" aria-label="成本科目">
+              <option value="">未指定</option>
+              @for (a of accounts(); track a.id) { <option [value]="a.id">{{ a.code }} {{ a.name }}</option> }
+            </select></label>
+            <label class="fld">预算（元）<input type="number" min="0" formControlName="budget" aria-label="预算" /></label>
+            <label class="fld">资源估算（人天）<input type="number" min="0" formControlName="resourceDays" aria-label="资源估算" /></label>
+            <label class="fld" style="grid-column: span 2">外部供方（如由供方完成）<input formControlName="externalProvider" aria-label="外部供方" /></label>
+          </div>
+          <div style="display: flex; gap: 20px; margin-top: 10px">
+            <label class="chk"><input type="checkbox" formControlName="isMilestone" /> 里程碑</label>
+            <label class="chk"><input type="checkbox" formControlName="longLead" /> 长周期物料</label>
+          </div>
+        </form>
+        <ng-container footer>
+          <button mat-button type="button" (click)="cancelEdit()">取消</button>
+          <button mat-flat-button type="submit" form="wp-form" [disabled]="wpForm.invalid">{{ editing() ? '保存修改' : '添加工作包' }}</button>
+        </ng-container>
+      </app-modal>
+    }
+    @if (depOpen()) {
+      <app-modal title="添加依赖" width="520px" (closed)="depOpen.set(false)">
+        @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
+        <form id="dep-form" [formGroup]="depForm" (ngSubmit)="addDep()">
+          <div class="fgrid">
+            <label class="fld">前置 <span class="req">*</span><select formControlName="predecessorId" aria-label="前置">
+              <option value="">请选择</option>
+              @for (w of leaves(); track w.id) { <option [value]="w.id">{{ w.code }} {{ w.name }}</option> }
+            </select></label>
+            <label class="fld">后续（前置完成后才能开始） <span class="req">*</span><select formControlName="successorId" aria-label="后续">
+              <option value="">请选择</option>
+              @for (w of leaves(); track w.id) { <option [value]="w.id">{{ w.code }} {{ w.name }}</option> }
+            </select></label>
+          </div>
+        </form>
+        <ng-container footer>
+          <button mat-button type="button" (click)="depOpen.set(false)">关闭</button>
+          <button mat-flat-button type="submit" form="dep-form" [disabled]="depForm.invalid">添加依赖</button>
+        </ng-container>
+      </app-modal>
     }
 
     <mat-button-toggle-group [value]="view()" (change)="view.set($event.value)" aria-label="视图">
@@ -306,6 +315,8 @@ export class ProjectWbs {
   readonly accounts = signal<CostSummary['accounts']>([]);
   readonly scopeChanges = signal<ChangeRequest[]>([]);
   readonly editing = signal<WorkPackage | null>(null);
+  readonly wpOpen = signal(false);
+  readonly depOpen = signal(false);
   readonly baseline = signal<BaselineDates | null>(null);
   readonly slips = signal<Record<string, number>>({});
   readonly wbsTemplates = signal<WbsTemplate[]>([]);
@@ -482,10 +493,18 @@ export class ProjectWbs {
       externalProvider: w.externalProvider ?? '', longLead: w.longLead, isMilestone: !!w.isMilestone,
     });
     this.wpForm.controls.code.disable();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    this.error.set('');
+    this.wpOpen.set(true);
+  }
+
+  openNew() {
+    this.cancelEdit();
+    this.error.set('');
+    this.wpOpen.set(true);
   }
 
   cancelEdit() {
+    this.wpOpen.set(false);
     this.editing.set(null);
     this.wpForm.controls.code.enable();
     this.wpForm.reset(this.empty);
@@ -560,6 +579,7 @@ export class ProjectWbs {
     return this.run(async () => {
       await this.api.post(`/projects/${this.project().id}/dependencies`, this.depForm.getRawValue());
       this.depForm.reset({ predecessorId: '', successorId: '' });
+      this.depOpen.set(false);
     }, '添加依赖失败');
   }
 
