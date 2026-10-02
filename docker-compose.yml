@@ -31,6 +31,8 @@ services:
       # 数据库账号绕过了行级安全时拒绝启动
       REQUIRE_RLS: "true"
       JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
+      # 后台进程数：auto 按 CPU 核数（最多 8 个）；小机器可设 1 或 2
+      WORKERS: ${WORKERS:-auto}
       ALLOW_TENANT_SIGNUP: ${ALLOW_TENANT_SIGNUP:-false}
       PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-}
       PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}

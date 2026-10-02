@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { Project } from '../generated/prisma/client.js';
+import type { Project, WorkPackage, WpDependency } from '../generated/prisma/client.js';
 import { computeSchedule } from '../projects/schedule.js';
 import { CalendarService } from '../projects/calendar.service.js';
 
@@ -22,9 +22,10 @@ export interface ProgressSnapshot {
 export class MetricsService {
   constructor(private readonly prisma: PrismaService, private readonly calendars: CalendarService) {}
 
-  async progress(ctx: { project: Project; tenantId: string }, today = new Date()): Promise<ProgressSnapshot> {
+  /** pre：工作台一次查好多个项目的工作包和依赖后传进来，避免逐个项目查询 */
+  async progress(ctx: { project: Project; tenantId: string }, today = new Date(), pre?: { wps: WorkPackage[]; deps: WpDependency[] }): Promise<ProgressSnapshot> {
     const { project, tenantId } = ctx;
-    const [wps, deps] = await Promise.all([
+    const [wps, deps] = pre ? [pre.wps, pre.deps] : await Promise.all([
       this.prisma.workPackage.findMany({ where: { projectId: project.id, tenantId } }),
       this.prisma.wpDependency.findMany({ where: { projectId: project.id, tenantId } }),
     ]);

@@ -1806,3 +1806,13 @@ model AiUsage {
   @@index([tenantId, entityType, entityId])
   @@map("ai_usages")
 }
+
+/// 登录、注册、改密的尝试记录（限流用）。存数据库而不是进程内存：多进程、多实例时共用同一份计数
+model AuthAttempt {
+  id  BigInt   @id @default(autoincrement())
+  key String
+  at  DateTime @default(now())
+
+  @@index([key, at])
+  @@map("auth_attempts")
+}

@@ -22,33 +22,36 @@ const utc = (d: Date | string) => {
 
 export class WorkCalendar {
   private readonly week: Set<number>;
-  private readonly off: Set<string>;
-  private readonly on: Set<string>;
+  // 节假日和调休按“自 1970-01-01 起的天数”存，判断工作日时不用每天生成日期字符串（排程、挣值要逐日循环，很热）
+  private readonly off: Set<number>;
+  private readonly on: Set<number>;
 
   constructor(s: CalendarSettings = DEFAULT_CALENDAR) {
     this.week = new Set(s.workWeek.length ? s.workWeek : DEFAULT_CALENDAR.workWeek);
-    this.off = new Set(s.holidays);
-    this.on = new Set(s.extraWorkdays);
+    this.off = new Set(s.holidays.map((d) => utc(d) / DAY));
+    this.on = new Set(s.extraWorkdays.map((d) => utc(d) / DAY));
+  }
+
+  private workDay(d: number): boolean {
+    if (this.on.has(d)) return true;
+    if (this.off.has(d)) return false;
+    return this.week.has((((d + 3) % 7) + 7) % 7 + 1); // 1970-01-01 是周四
   }
 
   isWorking(t: number): boolean {
-    const day = iso(t);
-    if (this.on.has(day)) return true;
-    if (this.off.has(day)) return false;
-    const dow = new Date(t).getUTCDay() || 7;
-    return this.week.has(dow);
+    return this.workDay(Math.floor(t / DAY));
   }
 
   /** 从 start 起第 offset 个工作日（offset 0 为 start 当天或之后第一个工作日） */
   dateAt(start: Date | string, offset: number): string {
-    let t = utc(start);
+    let d = utc(start) / DAY;
     let guard = 0;
-    while (!this.isWorking(t) && guard++ < 3660) t += DAY;
+    while (!this.workDay(d) && guard++ < 3660) d++;
     for (let n = 0; n < offset && guard < 20000; guard++) {
-      t += DAY;
-      if (this.isWorking(t)) n++;
+      d++;
+      if (this.workDay(d)) n++;
     }
-    return iso(t);
+    return iso(d * DAY);
   }
 
   /** 工作包的计划起止：开始 = 第 es 个工作日；结束 = 最后一个工作日（里程碑工期为 0，起止同一天） */
@@ -58,11 +61,11 @@ export class WorkCalendar {
 
   /** [from, to) 之间的工作日数；to 早于 from 时为负数 */
   workdaysBetween(from: Date | string, to: Date | string): number {
-    const a = utc(from);
-    const b = utc(to);
+    const a = utc(from) / DAY;
+    const b = utc(to) / DAY;
     const sign = b >= a ? 1 : -1;
     let n = 0;
-    for (let t = Math.min(a, b); t < Math.max(a, b); t += DAY) if (this.isWorking(t)) n++;
+    for (let d = Math.min(a, b); d < Math.max(a, b); d++) if (this.workDay(d)) n++;
     return sign * n;
   }
 }

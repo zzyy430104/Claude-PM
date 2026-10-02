@@ -13,7 +13,8 @@ export class BootstrapService implements OnModuleInit {
 
   async onModuleInit() {
     await this.checkRowLevelSecurity();
-    await withBypass(() => this.ensurePlatformAdmin());
+    // 多进程时只由第一个进程创建平台管理员，避免并发重复创建
+    if (process.env.PM_BOOTSTRAP !== '0') await withBypass(() => this.ensurePlatformAdmin());
   }
 
   /**

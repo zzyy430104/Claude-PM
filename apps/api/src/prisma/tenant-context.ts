@@ -10,6 +10,10 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 export interface TenantContext {
   tenantId?: string | null;
   bypass?: boolean;
+  /** 只读请求的共享事务：整个请求只写一次租户上下文，查询都走这一个事务（见 PrismaService.readScope） */
+  tx?: unknown;
+  /** 同一请求内的小缓存（如工作日历），随请求结束丢弃 */
+  memo?: Map<string, unknown>;
 }
 
 export const tenantContext = new AsyncLocalStorage<TenantContext>();
@@ -24,4 +28,12 @@ export function withBypass<T>(fn: () => PromiseLike<T>): Promise<T> {
 /** 以指定租户身份执行（用于测试和后台任务） */
 export function withTenant<T>(tenantId: string, fn: () => PromiseLike<T>): Promise<T> {
   return tenantContext.run({ tenantId }, async () => await fn());
+}
+
+/** 同一请求内只算一次（不在只读请求里时直接计算） */
+export function requestMemo<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const memo = tenantContext.getStore()?.memo;
+  if (!memo) return fn();
+  if (!memo.has(key)) memo.set(key, fn());
+  return memo.get(key) as Promise<T>;
 }

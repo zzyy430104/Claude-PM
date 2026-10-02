@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Project } from '../generated/prisma/client.js';
+import type { PlanVersion, Project, WorkPackage, WpDependency } from '../generated/prisma/client.js';
 import { WpStatus } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { PlanSnapshot } from '../projects/plan-versions.service.js';
@@ -11,6 +11,20 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const ratio = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) / 100 : null);
 
 export type Health = 'RED' | 'AMBER' | 'GREEN';
+
+type Num = { toString(): string } | number;
+/** 计算项目绩效所需的数据（单个项目现查，或由 preload 批量查好） */
+export interface PerfInput {
+  tenant: { evmAmber: Num; evmRed: Num } | null;
+  version: PlanVersion | null;
+  wps: WorkPackage[];
+  deps: WpDependency[];
+  costSum: number;
+  accounts: { budget: Num; estimateToComplete: Num | null; actual: number }[];
+  deliverables: { id: string; name: string; status: string; dueDate: Date | null }[];
+  requirements: { status: string; deliverableId: string | null }[];
+  ncs: { severity: string }[];
+}
 export interface Dimension { health: Health; reasons: string[] }
 
 /**
@@ -26,9 +40,8 @@ export interface Dimension { health: Health; reasons: string[] }
 export class PerformanceService {
   constructor(private readonly prisma: PrismaService, private readonly calendars: CalendarService) {}
 
-  async compute(ctx: { project: Project; tenantId: string }, today = new Date()) {
-    const { project, tenantId } = ctx;
-    const where = { projectId: project.id, tenantId };
+  private async load(projectId: string, tenantId: string): Promise<PerfInput> {
+    const where = { projectId, tenantId };
     const [tenant, version, wps, deps, costSum, accounts, deliverables, requirements, ncs] = await Promise.all([
       this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { evmAmber: true, evmRed: true } }),
       this.prisma.planVersion.findFirst({ where, orderBy: { version: 'desc' } }),
@@ -40,6 +53,41 @@ export class PerformanceService {
       this.prisma.requirement.findMany({ where, select: { status: true, deliverableId: true } }),
       this.prisma.nonconformity.findMany({ where: { ...where, status: { not: 'CLOSED' } }, select: { severity: true } }),
     ]);
+    return { tenant, version, wps, deps, costSum: Number(costSum._sum.amount ?? 0), accounts: accounts.map((a) => ({ budget: a.budget, estimateToComplete: a.estimateToComplete, actual: a.entries.reduce((m, e) => m + Number(e.amount), 0) })), deliverables, requirements, ncs };
+  }
+
+  /** 一次查出多个项目的计算数据（每类数据一条查询），按项目返回 */
+  async preload(projectIds: string[], tenantId: string): Promise<Map<string, PerfInput>> {
+    const where = { projectId: { in: projectIds }, tenantId };
+    const latest = await this.prisma.planVersion.groupBy({ by: ['projectId'], where, _max: { version: true } });
+    const [tenant, versions, wps, deps, costSums, accounts, accountSums, deliverables, requirements, ncs] = await Promise.all([
+      this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { evmAmber: true, evmRed: true } }),
+      latest.length ? this.prisma.planVersion.findMany({ where: { tenantId, OR: latest.map((l) => ({ projectId: l.projectId, version: l._max.version! })) } }) : Promise.resolve([]),
+      this.prisma.workPackage.findMany({ where }),
+      this.prisma.wpDependency.findMany({ where }),
+      this.prisma.costEntry.groupBy({ by: ['projectId'], where, _sum: { amount: true } }),
+      this.prisma.costAccount.findMany({ where, select: { id: true, projectId: true, budget: true, estimateToComplete: true } }),
+      this.prisma.costEntry.groupBy({ by: ['accountId'], where, _sum: { amount: true } }),
+      this.prisma.deliverable.findMany({ where, select: { id: true, name: true, status: true, dueDate: true, projectId: true } }),
+      this.prisma.requirement.findMany({ where, select: { status: true, deliverableId: true, projectId: true } }),
+      this.prisma.nonconformity.findMany({ where: { ...where, status: { not: 'CLOSED' } }, select: { severity: true, projectId: true } }),
+    ]);
+    const by = <T extends { projectId: string }>(rows: T[], id: string) => rows.filter((r) => r.projectId === id);
+    const actualBy = new Map(accountSums.map((s) => [s.accountId, Number(s._sum.amount ?? 0)]));
+    return new Map(projectIds.map((id) => [id, {
+      tenant,
+      version: versions.find((v) => v.projectId === id) ?? null,
+      wps: by(wps, id), deps: by(deps, id),
+      costSum: Number(costSums.find((c) => c.projectId === id)?._sum.amount ?? 0),
+      accounts: by(accounts, id).map((a) => ({ budget: a.budget, estimateToComplete: a.estimateToComplete, actual: actualBy.get(a.id) ?? 0 })),
+      deliverables: by(deliverables, id), requirements: by(requirements, id), ncs: by(ncs, id),
+    }]));
+  }
+
+  /** 一次查好多个项目的数据（工作台用），见 preload() */
+  async compute(ctx: { project: Project; tenantId: string }, today = new Date(), pre?: PerfInput) {
+    const { project, tenantId } = ctx;
+    const { tenant, version, wps, deps, costSum, accounts, deliverables, requirements, ncs } = pre ?? await this.load(project.id, tenantId);
     const amberAt = Number(tenant?.evmAmber ?? 0.95);
     const redAt = Number(tenant?.evmRed ?? 0.9);
     const todayIso = iso(today);
@@ -80,13 +128,12 @@ export class PerformanceService {
         if (slip !== 0) slips.push({ id: w.id, code: w.code, name: w.name, baselineEnd: w.end, currentEnd: ce, slipDays: slip, critical: !!cur.get(w.id)?.critical });
       }
     }
-    const ac = round2(Number(costSum._sum.amount ?? 0));
+    const ac = round2(costSum);
     const spi = snap ? ratio(ev, pv) : null;
     const cpi = snap ? ratio(ev, ac) : null;
     const accountEac = accounts.reduce((n, a) => {
-      const actual = a.entries.reduce((m, e) => m + Number(e.amount), 0);
-      const etc = a.estimateToComplete !== null ? Number(a.estimateToComplete) : Math.max(Number(a.budget) - actual, 0);
-      return n + actual + etc;
+      const etc = a.estimateToComplete !== null ? Number(a.estimateToComplete) : Math.max(Number(a.budget) - a.actual, 0);
+      return n + a.actual + etc;
     }, 0);
     const eac = cpi && budget ? round2(budget / cpi) : accounts.length ? round2(accountEac) : null;
 
@@ -128,9 +175,8 @@ export class PerformanceService {
     if (cpi !== null && cpi < redAt) cRed.push(`成本绩效指数 CPI ${fmt(cpi)} 低于 ${fmt(redAt)}`);
     else if (cpi !== null && cpi < amberAt) cAmber.push(`成本绩效指数 CPI ${fmt(cpi)} 低于 ${fmt(amberAt)}`);
     const accountOverruns = accounts.filter((a) => {
-      const actual = a.entries.reduce((m, e) => m + Number(e.amount), 0);
-      const etc = a.estimateToComplete !== null ? Number(a.estimateToComplete) : Math.max(Number(a.budget) - actual, 0);
-      return actual + etc > Number(a.budget);
+      const etc = a.estimateToComplete !== null ? Number(a.estimateToComplete) : Math.max(Number(a.budget) - a.actual, 0);
+      return a.actual + etc > Number(a.budget);
     }).length;
     if (accountOverruns) cAmber.push(`${accountOverruns} 个成本科目预计超支`);
 

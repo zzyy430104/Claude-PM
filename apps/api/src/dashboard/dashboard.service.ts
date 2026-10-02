@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { ChangeStatus, IssueStatus, ProjectRole, ProjectStatus, Role, WpStatus } from '../generated/prisma/enums.js';
 import { requireTenantId } from '../common/auth.types.js';
 import type { AuthUser } from '../common/auth.types.js';
-import { CostService } from '../cost/cost.service.js';
 import { MetricsService } from '../governance/metrics.service.js';
 import { PerformanceService } from '../governance/performance.service.js';
 import { WbsService } from '../projects/wbs.service.js';
@@ -19,7 +18,6 @@ export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly metrics: MetricsService,
-    private readonly cost: CostService,
     private readonly performance: PerformanceService,
     private readonly wbs: WbsService,
   ) {}
@@ -49,19 +47,38 @@ export class DashboardService {
     const todayIso = today.toISOString().slice(0, 10);
 
     const riskSettings = await loadRiskSettings(this.prisma, tenantId);
+    // 每类数据对所有项目只查一次（以前是每个项目各查一遍，项目多时工作台很慢）
+    const ids = projects.map((p) => p.id);
+    const where = { projectId: { in: ids }, tenantId };
+    if (!ids.length) return { totals: { projects: 0, red: 0, amber: 0, green: 0 }, projects: [] };
+    const [pre, issuesAll, risksAll, reviews, changes, phases] = await Promise.all([
+      this.performance.preload(ids, tenantId),
+      this.prisma.issue.findMany({ where: { ...where, status: IssueStatus.OPEN }, select: { projectId: true, dueDate: true } }),
+      this.prisma.risk.findMany({ where: { ...where, status: { not: 'CLOSED' }, kind: 'RISK' }, select: { projectId: true, probability: true, impact: true } }),
+      this.prisma.projectReview.groupBy({ by: ['projectId'], where, _max: { reviewDate: true } }),
+      this.prisma.changeRequest.groupBy({ by: ['projectId'], where: { ...where, status: ChangeStatus.SUBMITTED }, _count: { _all: true } }),
+      this.prisma.phase.findMany({ where: { ...where, status: 'ACTIVE' }, select: { projectId: true, name: true } }),
+    ]);
+    const round2 = (n: number) => Math.round(n * 100) / 100;
     const rows = [];
     for (const p of projects) {
-      const [progress, issues, risks, ncs, lastReview, pendingChanges, activePhase, cost] = await Promise.all([
-        this.metrics.progress({ project: p, tenantId }, today),
-        this.prisma.issue.findMany({ where: { projectId: p.id, tenantId, status: IssueStatus.OPEN }, select: { dueDate: true } }),
-        this.prisma.risk.findMany({ where: { projectId: p.id, tenantId, status: { not: 'CLOSED' }, kind: 'RISK' }, select: { probability: true, impact: true } }),
-        this.prisma.nonconformity.findMany({ where: { projectId: p.id, tenantId, status: { not: 'CLOSED' } }, select: { severity: true } }),
-        this.prisma.projectReview.findFirst({ where: { projectId: p.id, tenantId }, orderBy: { reviewDate: 'desc' }, select: { reviewDate: true } }),
-        this.prisma.changeRequest.count({ where: { projectId: p.id, tenantId, status: ChangeStatus.SUBMITTED } }),
-        this.prisma.phase.findFirst({ where: { projectId: p.id, tenantId, status: 'ACTIVE' }, select: { name: true } }),
-        p.budget ? this.cost.summary(actor, p.id) : Promise.resolve(null),
-      ]);
-      const perf = await this.performance.compute({ project: p, tenantId }, today);
+      const input = pre.get(p.id)!;
+      const issues = issuesAll.filter((i) => i.projectId === p.id);
+      const risks = risksAll.filter((r) => r.projectId === p.id);
+      const ncs = input.ncs;
+      const reviewed = reviews.find((r) => r.projectId === p.id)?._max.reviewDate ?? null;
+      const lastReview = reviewed ? { reviewDate: reviewed } : null;
+      const pendingChanges = changes.find((c) => c.projectId === p.id)?._count._all ?? 0;
+      const activePhase = phases.find((x) => x.projectId === p.id) ?? null;
+      const progress = await this.metrics.progress({ project: p, tenantId }, today, { wps: input.wps, deps: input.deps });
+      // 成本汇总（与成本页的计算一致）：科目 EAC = 实际 + 剩余估算
+      const accts = input.accounts.map((a) => {
+        const etc = a.estimateToComplete !== null ? Number(a.estimateToComplete) : Math.max(round2(Number(a.budget) - a.actual), 0);
+        return { overrun: round2(a.actual + etc) > Number(a.budget), eac: round2(a.actual + etc) };
+      });
+      const eacSum = round2(accts.reduce((n, a) => n + a.eac, 0));
+      const cost = p.budget ? { accounts: accts, projectBudget: Number(p.budget), eac: eacSum, overrun: eacSum > Number(p.budget) } : null;
+      const perf = await this.performance.compute({ project: p, tenantId }, today, input);
 
       const overdueActions = issues.filter((i) => i.dueDate && i.dueDate.toISOString().slice(0, 10) < todayIso).length;
       const highRisks = risks.filter((r) => importanceOf(riskSettings, r.probability, r.impact) === 'HIGH').length;

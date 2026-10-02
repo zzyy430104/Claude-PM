@@ -37,8 +37,8 @@ export class AuthService {
 
   private async doSignup(dto: SignupDto, ip: string) {
     const l = limits();
-    this.limiter.assertBelow(`signup|${ip}`, l.signupPerIp, 60 * 60_000);
-    this.limiter.record(`signup|${ip}`, 60 * 60_000);
+    await this.limiter.assertBelow(`signup|${ip}`, l.signupPerIp, 60 * 60_000);
+    await this.limiter.record(`signup|${ip}`);
     if (process.env.ALLOW_TENANT_SIGNUP !== 'true') {
       throw new ForbiddenException('Tenant signup is disabled');
     }
@@ -60,14 +60,14 @@ export class AuthService {
     const l = limits();
     const accountKey = `login|${dto.tenantSlug ?? ''}|${email}`;
     const ipKey = `login-ip|${ip}`;
-    this.limiter.assertBelow(accountKey, l.loginPerAccount, l.windowMs);
-    this.limiter.assertBelow(ipKey, l.loginPerIp, l.windowMs);
+    await this.limiter.assertBelow(accountKey, l.loginPerAccount, l.windowMs);
+    await this.limiter.assertBelow(ipKey, l.loginPerIp, l.windowMs);
     try {
       return await withBypass(() => this.doLogin(dto, email));
     } catch (e) {
       if (e instanceof UnauthorizedException) {
-        this.limiter.record(accountKey, l.windowMs);
-        this.limiter.record(ipKey, l.windowMs);
+        await this.limiter.record(accountKey);
+        await this.limiter.record(ipKey);
       }
       throw e;
     }
@@ -102,7 +102,7 @@ export class AuthService {
       entity: 'User',
       entityId: user.id,
     });
-    this.limiter.reset(`login|${dto.tenantSlug ?? ''}|${email}`);
+    await this.limiter.reset(`login|${dto.tenantSlug ?? ''}|${email}`);
     return this.issueTokens(user.id, user.tenantId, user.role);
   }
 
@@ -143,10 +143,10 @@ export class AuthService {
   async changePassword(actor: AuthUser, dto: ChangePasswordDto) {
     const l = limits();
     const key = `pwchange|${actor.id}`;
-    this.limiter.assertBelow(key, l.loginPerAccount, l.windowMs);
+    await this.limiter.assertBelow(key, l.loginPerAccount, l.windowMs);
     const user = await withBypass(() => this.prisma.user.findUnique({ where: { id: actor.id } }));
     if (!user || !(await verifyPassword(dto.currentPassword, user.passwordHash))) {
-      this.limiter.record(key, l.windowMs);
+      await this.limiter.record(key);
       throw new BadRequestException({ code: 'WRONG_PASSWORD', message: 'Current password is incorrect' });
     }
     if (dto.currentPassword === dto.newPassword) {
@@ -166,7 +166,7 @@ export class AuthService {
         );
       }),
     );
-    this.limiter.reset(key);
+    await this.limiter.reset(key);
     return withBypass(() => this.issueTokens(user.id, user.tenantId, user.role));
   }
 

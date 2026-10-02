@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { withBypass } from '../prisma/tenant-context.js';
+import { requestMemo, withBypass } from '../prisma/tenant-context.js';
 import { CalendarSettings, DEFAULT_CALENDAR, WorkCalendar } from './calendar.js';
 
 /** 读取企业的工作日历设置 */
@@ -20,7 +20,7 @@ export class CalendarService {
     };
   }
 
-  async forTenant(tenantId: string) {
-    return new WorkCalendar(await this.settings(tenantId));
+  forTenant(tenantId: string) {
+    return requestMemo(`calendar:${tenantId}`, async () => new WorkCalendar(await this.settings(tenantId)));
   }
 }
