@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, errorMessage } from '../core/api';
 import { ACCEPT_NEED_LABELS, IMPORTANCE_LABELS, RISK_LEVEL_LABELS, RISK_WHO_LABELS, RiskRule, RiskSettings, RiskWho } from '../core/models';
+import { askConfirm } from '../core/dialog';
 
 const IMP = ['LOW', 'MEDIUM', 'HIGH'] as const;
 const LEVELS = ['ENTERPRISE', 'PROJECT', 'WORK_PACKAGE'] as const;
@@ -137,9 +138,9 @@ export class RiskSettingsEditor {
   toggleNotify(k: string, w: RiskWho, on: boolean) {
     this.edit((s) => { const n = s.rules[k].notify.filter((x) => x !== w); s.rules[k] = { ...s.rules[k], notify: on ? [...n, w] : n }; });
   }
-  reset() {
+  async reset() {
     const d = this.defaults;
-    if (!d || !confirm('恢复为默认的 5 × 5 矩阵、判断标准、策略和规则？')) return;
+    if (!d || !await askConfirm('恢复为默认的 5 × 5 矩阵、判断标准、策略和规则？')) return;
     this.apply({ scale: 5, matrix: d.matrix5, criteria: d.criteria, strategies: d.strategies, rules: d.rules });
     this.saved.set(false);
   }

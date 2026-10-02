@@ -2,6 +2,7 @@ import { Component, computed, effect, inject, input, signal } from '@angular/cor
 import { MatButtonModule } from '@angular/material/button';
 import { Api, errorMessage } from '../core/api';
 import { Member } from '../core/models';
+import { askConfirm } from '../core/dialog';
 
 export type CommentEntity = 'WORK_PACKAGE' | 'RISK' | 'CHANGE' | 'NONCONFORMITY' | 'DELIVERABLE';
 interface CommentRow { id: string; body: string; deleted: boolean; createdAt: string; author: string; mine: boolean }
@@ -85,7 +86,7 @@ export class Discussion {
     } catch (e) { this.error.set(errorMessage(e, '发表失败')); }
   }
   async remove(c: CommentRow) {
-    if (!confirm('删除这条讨论？')) return;
+    if (!await askConfirm('删除这条讨论？')) return;
     try { await this.api.delete(`/projects/${this.projectId()}/comments/${c.id}`); await this.load(); } catch (e) { this.error.set(errorMessage(e, '删除失败')); }
   }
 }

@@ -3,6 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Api, errorMessage } from '../core/api';
 import { askText } from '../core/i18n';
 import { Project, PURCHASE_STATUS_LABELS, PurchaseItemRow, PurchasePlanView } from '../core/models';
+import { askConfirm } from '../core/dialog';
 
 const yuan = (n: number) => Math.round(n).toLocaleString('zh-CN');
 
@@ -138,26 +139,26 @@ export class ProjectPurchase {
     if (p['name'] !== undefined && !(p['name'] as string).trim()) return this.load();
     return this.run(() => this.api.patch(`${this.base()}/purchase-items/${i.id}`, p), '保存失败');
   }
-  remove(i: PurchaseItemRow) { if (confirm(`删除 ${i.code} ${i.name}？`)) return this.run(() => this.api.delete(`${this.base()}/purchase-items/${i.id}`), '删除失败'); return undefined; }
+  async remove(i: PurchaseItemRow) { if (await askConfirm(`删除 ${i.code} ${i.name}？`)) return this.run(() => this.api.delete(`${this.base()}/purchase-items/${i.id}`), '删除失败'); return undefined; }
   approve() { return this.run(() => this.api.post(`${this.base()}/purchase-plan/approve`, {}), '批准失败'); }
-  order(i: PurchaseItemRow) {
-    const orderNo = askText(`${i.code} ${i.name} 下单：订单号（可不填）`);
+  async order(i: PurchaseItemRow) {
+    const orderNo = await askText(`${i.code} ${i.name} 下单：订单号（可不填）`);
     if (orderNo === null) return;
     return this.run(() => this.api.post(`${this.base()}/purchase-items/${i.id}/order`, { orderNo: orderNo || undefined }), '下单失败');
   }
-  receive(i: PurchaseItemRow) {
-    const v = askText(`${i.code} ${i.name} 已到货比例（0–100）`);
+  async receive(i: PurchaseItemRow) {
+    const v = await askText(`${i.code} ${i.name} 已到货比例（0–100）`);
     if (v === null || v.trim() === '') return;
     const n = Math.round(Number(v));
     if (!Number.isFinite(n) || n < 0 || n > 100) { this.error.set('到货比例应在 0–100 之间'); return; }
     return this.run(() => this.api.post(`${this.base()}/purchase-items/${i.id}/receive`, { receivedPct: n }), '保存失败');
   }
-  settle(i: PurchaseItemRow) {
-    const v = askText(`${i.code} ${i.name} 结算金额（元，不填按下单金额 ${yuan(i.amount)}）`);
+  async settle(i: PurchaseItemRow) {
+    const v = await askText(`${i.code} ${i.name} 结算金额（元，不填按下单金额 ${yuan(i.amount)}）`);
     if (v === null) return;
     const amount = v.trim() ? Number(v) : undefined;
     if (amount !== undefined && (!Number.isFinite(amount) || amount < 0)) { this.error.set('金额不正确'); return; }
     return this.run(() => this.api.post(`${this.base()}/purchase-items/${i.id}/settle`, amount === undefined ? {} : { amount }), '结算失败');
   }
-  cancel(i: PurchaseItemRow) { if (confirm(`取消 ${i.code} ${i.name}？已下单的承诺成本会去掉。`)) return this.run(() => this.api.post(`${this.base()}/purchase-items/${i.id}/cancel`, {}), '取消失败'); return undefined; }
+  async cancel(i: PurchaseItemRow) { if (await askConfirm(`取消 ${i.code} ${i.name}？已下单的承诺成本会去掉。`)) return this.run(() => this.api.post(`${this.base()}/purchase-items/${i.id}/cancel`, {}), '取消失败'); return undefined; }
 }

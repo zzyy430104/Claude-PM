@@ -202,12 +202,12 @@ export class ProjectChanges {
   act(c: ChangeRequest, action: string, body: unknown = {}) {
     return this.run(() => this.api.post(`/projects/${this.project().id}/changes/${c.id}/${action}`, body), '操作失败');
   }
-  reject(c: ChangeRequest) {
-    const note = askText('驳回原因');
+  async reject(c: ChangeRequest) {
+    const note = await askText('驳回原因');
     return note?.trim() ? this.act(c, 'reject', { note }) : Promise.resolve();
   }
-  verify(c: ChangeRequest) {
-    const note = askText('有效性验证结论');
+  async verify(c: ChangeRequest) {
+    const note = await askText('有效性验证结论');
     return note?.trim() ? this.act(c, 'verify', { note }) : Promise.resolve();
   }
   async toggleHistory(c: ChangeRequest) {

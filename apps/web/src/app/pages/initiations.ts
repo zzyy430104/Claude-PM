@@ -180,7 +180,7 @@ export class InitiationsPage {
     } catch (e) { this.error.set(errorMessage(e, '加载失败')); }
   }
   async decideRc(c: RequirementChange, approve: boolean) {
-    const note = askText(approve ? '审批意见（可不填）' : '驳回理由');
+    const note = await askText(approve ? '审批意见（可不填）' : '驳回理由');
     if (note === null || (!approve && !note.trim())) return;
     this.error.set('');
     try {

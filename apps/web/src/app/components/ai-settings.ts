@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Ai } from '../core/ai';
 import { Api, errorMessage } from '../core/api';
+import { askConfirm } from '../core/dialog';
 
 interface Cfg { enabled: boolean; baseUrl: string; model: string; scenarios: Record<string, boolean>; perUserDaily: number; perTenantDaily: number; maxFileMb: number; maxInputChars: number }
 interface Settings { config: Cfg; keyHint: string | null; labels: Record<string, string> }
@@ -108,7 +109,7 @@ export class AiSettings {
     } catch (e) { this.error.set(errorMessage(e, '保存失败')); }
   }
   async removeKey() {
-    if (!confirm('删除 AI 密钥？删除后 AI 按钮全部隐藏。')) return;
+    if (!await askConfirm('删除 AI 密钥？删除后 AI 按钮全部隐藏。')) return;
     try { this.s.set(await this.api.put<Settings>('/ai-settings', { apiKey: null })); await this.ai.load(true); } catch (e) { this.error.set(errorMessage(e, '删除失败')); }
   }
   async test() {

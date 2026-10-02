@@ -4,6 +4,8 @@ export const WEB = process.env.WEB_URL ?? 'http://localhost:4200';
 export async function launch() {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox'] });
   const p = await b.newPage({ viewport: { width: 1360, height: 900 }, locale: 'zh-CN' });
+  // 测试里用浏览器自带的确认框 / 输入框，方便用 p.on('dialog') 自动应答；系统内对话框本身由 dialogs.mjs 测试
+  if (!process.env.PM_INAPP_DIALOGS) await p.addInitScript(() => { window.__pmNativeDialogs = true; });
   // 轮廓样式的下拉框，中央被浮动标签覆盖；点击标签会由表单字段容器转给下拉框，真实用户可以正常点开，
   // 但 Playwright 的命中检测会认为被遮挡，所以对 mat-select 强制点击
   const click = p.click.bind(p);

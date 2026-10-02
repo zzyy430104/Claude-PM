@@ -74,7 +74,7 @@ export class ProjectIssues {
   }
 
   async close(i: Issue) {
-    const closureNote = askText('请填写关闭结论');
+    const closureNote = await askText('请填写关闭结论');
     if (!closureNote?.trim()) return;
     this.error.set('');
     try { await this.api.patch(`/projects/${this.project().id}/issues/${i.id}`, { status: 'CLOSED', closureNote }); }

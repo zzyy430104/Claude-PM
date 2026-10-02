@@ -469,16 +469,16 @@ export class RiskDrawer {
     const [residualProbability, residualImpact] = this.res();
     return this.act((r) => this.api.post(`${this.base(r)}/close`, { residualProbability, residualImpact, note: note.trim() }), '关闭失败');
   }
-  occurred() {
-    const note = askText('发生情况说明（可不填）');
+  async occurred() {
+    const note = await askText('发生情况说明（可不填）');
     if (note === null) return;
     return this.act((r) => this.api.post(`${this.base(r)}/occurred`, { note: note || undefined }), '操作失败');
   }
-  escalate() {
+  async escalate() {
     const r = this.risk();
     if (!r) return;
     const to = r.level === 'WORK_PACKAGE' ? '项目级（项目经理接手）' : '企业级（管理层接手，所有人可见）';
-    const note = askText(`升级为${to}。说明原因：`);
+    const note = await askText(`升级为${to}。说明原因：`);
     if (note === null) return;
     return this.act((x) => this.api.post(`${this.base(x)}/escalate`, { note: note || undefined }), '升级失败');
   }

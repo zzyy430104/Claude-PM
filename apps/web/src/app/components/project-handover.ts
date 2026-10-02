@@ -83,15 +83,15 @@ export class ProjectHandover {
     const cur = this.v()!.handover.documents;
     return this.save({ documents: on ? [...cur, d] : cur.filter((x) => x !== d) });
   }
-  addDoc() {
-    const d = askText('文档名称');
+  async addDoc() {
+    const d = await askText('文档名称');
     if (!d?.trim()) return;
     return this.save({ documents: [...this.v()!.handover.documents, d.trim()] });
   }
   submit() { return this.run(() => this.api.post(`${this.base()}/submit`, {}), '发起失败'); }
   withdraw() { return this.run(() => this.api.post(`${this.base()}/withdraw`, {}), '撤回失败'); }
-  confirm(external: boolean) {
-    const note = askText(external ? '签字交接单编号或存放位置' : '确认说明（可不填）');
+  async confirm(external: boolean) {
+    const note = await askText(external ? '签字交接单编号或存放位置' : '确认说明（可不填）');
     if (note === null) return;
     return this.run(() => this.api.post(`${this.base()}/confirm`, { note: note || undefined }), '确认失败');
   }

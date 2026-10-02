@@ -4,6 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Api, errorMessage } from '../core/api';
 import { Ai } from '../core/ai';
 import { AiMark } from './ai-mark';
+import { askConfirm } from '../core/dialog';
 import {
   MEETING_TYPE_LABELS, Member, MeetingAttendeeRow, MeetingRecurrence, MeetingRow, MeetingType, Project, RECURRENCE_LABELS, RsvpStatus,
 } from '../core/models';
@@ -367,7 +368,7 @@ export class ProjectMeetings {
     this.error.set('');
     try { const n = await this.api.post<MeetingRow>(`${this.base()}/${m.id}/next`, {}); await this.load(n.id); } catch (e) { this.error.set(errorMessage(e, '生成失败')); }
   }
-  cancel(m: MeetingRow) { if (confirm(`取消“${m.title}”？已通知的参会人会收到取消通知。`)) return this.run(m, () => this.api.post(`${this.base()}/${m.id}/cancel`, {}), '取消失败'); return undefined; }
+  async cancel(m: MeetingRow) { if (await askConfirm(`取消“${m.title}”？已通知的参会人会收到取消通知。`)) return this.run(m, () => this.api.post(`${this.base()}/${m.id}/cancel`, {}), '取消失败'); return undefined; }
 
   addAction() { this.actions.update((a) => [...a, { title: '' }]); }
   setAction(i: number, k: 'title' | 'ownerId' | 'dueDate', v: string) { this.actions.update((a) => a.map((x, j) => (j === i ? { ...x, [k]: v || undefined } : x))); }

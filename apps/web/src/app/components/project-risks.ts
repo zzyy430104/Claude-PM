@@ -6,6 +6,7 @@ import {
   IMPORTANCE_LABELS, Importance, Member, Objective, Project, RISK_LEVEL_LABELS, RISK_STATUS_LABELS, RiskLevelKey, RiskRow, RiskSettings, RiskWarning, WbsResponse,
 } from '../core/models';
 import { RiskDrawer, RiskPerson, RiskStep } from './risk-drawer';
+import { askConfirm } from '../core/dialog';
 
 type LevelFilter = 'ALL' | RiskLevelKey;
 const STATE_LABEL = { GREEN: '正常', AMBER: '关注', RED: '偏离', GREY: '未开始' } as const;
@@ -200,20 +201,20 @@ export class ProjectRisks {
     try { await fn(); } catch (e) { this.error.set(errorMessage(e, fallback)); }
     await this.load();
   }
-  addObjective() {
-    const dimension = askText('目标维度（如 客户、质量、交期）');
+  async addObjective() {
+    const dimension = await askText('目标维度（如 客户、质量、交期）');
     if (!dimension?.trim()) return;
-    const name = askText('目标名称（如 客户满意度）');
+    const name = await askText('目标名称（如 客户满意度）');
     if (!name?.trim()) return;
-    const target = askText('目标值（如 ≥ 90 分）');
+    const target = await askText('目标值（如 ≥ 90 分）');
     if (!target?.trim()) return;
     return this.run(() => this.api.post(`/projects/${this.project().id}/objectives`, { dimension: dimension.trim(), name: name.trim(), target: target.trim() }), '添加失败');
   }
   patchObjective(o: Objective, patch: Partial<Pick<Objective, 'current' | 'manualState'>>) {
     return this.run(() => this.api.patch(`/projects/${this.project().id}/objectives/${o.id}`, patch), '保存失败');
   }
-  removeObjective(o: Objective) {
-    if (!confirm(`删除目标“${o.name}”？`)) return;
+  async removeObjective(o: Objective) {
+    if (!await askConfirm(`删除目标“${o.name}”？`)) return;
     return this.run(() => this.api.delete(`/projects/${this.project().id}/objectives/${o.id}`), '删除失败');
   }
 }

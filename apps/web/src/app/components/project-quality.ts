@@ -168,8 +168,8 @@ export class ProjectQuality {
       if (this.pendingAi?.id === n.id) { await this.ai.adopt(this.pendingAi.usageId, true, 'NONCONFORMITY', n.id); this.pendingAi = null; }
     }, '保存失败');
   }
-  move(n: Nonconformity, to: string, needNote = false) {
-    const note = to === 'CLOSED' || needNote ? askText(to === 'CLOSED' ? '有效性验证结论' : '退回原因') : undefined;
+  async move(n: Nonconformity, to: string, needNote = false) {
+    const note = to === 'CLOSED' || needNote ? await askText(to === 'CLOSED' ? '有效性验证结论' : '退回原因') : undefined;
     if ((to === 'CLOSED' || needNote) && !note?.trim()) return Promise.resolve();
     return this.run(() => this.api.post(`/projects/${this.project().id}/nonconformities/${n.id}/transition`, { to, note }), '操作失败');
   }

@@ -123,8 +123,8 @@ export class ProjectCost {
       this.entryForm.patchValue({ amount: 0, description: '' });
     }, '记录失败');
   }
-  setEtc(accountId: string) {
-    const v = askText('请输入完工尚需成本（ETC）');
+  async setEtc(accountId: string) {
+    const v = await askText('请输入完工尚需成本（ETC）');
     const n = v === null ? NaN : Number(v);
     return Number.isNaN(n) ? Promise.resolve() : this.run(() => this.api.patch(`/projects/${this.project().id}/cost/accounts/${accountId}`, { estimateToComplete: n }), '更新失败');
   }

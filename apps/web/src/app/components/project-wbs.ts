@@ -16,6 +16,7 @@ import {
 import { approvedScopeChanges } from '../core/scope-change';
 import { BaselineDates, GanttComponent } from './gantt';
 import { DrawerTab, WpDrawer } from './wp-drawer';
+import { askConfirm } from '../core/dialog';
 
 const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
 
@@ -571,7 +572,7 @@ export class ProjectWbs {
     await this.run(() => this.api.post(`/projects/${this.project().id}/wbs/apply-template`, { templateId, changeRequestId: this.crControl.value || undefined }), '添加失败');
   }
   async saveAsTemplate() {
-    const name = askText('WBS 模板名称');
+    const name = await askText('WBS 模板名称');
     if (!name?.trim()) return;
     await this.run(async () => {
       await this.api.post(`/projects/${this.project().id}/wbs/save-as-template`, { name: name.trim() });
@@ -599,8 +600,8 @@ export class ProjectWbs {
   verify(w: WorkPackage) {
     return this.run(() => this.api.post(`/projects/${this.project().id}/wbs/${w.id}/verify`), '核验失败');
   }
-  remove(w: WorkPackage) {
-    if (!confirm(`确定删除工作包 ${w.code} ${w.name}？`)) return Promise.resolve();
+  async remove(w: WorkPackage) {
+    if (!await askConfirm(`确定删除工作包 ${w.code} ${w.name}？`)) return Promise.resolve();
     const cr = this.crControl.value;
     return this.run(
       () => this.api.delete(`/projects/${this.project().id}/wbs/${w.id}${cr ? `?changeRequestId=${cr}` : ''}`),

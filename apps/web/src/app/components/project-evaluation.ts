@@ -3,6 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Api, errorMessage } from '../core/api';
 import { askText } from '../core/i18n';
 import { MemberEvalRow, PerfAspect, Project, ProjectEvaluation } from '../core/models';
+import { askConfirm } from '../core/dialog';
 
 const GRADE_COLOR: Record<string, string> = { 优秀: 'green', 良好: 'green', 合格: 'amber', 待改进: 'red' };
 
@@ -156,18 +157,18 @@ export class ProjectEvaluationPanel {
   }
 
   setWeight(i: number, w: number) { this.weights.update((x) => x.map((a, j) => (j === i ? { ...a, weight: w } : a))); this.weightsDirty.set(true); }
-  saveWeights() {
-    const reason = askText('调整本项目权重的原因（留记录）');
+  async saveWeights() {
+    const reason = await askText('调整本项目权重的原因（留记录）');
     if (!reason?.trim()) return;
     return this.run(async () => { await this.api.put(`${this.base()}/aspects`, { aspects: this.weights(), reason: reason.trim() }); this.weightsDirty.set(false); }, '保存失败');
   }
-  resetWeights() {
-    const reason = askText('恢复企业默认权重的原因');
+  async resetWeights() {
+    const reason = await askText('恢复企业默认权重的原因');
     if (!reason?.trim()) return;
     return this.run(async () => { await this.api.put(`${this.base()}/aspects`, { aspects: null, reason: reason.trim() }); this.weightsDirty.set(false); }, '保存失败');
   }
-  addAspect() {
-    const name = askText('自定义方面名称（如 客户满意）');
+  async addAspect() {
+    const name = await askText('自定义方面名称（如 客户满意）');
     if (!name?.trim()) return;
     let n = 1;
     while (this.weights().some((a) => a.key === `P_${n}`)) n++;
@@ -180,8 +181,8 @@ export class ProjectEvaluationPanel {
   adjust(score: string, reason: string) {
     return this.patchPm(score === '' ? { adjustedScore: null } : { adjustedScore: +score, adjustReason: reason });
   }
-  confirmPm() {
-    if (!confirm('确认项目经理绩效？确认后计算结果冻结，不能再修改。')) return;
+  async confirmPm() {
+    if (!await askConfirm('确认项目经理绩效？确认后计算结果冻结，不能再修改。')) return;
     return this.run(() => this.api.post(`${this.base()}/pm/confirm`, {}), '确认失败');
   }
 
@@ -195,8 +196,8 @@ export class ProjectEvaluationPanel {
     }
     await this.load();
   }
-  reopen(m: MemberEvalRow) {
-    const reason = askText(`撤回 ${m.name} 的评价进行修改，原因：`);
+  async reopen(m: MemberEvalRow) {
+    const reason = await askText(`撤回 ${m.name} 的评价进行修改，原因：`);
     if (!reason?.trim()) return;
     return this.run(() => this.api.post(`${this.base()}/members/${m.userId}/reopen`, { reason: reason.trim() }), '撤回失败');
   }

@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, errorMessage } from '../core/api';
 import { Department, PerfConfig } from '../core/models';
+import { askConfirm } from '../core/dialog';
 
 interface Person { id: string; name: string }
 const AUTO = ['TIME', 'QUALITY', 'COST'];
@@ -144,7 +145,7 @@ export class PerfSettings {
   setDims(v: string) { this.edit((c) => { c.memberDims = v.split(/[、,，]/).map((x) => x.trim()).filter(Boolean); }); }
   setGrade(k: keyof PerfConfig['grades'], v: number) { this.edit((c) => { c.grades[k] = v; }); }
   setVis(k: keyof PerfConfig['visibility'], v: boolean) { this.edit((c) => { c.visibility[k] = v; }); }
-  reset() { if (this.defaults && confirm('恢复为默认的权重、规则、维度、等级和可见范围？')) { this.c.set(structuredClone(this.defaults)); this.saved.set(false); } }
+  async reset() { if (this.defaults && await askConfirm('恢复为默认的权重、规则、维度、等级和可见范围？')) { this.c.set(structuredClone(this.defaults)); this.saved.set(false); } }
   async save() {
     this.error.set('');
     try { this.c.set(await this.api.put<PerfConfig>('/perf-settings', this.c())); this.saved.set(true); } catch (e) { this.error.set(errorMessage(e, '保存失败')); }

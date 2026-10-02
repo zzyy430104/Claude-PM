@@ -6,6 +6,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Api, errorMessage } from '../core/api';
 import { DIMENSION_LABELS, DeviationNotice, LEVEL_LABELS, Project, Stakeholder } from '../core/models';
+import { askConfirm } from '../core/dialog';
 
 /** 干系人登记册与偏离通报（ISO 22163 8.1.3.8、8.1.3.11） */
 @Component({
@@ -119,8 +120,8 @@ export class ProjectStakeholders {
       this.form.reset({ name: '', organization: '', email: '', role: '', influence: 'MEDIUM', interest: 'MEDIUM', expectations: '', communication: '' });
     }, '添加失败');
   }
-  remove(s: Stakeholder) {
-    if (!confirm(`确定删除干系人 ${s.name}？`)) return Promise.resolve();
+  async remove(s: Stakeholder) {
+    if (!await askConfirm(`确定删除干系人 ${s.name}？`)) return Promise.resolve();
     return this.run(() => this.api.delete(`/projects/${this.project().id}/stakeholders/${s.id}`), '删除失败');
   }
   notify() {

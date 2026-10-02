@@ -45,10 +45,8 @@ export function translateToEnglish(text: string): string {
   return CJK.test(out) ? text : lead + out + trail;
 }
 
-/** 弹出输入框：英文界面下把提示语也翻成英文 */
-export function askText(message: string): string | null {
-  return window.prompt(current === 'en' ? translateToEnglish(message) : message);
-}
+/** 输入框（系统内对话框，见 core/dialog.ts）；英文界面下提示语由页面翻译自动处理 */
+export { askText } from './dialog';
 
 @Injectable({ providedIn: 'root' })
 export class I18n {

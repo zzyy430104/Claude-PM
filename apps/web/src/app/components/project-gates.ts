@@ -181,8 +181,8 @@ export class ProjectGates {
       checklistResults: this.checklist(), attendees: this.attendeeForm.getRawValue().attendees,
     }), '保存失败');
   }
-  authorize(g: GateReview) {
-    const reason = askText('请填写授权理由（将记入审计日志）');
+  async authorize(g: GateReview) {
+    const reason = await askText('请填写授权理由（将记入审计日志）');
     return reason && reason.length >= 5
       ? this.run(() => this.api.post(`/projects/${this.project().id}/gate-reviews/${g.id}/authorize-override`, { reason }), '授权失败')
       : Promise.resolve();

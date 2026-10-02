@@ -98,10 +98,10 @@ export class ProjectConfig {
       this.blForm.patchValue({ name: '' });
     }, '建立基线失败');
   }
-  bump(i: ConfigItemRow) {
-    const revision = askText(`新版本号（当前 ${i.revision}）。建立基线后需填写已批准的变更申请编号（变更申请的 ID）`);
+  async bump(i: ConfigItemRow) {
+    const revision = await askText(`新版本号（当前 ${i.revision}）。建立基线后需填写已批准的变更申请编号（变更申请的 ID）`);
     if (!revision?.trim()) return Promise.resolve();
-    const changeRequestId = askText('变更申请 ID（基线前可留空）') || undefined;
+    const changeRequestId = await askText('变更申请 ID（基线前可留空）') || undefined;
     return this.run(() => this.api.patch(`/projects/${this.project().id}/config/items/${i.id}`, { revision, changeRequestId }), '升版失败');
   }
 }

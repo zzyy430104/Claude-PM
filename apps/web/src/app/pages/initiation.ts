@@ -13,6 +13,7 @@ import { RequirementsView } from '../components/requirements-view';
 import { AiContract, ContractFields } from '../components/ai-contract';
 import { AiMark } from '../components/ai-mark';
 import { Ai } from '../core/ai';
+import { askConfirm } from '../core/dialog';
 
 interface Person { id: string; name: string; role: string }
 interface Form {
@@ -314,7 +315,7 @@ export class InitiationPage {
   }
 
   async decide(approve: boolean) {
-    const note = askText(approve ? '审批意见（可不填）' : '驳回理由');
+    const note = await askText(approve ? '审批意见（可不填）' : '驳回理由');
     if (note === null || (!approve && !note.trim())) return;
     this.error.set(''); this.busy.set(true);
     try {
@@ -325,7 +326,7 @@ export class InitiationPage {
   }
 
   async withdraw() {
-    if (!confirm('撤回后可以修改再提交。确定撤回？')) return;
+    if (!await askConfirm('撤回后可以修改再提交。确定撤回？')) return;
     try {
       await this.api.post(`/initiations/${this.id()}/withdraw`);
       await this.load();

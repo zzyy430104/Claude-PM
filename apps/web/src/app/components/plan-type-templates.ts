@@ -3,6 +3,7 @@ import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, errorMessage } from '../core/api';
 import { PROJECT_TYPE_LABELS, PlanTemplate, PlanTemplateRow, ProjectType } from '../core/models';
+import { askConfirm } from '../core/dialog';
 
 const COND: Record<string, string> = { drawingApproval: '客户图纸审批', customerWitness: '客户见证', rams: 'RAMS', longLead: '长周期物料' };
 
@@ -111,7 +112,7 @@ export class PlanTypeTemplates {
     }
   }
   async reset() {
-    if (!confirm(`把 ${this.type()} 类模板恢复为系统默认？企业自定义的内容会丢失。`)) return;
+    if (!await askConfirm(`把 ${this.type()} 类模板恢复为系统默认？企业自定义的内容会丢失。`)) return;
     try {
       this.tpl.set(await this.api.post<PlanTemplate>(`/plan-templates/${this.type()}/reset`));
       this.notice.set('已恢复默认模板');

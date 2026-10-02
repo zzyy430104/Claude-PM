@@ -4,6 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Api, errorMessage } from '../core/api';
 import { askText } from '../core/i18n';
 import { PlanApprovalStatus, PlanVersion, Project } from '../core/models';
+import { askConfirm } from '../core/dialog';
 
 /**
  * 计划批准：计划对照项目要求逐项检查（交期、成本、交付物、责任人、风险），
@@ -108,12 +109,12 @@ export class ProjectPlanApproval {
     } catch (e) { this.error.set(errorMessage(e, '操作失败')); } finally { this.busy.set(false); }
   }
   submit() { return this.act('submit'); }
-  approve() {
-    if (!confirm('批准后计划生效，作为进度和成本的对比基准。确定批准？')) return;
+  async approve() {
+    if (!await askConfirm('批准后计划生效，作为进度和成本的对比基准。确定批准？')) return;
     return this.act('approve');
   }
-  returnPlan() {
-    const note = askText('退回理由');
+  async returnPlan() {
+    const note = await askText('退回理由');
     if (!note?.trim()) return;
     return this.act('return', { note: note.trim() });
   }

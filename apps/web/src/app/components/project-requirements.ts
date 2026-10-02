@@ -9,6 +9,7 @@ import {
   ChangeRequest, Deliverable, Project, REQ_CATEGORY_LABELS, REQ_STATUS_LABELS, Requirement, RequirementCategory, RequirementStatus,
 } from '../core/models';
 import { approvedScopeChanges } from '../core/scope-change';
+import { askConfirm } from '../core/dialog';
 
 const CATEGORIES = Object.keys(REQ_CATEGORY_LABELS) as RequirementCategory[];
 const STATUSES = Object.keys(REQ_STATUS_LABELS) as RequirementStatus[];
@@ -157,8 +158,8 @@ export class ProjectRequirements {
     return this.run(() => this.api.patch(`/projects/${this.project().id}/requirements/${r.id}`, body), '更新失败');
   }
 
-  remove(r: Requirement) {
-    if (!confirm(`确定删除需求 ${r.code}？`)) return Promise.resolve();
+  async remove(r: Requirement) {
+    if (!await askConfirm(`确定删除需求 ${r.code}？`)) return Promise.resolve();
     const cr = this.crControl.value;
     return this.run(() => this.api.delete(`/projects/${this.project().id}/requirements/${r.id}${cr ? `?changeRequestId=${cr}` : ''}`), '删除失败');
   }
