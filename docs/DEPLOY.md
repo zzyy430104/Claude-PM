@@ -30,6 +30,16 @@ node scripts/smoke-test.mjs   # 见第 3 节
 
 私有部署通常保持 `ALLOW_TENANT_SIGNUP=false`；云端要开放企业自助注册才设为 `true`。
 
+### 在 Mac 上试用
+
+```bash
+bash scripts/mac-install.sh
+```
+
+脚本会按需安装 Homebrew、Colima（无界面的 Docker 虚拟机）和 Docker 命令行，然后调用 `scripts/install.sh`。
+已经在运行 Docker Desktop 或 OrbStack 时直接使用它。选择让同事访问时，会用 socat 在本机 8090 端口做转发（开机自动运行），
+同事用 `http://本机IP:8090` 访问。平时占用约 1 GB 内存、2 GB 左右硬盘；不用时 `docker compose stop` 再 `colima stop`。
+
 ## 3. 部署后验证（冒烟测试）
 
 ```bash
