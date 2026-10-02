@@ -21,6 +21,8 @@ const TAG: Record<string, string> = { CHANGE_APPROVAL: '审批', GATE_REVIEW: '�
     .todo li:last-child { border-bottom: 0; }
     .wb { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; margin: 0 0 8px; }
     .wb .pcard { margin: 0; } .wb .body { padding-top: 4px; padding-bottom: 4px; }
+    ul.body { padding: 4px 20px; } .meet li.muted { display: block; }
+    @media (max-width: 760px) { .wb { grid-template-columns: 1fr; } ul.body { padding: 4px 14px; } }
     .todo small { color: var(--pm-muted); } .todo small.late { color: var(--pm-red); } .todo small.soon { color: var(--pm-amber); }
     .meet { list-style: none; margin: 0; padding: 0; }
     .meet li { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--pm-line); }

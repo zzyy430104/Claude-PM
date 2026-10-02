@@ -33,10 +33,19 @@ import { MyApprovalRoles, NotificationRow, ROLE_LABELS } from '../core/models';
     .who em { font-style: normal; color: #9fb0bf; margin-left: 6px; font-size: 13px; }
     .n-title { font-weight: 500; } .n-body { font-size: 12px; color: var(--mat-sys-on-surface-variant); }
     .unread { font-weight: 600; }
-    @media (max-width: 760px) { mat-toolbar .company, .who em { display: none; } }
+    @media (max-width: 760px) {
+      mat-toolbar .company, .who em { display: none; }
+      mat-toolbar { padding: 0 6px; gap: 0; }
+      mat-toolbar .brand { font-size: 15px; }
+      mat-toolbar .mat-mdc-button { min-width: 0; padding: 0 8px; }
+      .menu-btn { font-size: 20px; }
+      .who { margin: 0 2px; padding: 6px 4px; max-width: 5em; overflow: hidden; text-overflow: ellipsis; }
+      mat-sidenav { width: 240px; }
+    }
   `,
   template: `
     <mat-toolbar>
+      @if (mobile()) { <button mat-button class="menu-btn" type="button" (click)="nav.toggle()" [attr.aria-label]="i18n.t('菜单')">☰</button> }
       <span class="brand">{{ brand.systemName() }}</span>
       @if (brand.companyName()) { <span class="company">{{ brand.companyName() }}</span> }
       <span class="spacer"></span>
@@ -62,8 +71,8 @@ import { MyApprovalRoles, NotificationRow, ROLE_LABELS } from '../core/models';
       <button mat-button (click)="auth.logout()">{{ i18n.t('退出') }}</button>
     </mat-toolbar>
     <mat-sidenav-container>
-      <mat-sidenav mode="side" opened>
-        <nav aria-label="主菜单">
+      <mat-sidenav #nav [mode]="mobile() ? 'over' : 'side'" [opened]="!mobile()">
+        <nav aria-label="主菜单" (click)="mobile() && nav.close()">
           @if (!auth.hasRole('PLATFORM_ADMIN')) {
             <div class="grp">
               <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">我的工作台</a>
@@ -98,6 +107,10 @@ import { MyApprovalRoles, NotificationRow, ROLE_LABELS } from '../core/models';
   `,
 })
 export class Shell {
+  /** 手机：菜单收起，点左上角 ☰ 打开 */
+  private readonly mq = window.matchMedia('(max-width: 760px)');
+  readonly mobile = signal(this.mq.matches);
+  constructor() { this.mq.addEventListener('change', (e) => this.mobile.set(e.matches)); }
   private readonly api = inject(Api);
   private readonly router = inject(Router);
   readonly auth = inject(AuthService);

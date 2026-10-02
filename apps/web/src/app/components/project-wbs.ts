@@ -44,6 +44,7 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
     .form-title { font-weight: 600; width: 100%; margin: 0 0 4px; }
     .num { text-align: right !important; }
     .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+    @media (max-width: 760px) { .desk { display: none !important; } .tools { margin-bottom: 8px; } }
     .tools .sep { width: 1px; height: 24px; background: var(--pm-line); margin: 0 4px; }
     .tpl { height: 36px; border: 1px solid #c5cfdb; border-radius: 8px; padding: 0 8px; font: inherit; background: #fff; }
     .ok-box { background: var(--pm-green-bg); color: var(--pm-green); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
@@ -91,20 +92,20 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
       @if (manage()) {
         <button mat-flat-button type="button" (click)="openNew()">+ 新增工作包</button>
         <button mat-stroked-button type="button" (click)="error.set(''); depOpen.set(true)">+ 添加依赖</button>
-        <span class="sep"></span>
+        <span class="sep desk"></span>
       }
-      <button mat-stroked-button type="button" (click)="exportExcel()">导出 Excel</button>
+      <button mat-stroked-button class="desk" type="button" (click)="exportExcel()">导出 Excel</button>
       @if (manage()) {
-        <button mat-stroked-button type="button" (click)="templateExcel()">下载导入模板</button>
-        <button mat-stroked-button type="button" (click)="fileInput.click()">导入 Excel</button>
+        <button mat-stroked-button class="desk" type="button" (click)="templateExcel()">下载导入模板</button>
+        <button mat-stroked-button class="desk" type="button" (click)="fileInput.click()">导入 Excel</button>
         <input #fileInput type="file" accept=".xlsx" hidden (change)="importExcel($any($event.target))" aria-label="选择 Excel 文件" />
-        <span class="sep"></span>
-        <select class="tpl" [value]="''" (change)="applyTemplate($any($event.target))" aria-label="从 WBS 模板添加">
+        <span class="sep desk"></span>
+        <select class="tpl desk" [value]="''" (change)="applyTemplate($any($event.target))" aria-label="从 WBS 模板添加">
           <option value="">从 WBS 模板添加…</option>
           @for (t of wbsTemplates(); track t.id) { <option [value]="t.id">{{ t.name }}（{{ t.items.length }} 项）</option> }
         </select>
-        <button mat-button type="button" (click)="saveAsTemplate()">另存为 WBS 模板</button>
-        @if (library().length) {
+        <button mat-button class="desk" type="button" (click)="saveAsTemplate()">另存为 WBS 模板</button>
+        @if (library().length && !mobile) {
           <span class="sep"></span>
           <select class="tpl" #libSel aria-label="从可选工作包库添加" (change)="suggestParent(libSel.value)">
             <option value="">从可选库添加…</option>
@@ -119,10 +120,11 @@ const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
           }
         }
         @if (roleCounts().length) {
-          <button mat-stroked-button type="button" (click)="assigning.set(!assigning())">按角色指定责任人</button>
+          <button mat-stroked-button class="desk" type="button" (click)="assigning.set(!assigning())">按角色指定责任人</button>
         }
       }
     </div>
+    @if (mobile && manage()) { <p class="muted" style="font-size: 12px; margin: 0 0 8px">Excel 导入导出、WBS 模板、按角色指定责任人等批量操作，请在电脑上进行。</p> }
     @if (assigning()) {
       <div class="pcard">
         <header><h3>按职能角色指定责任人</h3><span class="sub">模板里的工作包带有职能角色；给每个角色选一个人，一次填好对应工作包的责任人</span></header>
@@ -315,6 +317,8 @@ export class ProjectWbs {
   readonly accounts = signal<CostSummary['accounts']>([]);
   readonly scopeChanges = signal<ChangeRequest[]>([]);
   readonly editing = signal<WorkPackage | null>(null);
+  /** 手机上隐藏 Excel、模板、可选库、按角色指定等批量操作（建议在电脑上做） */
+  readonly mobile = window.matchMedia('(max-width: 760px)').matches;
   readonly wpOpen = signal(false);
   readonly depOpen = signal(false);
   readonly baseline = signal<BaselineDates | null>(null);

@@ -237,3 +237,21 @@ html .page input[type=checkbox] { accent-color: var(--pm-primary); }
 .banner.amber { background: var(--pm-amber-bg); border-color: #ead9ae; color: #5e4307; }
 .banner.green { background: var(--pm-green-bg); border-color: #c4e0d3; color: #164c3e; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+
+/* ───────── 手机（≤ 760px）：页面不撑破、页签横向滑动、表格在自己的框里左右滑 ───────── */
+@media (max-width: 760px) {
+  .page { padding: 16px 12px 32px; }
+  .page h1 { font-size: 21px; margin-bottom: 12px; }
+  .gtabs { margin: 0 0 10px; scrollbar-width: none; }
+  .gtabs button { padding: 9px 12px; font-size: 14.5px; }
+  .stabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 0 14px; padding-bottom: 2px; }
+  .stabs button { white-space: nowrap; flex: none; font-size: 13.5px; }
+  html .page table:not(.mat-mdc-table), html .page table.mat-mdc-table { display: block; overflow-x: auto; max-width: 100%; }
+  html .page table:not(.mat-mdc-table) :is(th, td) { padding: 8px 10px; }
+  .pcard > header { padding: 11px 14px; }
+  .pcard > .body { padding: 12px 14px; }
+  html .page :is(.box, .cr, .phase) { padding: 12px 14px; }
+  html .page form.row, html .page :not(.box):not(.cr):not(.phase):not(.panel) > form:not(.row) { padding: 12px 14px; }
+  .fgrid { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+}
