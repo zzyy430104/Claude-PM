@@ -33,12 +33,14 @@ node scripts/smoke-test.mjs   # 见第 3 节
 ### 在 Mac 上试用
 
 ```bash
-bash scripts/mac-install.sh
+bash scripts/mac-install.sh   # 第一次安装
+bash scripts/mac-start.sh     # 需要时启动（启动 Docker 和程序，打开浏览器）
+bash scripts/mac-stop.sh      # 用完关闭（释放内存，数据保留）
 ```
 
-脚本会按需安装 Homebrew、Colima（无界面的 Docker 虚拟机）和 Docker 命令行，然后调用 `scripts/install.sh`。
-已经在运行 Docker Desktop 或 OrbStack 时直接使用它。选择让同事访问时，会用 socat 在本机 8090 端口做转发（开机自动运行），
-同事用 `http://本机IP:8090` 访问。平时占用约 1 GB 内存、2 GB 左右硬盘；不用时 `docker compose stop` 再 `colima stop`。
+安装脚本按需安装 Homebrew、Colima（无界面的 Docker 虚拟机）和 Docker 命令行，然后调用 `scripts/install.sh`；
+已经有 Docker Desktop 或 OrbStack 时直接用它。不设开机自动启动。构建时虚拟机用 4 GB 内存，日常启动用 2 GB。
+选择让同事访问时，启动脚本用 socat 在本机 8090 端口做转发，同事用 `http://本机IP:8090` 访问；本机 IP 变了，启动脚本会自动更新访问地址。
 
 ## 3. 部署后验证（冒烟测试）
 
