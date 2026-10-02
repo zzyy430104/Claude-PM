@@ -6,6 +6,7 @@ import { AiMark } from './ai-mark';
 import { Ai } from '../core/ai';
 import { AuthService } from '../core/auth.service';
 import { askText } from '../core/i18n';
+import { portalToBody } from '../core/portal';
 import {
   ACCEPT_NEED_LABELS, IMPORTANCE_LABELS, Importance, Objective, RISK_LEVEL_LABELS, RISK_STATUS_LABELS, RISK_WHO_LABELS,
   RiskLevelKey, RiskReviewRow, RiskRow, RiskSettings,
@@ -311,6 +312,7 @@ export class RiskDrawer {
   });
 
   constructor() {
+    portalToBody();
     effect(() => {
       const r = this.risk();
       const id = r?.id ?? null;

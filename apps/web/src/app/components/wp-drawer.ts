@@ -4,6 +4,7 @@ import { Api, errorMessage } from '../core/api';
 import { Discussion } from './discussion';
 import { AuthService } from '../core/auth.service';
 import { Brand } from '../core/brand';
+import { portalToBody } from '../core/portal';
 import {
   CostPlan, INSPECTION_RESULT_LABELS, InspectionItem, InspectionResult, InspectionTemplate, Project, WorkPackage, WpCost, WP_STATUS_LABELS,
 } from '../core/models';
@@ -176,6 +177,7 @@ export class WpDrawer {
   readonly initialTab = input<DrawerTab>('time');
   readonly closed = output<void>();
   readonly changed = output<void>();
+  constructor() { portalToBody(); }
   readonly tabs: [DrawerTab, string][] = [['time', '时间'], ['cost', '成本'], ['qual', '质量'], ['talk', '讨论']];
   readonly fields: [keyof InspectionItem, string][] = [['requirement', '要求 / 准则'], ['method', '方法'], ['record', '需要的记录']];
   readonly results: InspectionResult[] = ['PENDING', 'PASS', 'FAIL', 'NA'];
