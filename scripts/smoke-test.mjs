@@ -100,28 +100,53 @@ await check('企业管理员首次登录必须先改密', async () => {
 await check('平台管理员不能读取企业业务数据', async () => expectStatus(await req('GET', '/users', { token: state.platform }), 403));
 
 console.log('\n3. 业务链路');
-await check('创建项目经理并登录', async () => {
-  const u = await req('POST', '/users', { token: state.admin, body: { email: `pm@${slug}.test`, name: '冒烟经理', password: pw, role: 'PROJECT_MANAGER' } });
-  expectStatus(u, 201, '创建用户'); state.pmId = u.json.id;
-  const l = await req('POST', '/auth/login', { body: { tenantSlug: slug, email: `pm@${slug}.test`, password: pw } });
-  expectStatus(l, 200, '登录'); state.pm = await firstChange(l.json.accessToken);
+/** 企业管理员建用户，首次登录改密，返回 { id, token } */
+async function newUser(key, name, role) {
+  const u = await req('POST', '/users', { token: state.admin, body: { email: `${key}@${slug}.test`, name, password: pw, role } });
+  expectStatus(u, 201, `创建${name}`);
+  const l = await req('POST', '/auth/login', { body: { tenantSlug: slug, email: `${key}@${slug}.test`, password: pw } });
+  expectStatus(l, 200, `${name}登录`);
+  return { id: u.json.id, token: await firstChange(l.json.accessToken) };
+}
+await check('创建项目经理和高层管理并登录', async () => {
+  const pm = await newUser('pm', '冒烟经理', 'PROJECT_MANAGER');
+  state.pmId = pm.id; state.pm = pm.token;
+  state.top = (await newUser('top', '冒烟高层', 'TOP_MANAGEMENT')).token;
 });
-await check('创建项目，自动生成 7 个阶段', async () => {
-  const r = await req('POST', '/projects', { token: state.pm, body: { code: `S-${stamp}`, name: '冒烟测试项目', riskLevel: 'MEDIUM', startDate: '2026-01-05', endDate: '2026-12-31', budget: 100000 } });
-  expectStatus(r, 201); state.project = r.json.id;
+await check('立项申请 → 提交 → 批准，生成项目、阶段和计划草稿', async () => {
+  const quality = { standards: ['ISO/TS 22163'], special: '', acceptance: '出厂检验', fai: true, faiReason: '', customerWitness: false, drawingApproval: false, rams: false };
+  const requirements = {
+    deliveryDate: '2027-09-30', milestones: [], stockLines: [], risks: [{ text: '冒烟测试风险', kind: 'RISK' }], longLead: false, quality,
+    deliverables: [{ name: '冒烟测试产品', quantity: '10 件', kind: 'PRODUCT' }], cost: { cap: 3000000, target: 2850000 },
+  };
+  const ini = await req('POST', '/initiations', { token: state.pm, body: { name: '冒烟测试项目', type: 'B', projectCode: `S-${stamp}`, customer: '冒烟客户', proposedPmId: state.pmId, startDate: '2026-11-02', requirements } });
+  expectStatus(ini, 201, '立项申请');
+  expectStatus(await req('POST', `/initiations/${ini.json.id}/submit`, { token: state.pm }), 200, '提交');
+  const ok = await req('POST', `/initiations/${ini.json.id}/approve`, { token: state.top, body: {} });
+  expectStatus(ok, 200, '批准'); state.project = ok.json.projectId;
+  expect(state.project, '批准后没有生成项目');
   const ph = await req('GET', `/projects/${state.project}/phases`, { token: state.pm });
-  expect(ph.json.length === 7, `阶段数 ${ph.json.length}`);
+  expect(ph.json.length >= 5, `阶段数 ${ph.json.length}`);
+  const w = await req('GET', `/projects/${state.project}/wbs`, { token: state.pm });
+  expect(w.json.items.length > 0, '没有生成计划草稿');
 });
 await check('WBS 与关键路径', async () => {
   const a = await req('POST', `/projects/${state.project}/wbs`, { token: state.pm, body: { code: 'A', name: 'A', durationDays: 3 } });
   const b = await req('POST', `/projects/${state.project}/wbs`, { token: state.pm, body: { code: 'B', name: 'B', durationDays: 4 } });
   expectStatus(a, 201); expectStatus(b, 201);
   expectStatus(await req('POST', `/projects/${state.project}/dependencies`, { token: state.pm, body: { predecessorId: a.json.id, successorId: b.json.id } }), 201);
-  const g = await req('GET', `/projects/${state.project}/wbs`, { token: state.pm });
-  expect(g.json.projectDurationDays === 7, `总工期 ${g.json.projectDurationDays}`);
+  const items = (await req('GET', `/projects/${state.project}/wbs`, { token: state.pm })).json.items;
+  const A = items.find((x) => x.id === a.json.id); const B = items.find((x) => x.id === b.json.id);
+  expect(B.scheduledStart > A.scheduledEnd, `B 应在 A 完成后开始：A 完成 ${A.scheduledEnd}，B 开始 ${B.scheduledStart}`);
+  // 冒烟加的 A、B 不属于计划，删掉后再走计划审批
+  for (const id of [b.json.id, a.json.id]) expectStatus(await req('DELETE', `/projects/${state.project}/wbs/${id}`, { token: state.pm }), 204, '删除工作包');
 });
-await check('批准计划后，直接修改预算被拦截（需变更控制）', async () => {
-  expectStatus(await req('POST', `/projects/${state.project}/baseline`, { token: state.pm }), 200, '批准计划');
+await check('计划提交审批并批准后，直接修改预算被拦截（需变更控制）', async () => {
+  const roles = (await req('GET', '/functional-roles', { token: state.pm })).json;
+  expectStatus(await req('POST', `/projects/${state.project}/wbs/assign-by-role`, { token: state.pm, body: { assignments: roles.map((r) => ({ functionalRoleId: r.id, userId: state.pmId })) } }), 200, '按角色分配');
+  expectStatus(await req('POST', `/projects/${state.project}/plan-approval/submit`, { token: state.pm }), 200, '提交计划');
+  const st = await req('POST', `/projects/${state.project}/plan-approval/approve`, { token: state.top });
+  expectStatus(st, 200, '批准计划'); expect(st.json.baselined === true, JSON.stringify(st.json).slice(0, 200));
   const r = await req('PATCH', `/projects/${state.project}`, { token: state.pm, body: { budget: 1 } });
   expectStatus(r, 409); expect(r.json.code === 'CHANGE_REQUEST_REQUIRED', JSON.stringify(r.json));
 });
