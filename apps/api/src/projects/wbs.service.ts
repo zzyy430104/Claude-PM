@@ -121,7 +121,7 @@ export class WbsService {
 
   async create(actor: AuthUser, projectId: string, dto: CreateWpDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'WBS');
     this.access.requireOpen(ctx);
     await this.guard.assertAllowed(ctx, dto.changeRequestId);
 
@@ -184,7 +184,7 @@ export class WbsService {
     this.access.requireOpen(ctx);
     const wp = await this.findWp(ctx, id);
     const isOwner = wp.ownerId === actor.id;
-    if (!ctx.isManager && !isOwner) throw new ForbiddenException('Manager or owner required');
+    if (!ctx.perms.WBS && !isOwner) throw new ForbiddenException('Manager or owner required');
     if (wp.status === WpStatus.VERIFIED) throw new ConflictException('Verified work package is locked');
     if (dto.status === WpStatus.VERIFIED) {
       throw new BadRequestException('Use the verify endpoint to verify a work package');
@@ -195,7 +195,7 @@ export class WbsService {
       dto.durationDays !== undefined || dto.budget !== undefined ||
       dto.costAccountId !== undefined || dto.deliverableId !== undefined || dto.resourceDays !== undefined ||
       dto.externalProvider !== undefined || dto.longLead !== undefined || dto.isMilestone !== undefined;
-    if (managerOnly && !ctx.isManager) throw new ForbiddenException('Project manager required');
+    if (managerOnly && !ctx.perms.WBS) throw new ForbiddenException('Not allowed to edit the WBS');
     await this.checkRefs(ctx, dto.phaseId ?? undefined, dto.ownerId, dto);
     const milestone = dto.isMilestone ?? wp.isMilestone;
     const durationDays = milestone ? 0 : dto.durationDays ?? (wp.isMilestone ? 1 : undefined);
@@ -248,7 +248,7 @@ export class WbsService {
   async verify(actor: AuthUser, projectId: string, id: string) {
     const ctx = await this.access.load(actor, projectId);
     this.access.requireOpen(ctx);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'INSPECTION');
     const wp = await this.findWp(ctx, id);
     if (wp.status !== WpStatus.DONE) throw new ConflictException('Only completed work packages can be verified');
     if (wp.ownerId === actor.id) throw new ForbiddenException('Owner cannot verify own work package');
@@ -267,7 +267,7 @@ export class WbsService {
 
   async remove(actor: AuthUser, projectId: string, id: string, changeRequestId?: string) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'WBS');
     this.access.requireOpen(ctx);
     await this.guard.assertAllowed(ctx, changeRequestId);
     const wp = await this.findWp(ctx, id);
@@ -290,7 +290,7 @@ export class WbsService {
 
   async addDependency(actor: AuthUser, projectId: string, dto: AddDependencyDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'WBS');
     this.access.requireOpen(ctx);
     if (dto.predecessorId === dto.successorId) throw new BadRequestException('A work package cannot depend on itself');
     const [a, b] = await Promise.all([
@@ -338,7 +338,7 @@ export class WbsService {
 
   async removeDependency(actor: AuthUser, projectId: string, depId: string) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'WBS');
     this.access.requireOpen(ctx);
     const dep = await this.prisma.wpDependency.findFirst({
       where: { id: depId, projectId, tenantId: ctx.tenantId },

@@ -112,7 +112,7 @@ export class WbsExcelService {
 
   async import(actor: AuthUser, projectId: string, file: Buffer, changeRequestId?: string) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'WBS');
     this.access.requireOpen(ctx);
 
     const wb = new ExcelJS.Workbook();

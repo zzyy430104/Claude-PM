@@ -26,17 +26,14 @@ export class PurchaseService {
     private readonly cost: CostControlService,
   ) {}
 
+  /** 项目经理，或权限表里“采购计划”勾选的角色 */
   private async canEdit(ctx: ProjectCtx) {
-    if (ctx.isManager) return true;
-    if (!ctx.member) return false;
-    const u = await this.prisma.user.findUnique({ where: { id: ctx.actor.id }, select: { functionalRoleId: true } });
-    const role = u?.functionalRoleId ? await this.prisma.functionalRole.findUnique({ where: { id: u.functionalRoleId } }) : null;
-    return !!role?.name.includes('采购');
+    return ctx.perms.PURCHASE;
   }
   private async editable(actor: AuthUser, projectId: string) {
     const ctx = await this.access.load(actor, projectId);
     this.access.requireOpen(ctx);
-    if (!(await this.canEdit(ctx))) throw new ForbiddenException('Project manager or purchasing required');
+    if (!(await this.canEdit(ctx))) throw new ForbiddenException('Not allowed to edit the purchase plan');
     return ctx;
   }
   private async item(ctx: ProjectCtx, id: string) {

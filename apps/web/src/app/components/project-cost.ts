@@ -44,6 +44,8 @@ import { CostEntryRow, CostSummary, Project, Performance, WbsResponse, WorkPacka
         <mat-form-field><mat-label>科目预算</mat-label><input matInput type="number" formControlName="budget" /></mat-form-field>
         <button mat-flat-button type="submit" [disabled]="accountForm.invalid">添加成本科目</button>
       </form>
+    }
+    @if (actual()) {
       <form class="row" [formGroup]="entryForm" (ngSubmit)="addEntry()">
         <mat-form-field><mat-label>科目</mat-label>
           <mat-select formControlName="accountId">@for (a of s()?.accounts ?? []; track a.id) { <mat-option [value]="a.id">{{ a.code }} {{ a.name }}</mat-option> }</mat-select>
@@ -84,7 +86,8 @@ export class ProjectCost {
   readonly s = signal<CostSummary | null>(null);
   readonly entries = signal<CostEntryRow[]>([]);
   readonly error = signal('');
-  readonly manage = computed(() => !!this.project().permissions?.manage);
+  readonly manage = computed(() => !!this.project().permissions?.edit?.COST_PLAN);
+  readonly actual = computed(() => !!this.project().permissions?.edit?.COST_ACTUAL);
   readonly accountForm = this.fb.group({ code: ['', Validators.required], name: ['', Validators.required], budget: [0, Validators.min(0)] });
   readonly wps = signal<WorkPackage[]>([]);
   readonly perf = signal<Performance | null>(null);

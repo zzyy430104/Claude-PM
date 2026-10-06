@@ -40,7 +40,7 @@ export class MeetingsService {
     if (!m) throw new NotFoundException('Meeting not found');
     return { ctx, m };
   }
-  private canManage(ctx: ProjectCtx, m: Meeting) { return ctx.isManager || m.organizerId === ctx.actor.id; }
+  private canManage(ctx: ProjectCtx, m: Meeting) { return ctx.perms.COMM || m.organizerId === ctx.actor.id; }
   private requireManage(ctx: ProjectCtx, m: Meeting) {
     this.access.requireOpen(ctx);
     if (!this.canManage(ctx, m)) throw new ForbiddenException('Organizer or project manager required');

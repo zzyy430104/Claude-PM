@@ -180,7 +180,7 @@ export class PlanningService {
 
   async assignByRole(actor: AuthUser, projectId: string, dto: AssignByRoleDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'WBS');
     this.access.requireOpen(ctx);
     const users = await this.prisma.user.count({ where: { tenantId: ctx.tenantId, active: true, id: { in: [...new Set(dto.assignments.map((a) => a.userId))] } } });
     if (users !== new Set(dto.assignments.map((a) => a.userId)).size) throw new BadRequestException('Unknown user');
@@ -230,7 +230,7 @@ export class PlanningService {
   /** 从可选库加一个工作包到项目：放在指定的一级工作包下，编号接着排，责任角色按名称对上 */
   async addFromLibrary(actor: AuthUser, projectId: string, dto: AddFromLibraryDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'WBS');
     this.access.requireOpen(ctx);
     await this.guard.assertAllowed(ctx, dto.changeRequestId);
     const lib = await this.prisma.optionalWorkPackage.findFirst({ where: { id: dto.libraryId, tenantId: ctx.tenantId, active: true } });

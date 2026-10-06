@@ -359,9 +359,9 @@ export class ProjectWbs {
     [...(this.data()?.items ?? [])].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })),
   );
   readonly leaves = computed(() => this.items().filter((w) => w.isLeaf));
-  readonly manage = computed(() => !!this.project().permissions?.manage);
+  readonly manage = computed(() => !!this.project().permissions?.edit?.WBS);
   readonly ai = inject(Ai);
-  readonly quality = computed(() => !!this.project().permissions?.quality);
+  readonly quality = computed(() => !!this.project().permissions?.edit?.INSPECTION);
 
   private readonly empty = {
     code: '', name: '', parentId: '', durationDays: 1, ownerId: '', phaseId: '', deliverableId: '', costAccountId: '',

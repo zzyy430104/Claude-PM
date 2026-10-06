@@ -18,7 +18,7 @@ import { COMM_KIND_LABELS, CommLog, CommPlan, Member, Project, TrainingRow } fro
     <h2>沟通计划（第 {{ plan()?.version ?? 0 }} 版）</h2>
     <form [formGroup]="planForm">
       <mat-form-field style="width: 100%"><mat-label>沟通渠道（每行：对象 | 渠道 | 频次）</mat-label><textarea matInput rows="3" formControlName="channels" [readonly]="!manage()" placeholder="客户 | 周报邮件 | 每周&#10;供方 | 例会 | 每两周"></textarea></mat-form-field>
-      @if (manage()) { <button mat-flat-button type="button" (click)="savePlan()">保存沟通计划</button> }
+      @if (comm()) { <button mat-flat-button type="button" (click)="savePlan()">保存沟通计划</button> }
     </form>
 
     <h2>沟通记录</h2>
@@ -65,6 +65,7 @@ export class ProjectTeam {
   readonly kinds = Object.keys(COMM_KIND_LABELS) as (keyof typeof COMM_KIND_LABELS)[];
   readonly kindLabels = COMM_KIND_LABELS;
   readonly manage = computed(() => !!this.project().permissions?.manage);
+  readonly comm = computed(() => !!this.project().permissions?.edit?.COMM);
   readonly planForm = this.fb.group({ channels: [''] });
   readonly logForm = this.fb.group({ kind: ['MEETING'], logDate: [new Date().toISOString().slice(0, 10), Validators.required], subject: ['', Validators.required], participants: [''], summary: ['', Validators.required] });
   readonly trainForm = this.fb.group({ userId: ['', Validators.required], title: ['', Validators.required], dueDate: [''] });

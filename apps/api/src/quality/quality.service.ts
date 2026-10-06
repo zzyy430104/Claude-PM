@@ -28,7 +28,7 @@ export class QualityService {
 
   async updatePlan(actor: AuthUser, projectId: string, dto: UpdateQualityPlanDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'QUALITY');
     this.access.requireOpen(ctx);
     const data = { objectives: dto.objectives, procedures: dto.procedures, activities: dto.activities as unknown as Prisma.InputJsonValue | undefined };
     // 修改后需重新批准
@@ -92,7 +92,7 @@ export class QualityService {
     this.access.requireOpen(ctx);
     const nc = await this.findNc(ctx, id);
     if (nc.status === NcStatus.CLOSED) throw new ConflictException('Nonconformity is closed');
-    if (!ctx.isManager && !ctx.isQuality && nc.actionOwnerId !== actor.id) throw new ForbiddenException('Quality or project management required');
+    if (!ctx.perms.NC && nc.actionOwnerId !== actor.id) throw new ForbiddenException('Quality or project management required');
     if (dto.actionOwnerId) {
       const m = await this.prisma.projectMember.findFirst({ where: { projectId, tenantId: ctx.tenantId, userId: dto.actionOwnerId, active: true } });
       if (!m) throw new BadRequestException('Action owner must be an active project member');
@@ -130,23 +130,23 @@ export class QualityService {
     const problems: string[] = [];
 
     if (to === NcStatus.ANALYSIS) {
-      this.access.requireManagerOrQuality(ctx);
+      this.access.requireCan(ctx, 'NC');
     } else if (to === NcStatus.ACTION && from === NcStatus.ANALYSIS) {
-      this.access.requireManagerOrQuality(ctx);
+      this.access.requireCan(ctx, 'NC');
       if (!nc.containment?.trim()) problems.push('必须记录遏制措施');
       if (!nc.rootCause?.trim()) problems.push('必须完成根本原因分析');
       if (!nc.correctiveAction?.trim()) problems.push('必须制定纠正措施');
       if (!nc.actionOwnerId) problems.push('必须指定措施负责人');
       if (!nc.actionDueDate) problems.push('必须设定措施完成期限');
     } else if (to === NcStatus.VERIFICATION) {
-      if (!ctx.isManager && !ctx.isQuality && !isOwner) throw new ForbiddenException('Action owner or project management required');
+      if (!ctx.perms.NC && !isOwner) throw new ForbiddenException('Action owner or project management required');
       data.actionCompletedAt = new Date();
     } else if (to === NcStatus.ACTION && from === NcStatus.VERIFICATION) {
-      this.access.requireManagerOrQuality(ctx);
+      this.access.requireCan(ctx, 'NC');
       if (!dto.note?.trim()) problems.push('措施无效退回时必须写明原因');
       data.actionCompletedAt = null;
     } else if (to === NcStatus.CLOSED) {
-      this.access.requireManagerOrQuality(ctx);
+      this.access.requireCan(ctx, 'NC');
       if (isOwner) throw new ForbiddenException('The action owner cannot verify their own corrective action');
       if (nc.severity !== NcSeverity.MINOR && !ctx.isQuality) {
         throw new ForbiddenException('Major and critical nonconformities must be closed by the quality manager');

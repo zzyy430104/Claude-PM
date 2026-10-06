@@ -49,6 +49,8 @@ model Tenant {
   riskRules            Json       @default("{}") @map("risk_rules")
   /// 项目绩效评价设置：项目经理评价方面与权重、计分规则、成员评价维度、等级、可见范围（空 = 默认）
   perfConfig           Json       @default("{}") @map("perf_config")
+  /// 项目权限表：各项内容除项目经理外哪些角色可编辑（见 projects/permissions.ts）
+  permConfig           Json       @default("{}") @map("perm_config")
   /// AI 辅助设置：是否启用、接口地址、模型、各场景开关、调用上限（密钥单独加密保存）
   aiConfig             Json       @default("{}") @map("ai_config")
   /// AI 接口密钥（AES-256-GCM 加密），不回传给前端

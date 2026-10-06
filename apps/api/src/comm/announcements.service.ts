@@ -23,7 +23,7 @@ export class AnnouncementsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  private canPublish(ctx: ProjectCtx) { return ctx.isManager || isMgmt(ctx.actor); }
+  private canPublish(ctx: ProjectCtx) { return ctx.perms.COMM || isMgmt(ctx.actor); }
 
   async list(actor: AuthUser, projectId: string) {
     const ctx = await this.access.load(actor, projectId);

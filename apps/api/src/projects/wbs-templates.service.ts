@@ -56,7 +56,7 @@ export class WbsTemplatesService {
   /** 把项目当前的 WBS 另存为模板（只保存结构、名称和工期） */
   async saveFromProject(actor: AuthUser, projectId: string, dto: SaveAsTemplateDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'WBS');
     const wps = await this.prisma.workPackage.findMany({ where: { projectId, tenantId: ctx.tenantId }, orderBy: { code: 'asc' } });
     if (!wps.length) throw new BadRequestException('The project has no work packages');
     const codeOf = new Map(wps.map((w) => [w.id, w.code]));
@@ -77,7 +77,7 @@ export class WbsTemplatesService {
   /** 把模板里的工作包加入项目；编号与已有工作包重复时整体拒绝 */
   async apply(actor: AuthUser, projectId: string, dto: ApplyTemplateDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'WBS');
     this.access.requireOpen(ctx);
     await this.guard.assertAllowed(ctx, dto.changeRequestId);
     const t = await this.prisma.wbsTemplate.findFirst({ where: { id: dto.templateId, tenantId: ctx.tenantId, active: true } });

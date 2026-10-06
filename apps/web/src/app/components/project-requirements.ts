@@ -115,7 +115,7 @@ export class ProjectRequirements {
   readonly categories = CATEGORIES;
   readonly statuses = STATUSES;
   readonly crControl = new FormControl('', { nonNullable: true });
-  readonly canEdit = computed(() => { const p = this.project().permissions; return !!(p?.manage || p?.quality) && this.project().status !== 'CLOSED'; });
+  readonly canEdit = computed(() => { const p = this.project().permissions; return !!p?.edit?.REQUIREMENTS && this.project().status !== 'CLOSED'; });
   readonly uncovered = computed(() => this.reqs().filter((r) => !r.deliverableId && r.status !== 'NOT_APPLICABLE').length);
   readonly form = this.fb.group({
     code: ['', Validators.required], title: ['', Validators.required], category: ['TECHNICAL' as RequirementCategory],

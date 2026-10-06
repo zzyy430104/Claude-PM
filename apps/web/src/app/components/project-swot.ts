@@ -58,7 +58,7 @@ export class ProjectSwot {
   readonly project = input.required<Project>();
   readonly rows = signal<SwotReview[]>([]);
   readonly error = signal('');
-  readonly canEdit = computed(() => { const p = this.project().permissions; return !!(p?.manage || p?.quality) && this.project().status !== 'CLOSED'; });
+  readonly canEdit = computed(() => { const p = this.project().permissions; return !!p?.edit?.RISK && this.project().status !== 'CLOSED'; });
   readonly form = this.fb.group({
     reviewDate: [new Date().toISOString().slice(0, 10), Validators.required], participants: ['', [Validators.required, Validators.minLength(2)]],
     strengths: [''], weaknesses: [''], opportunities: [''], threats: [''], actions: [''],

@@ -79,7 +79,7 @@ export class ProjectCostControl {
   readonly drawerWp = signal<WorkPackage | null>(null);
   readonly error = signal('');
   readonly today = new Date().toISOString().slice(0, 10);
-  readonly manage = computed(() => !!this.project().permissions?.manage && this.project().status !== 'CLOSED');
+  readonly manage = computed(() => !!this.project().permissions?.edit?.COST_ACTUAL && this.project().status !== 'CLOSED');
   readonly over = computed(() => (this.plan()?.workPackages ?? []).filter((w) => w.state));
 
   ngOnInit() { void this.load(); }

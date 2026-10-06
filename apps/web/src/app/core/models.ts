@@ -85,11 +85,14 @@ export const PROJECT_ROLE_LABELS: Record<ProjectRole, string> = {
 };
 export const PROJECT_ROLES = Object.keys(PROJECT_ROLE_LABELS) as ProjectRole[];
 
+export type EditKey = 'REQUIREMENTS' | 'WBS' | 'DELIVERABLES' | 'PURCHASE' | 'COST_PLAN' | 'COST_ACTUAL' | 'QUALITY' | 'INSPECTION' | 'NC' | 'RISK' | 'COMM' | 'HANDOVER';
 export interface Permissions {
   manage: boolean;
   quality: boolean;
   ccb: boolean;
   topManagement: boolean;
+  /** 按企业的项目权限表，本人在这个项目可以编辑的内容 */
+  edit?: Partial<Record<EditKey, boolean>>;
 }
 
 export interface Project {

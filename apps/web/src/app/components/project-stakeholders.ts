@@ -89,7 +89,7 @@ export class ProjectStakeholders {
   readonly error = signal('');
   readonly levels = ['HIGH', 'MEDIUM', 'LOW'] as const;
   readonly dims = ['SCHEDULE', 'COST', 'QUALITY'] as const;
-  readonly manage = computed(() => !!this.project().permissions?.manage && this.project().status !== 'CLOSED');
+  readonly manage = computed(() => !!this.project().permissions?.edit?.COMM && this.project().status !== 'CLOSED');
   readonly canEdit = computed(() => { const p = this.project().permissions; return !!(p?.manage || p?.quality) && this.project().status !== 'CLOSED'; });
   readonly form = this.fb.group({
     name: ['', Validators.required], organization: [''], email: [''], role: [''], influence: ['MEDIUM'], interest: ['MEDIUM'], expectations: [''], communication: [''],

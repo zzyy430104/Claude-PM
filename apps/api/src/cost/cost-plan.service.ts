@@ -49,7 +49,7 @@ export class CostPlanService {
   /** 没有科目时建默认科目 */
   async ensureAccounts(actor: AuthUser, projectId: string) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'COST_PLAN');
     return this.cost.ensureAccounts(this.prisma, ctx.tenantId, projectId);
   }
 
@@ -57,7 +57,7 @@ export class CostPlanService {
   async syncAccounts(actor: AuthUser, projectId: string) {
     const s = await this.summary(actor, projectId);
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'COST_PLAN');
     this.access.requireOpen(ctx);
     const total = s.accounts.reduce((n, a) => n + a.wpTotal, 0);
     if (s.target === null) throw new BadRequestException('Set the project budget (target cost) first');
@@ -73,7 +73,7 @@ export class CostPlanService {
   /** 工作包预算：人天、费率（手工改须写原因）、费用行 */
   async setWpCost(actor: AuthUser, projectId: string, wpId: string, dto: WpCostDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'COST_PLAN');
     this.access.requireOpen(ctx);
     const wp = await this.prisma.workPackage.findFirst({ where: { id: wpId, projectId, tenantId: ctx.tenantId }, include: { _count: { select: { children: true } }, costLines: true } });
     if (!wp) throw new NotFoundException('Work package not found');
@@ -123,7 +123,7 @@ export class CostPlanService {
     this.access.requireOpen(ctx);
     const wp = await this.prisma.workPackage.findFirst({ where: { id: wpId, projectId, tenantId: ctx.tenantId } });
     if (!wp) throw new NotFoundException('Work package not found');
-    if (!ctx.isManager && wp.ownerId !== actor.id) throw new ForbiddenException('Manager or owner required');
+    if (!ctx.perms.COST_PLAN && wp.ownerId !== actor.id) throw new ForbiddenException('Manager or owner required');
     await this.audit.tx(
       actor,
       { action: 'workPackage.etc', entity: 'WorkPackage', entityId: () => wpId, before: { etc: wp.estimateToComplete?.toString() ?? null }, after: () => ({ etc: dto.etc }) },
@@ -141,7 +141,7 @@ export class CostPlanService {
   /** 承诺成本：已下单未结算；结算后登记负数冲减 */
   async addCommitment(actor: AuthUser, projectId: string, dto: CommitmentDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'COST_ACTUAL');
     this.access.requireOpen(ctx);
     if (dto.amount === 0) throw new BadRequestException('amount must not be zero');
     const account = await this.prisma.costAccount.findFirst({ where: { id: dto.accountId, projectId, tenantId: ctx.tenantId } });

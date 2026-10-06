@@ -27,7 +27,7 @@ export class FaiService {
   private async editable(actor: AuthUser, projectId: string) {
     const ctx = await this.access.load(actor, projectId);
     this.access.requireOpen(ctx);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'INSPECTION');
     return ctx;
   }
   private async record(ctx: ProjectCtx, id: string) {
@@ -51,7 +51,7 @@ export class FaiService {
         actions: actions.filter((a) => a.description === `FAI ${r.reportNo}`).map((a) => ({ id: a.id, title: a.title, status: a.status })),
       })),
       parts: sum.parts, firstPass: sum.firstPass, state: sum.state, text: sum.text,
-      canEdit: ctx.project.status !== 'CLOSED' && (ctx.isManager || ctx.isQuality),
+      canEdit: ctx.project.status !== 'CLOSED' && ctx.perms.INSPECTION,
     };
   }
 

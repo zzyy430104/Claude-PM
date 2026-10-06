@@ -77,7 +77,7 @@ export class InspectionsService {
 
   async create(actor: AuthUser, projectId: string, wpId: string, dto: InspectionItemDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'INSPECTION');
     this.access.requireOpen(ctx);
     const wp = await this.wpOf(ctx, wpId);
     if (wp._count.children > 0) throw new BadRequestException('Inspection items belong to leaf work packages');
@@ -99,7 +99,7 @@ export class InspectionsService {
 
   async update(actor: AuthUser, projectId: string, id: string, dto: UpdateInspectionItemDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'INSPECTION');
     this.access.requireOpen(ctx);
     const it = await this.itemOf(ctx, id);
     if (it.workPackage.status === WpStatus.VERIFIED) throw new ConflictException('Verified work package is locked');
@@ -117,7 +117,7 @@ export class InspectionsService {
 
   async remove(actor: AuthUser, projectId: string, id: string) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'INSPECTION');
     this.access.requireOpen(ctx);
     const it = await this.itemOf(ctx, id);
     if (it.result !== InspectionResult.PENDING) throw new ConflictException('An inspection item with a result cannot be deleted');
@@ -139,7 +139,7 @@ export class InspectionsService {
     const ctx = await this.access.load(actor, projectId);
     this.access.requireOpen(ctx);
     const it = await this.itemOf(ctx, id);
-    if (!ctx.isManager && !ctx.isQuality && it.verifierId !== actor.id) throw new ForbiddenException('Only the verifier, the project quality manager or the project manager can record a result');
+    if (!ctx.perms.INSPECTION && it.verifierId !== actor.id) throw new ForbiddenException('Only the verifier, the project quality manager or the project manager can record a result');
     if (it.workPackage.status === WpStatus.VERIFIED) throw new ConflictException('Verified work package is locked');
     if (dto.result === InspectionResult.NA && !dto.note?.trim()) throw new BadRequestException({ code: 'NA_REASON_REQUIRED', message: 'A reason is required for “not applicable”' });
     const first = it.firstResult ?? (dto.result === InspectionResult.PASS || dto.result === InspectionResult.FAIL ? dto.result : null);

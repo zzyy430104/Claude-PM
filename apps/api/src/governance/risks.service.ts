@@ -129,7 +129,7 @@ export class RisksService {
     if (isMgmt(actor)) return true;
     if (who === 'MANAGEMENT') return false;
     if (who === 'PM') return !!ctx?.isManager;
-    return !!ctx?.isManager || !!ctx?.isQuality || r.ownerId === actor.id;
+    return !!ctx?.perms.RISK || r.ownerId === actor.id;
   }
   /** 重要度变成“高”时，按规则通知 */
   private async notifyIfHigher(r: Risk, s: RiskSettings, actorId: string) {
@@ -158,7 +158,7 @@ export class RisksService {
   private canEdit(actor: AuthUser, r: Risk, ctx: ProjectCtx | null) {
     if (isMgmt(actor) || r.ownerId === actor.id) return true;
     if (r.level === RiskLevel3.ENTERPRISE) return false;
-    return !!ctx?.isManager || !!ctx?.isQuality;
+    return !!ctx?.perms.RISK;
   }
   private checkScale(s: RiskSettings, p?: number, i?: number) {
     for (const v of [p, i]) if (v !== undefined && (v < 1 || v > s.scale)) throw new BadRequestException(`probability and impact must be between 1 and ${s.scale}`);

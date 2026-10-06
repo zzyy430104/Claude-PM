@@ -44,7 +44,8 @@ describe('会议与公告', () => {
     expect(d.seriesId).toBe(m.id);
 
     EmailService.outbox.length = 0;
-    await http().post(`/projects/${pid}/meetings/${m.id}/notify`).set(bearer(t.pqm.token)).expect(403);
+    // 不是组织者、也没有“会议、公告”编辑权限的人不能发通知（项目质量经理按默认权限表可以）
+    await http().post(`/projects/${pid}/meetings/${m.id}/notify`).set(bearer(t.top.token)).expect(403);
     await http().post(`/projects/${pid}/meetings/${m.id}/notify`).set(bearer(t.member.token)).expect(200);
     expect(await kinds(t.pqm.token)).toContain('MEETING_INVITE');
     const mails = EmailService.outbox.filter((x) => x.subject.includes('项目周例会'));
@@ -61,7 +62,7 @@ describe('会议与公告', () => {
     await http().post(`/projects/${pid}/meetings/${m.id}/rsvp`).set(bearer(t.top.token)).send({ response: 'ACCEPTED' }).expect(403);
     d = (await http().get(`/projects/${pid}/meetings/${m.id}`).set(bearer(t.member.token)).expect(200)).body;
     const ext = d.attendees.find((a: { external: boolean }) => a.external);
-    await http().post(`/projects/${pid}/meetings/${m.id}/attendees/${ext.id}/rsvp`).set(bearer(t.pqm.token)).send({ response: 'ACCEPTED', method: 'PHONE' }).expect(403);
+    await http().post(`/projects/${pid}/meetings/${m.id}/attendees/${ext.id}/rsvp`).set(bearer(t.top.token)).send({ response: 'ACCEPTED', method: 'PHONE' }).expect(403);
     await http().post(`/projects/${pid}/meetings/${m.id}/attendees/${ext.id}/rsvp`).set(bearer(t.member.token)).send({ response: 'ACCEPTED', method: 'PHONE' }).expect(200);
     d = (await http().get(`/projects/${pid}/meetings/${m.id}`).set(bearer(t.member.token)).expect(200)).body;
     expect(d.stats).toMatchObject({ accepted: 3, declined: 1, pending: 0 });

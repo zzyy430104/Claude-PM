@@ -94,7 +94,7 @@ export class ProjectCostPlan {
   readonly drawerWp = signal<WorkPackage | null>(null);
   readonly error = signal('');
   readonly busy = signal(false);
-  readonly manage = computed(() => !!this.project().permissions?.manage && this.project().status !== 'CLOSED');
+  readonly manage = computed(() => !!this.project().permissions?.edit?.COST_PLAN && this.project().status !== 'CLOSED');
 
   ngOnInit() { void this.load(); }
   async load() {

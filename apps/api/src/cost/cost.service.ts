@@ -66,7 +66,7 @@ export class CostService {
 
   async createAccount(actor: AuthUser, projectId: string, dto: CreateCostAccountDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'COST_PLAN');
     this.access.requireOpen(ctx);
     await this.checkAllocation(ctx, dto.budget);
     try {
@@ -83,7 +83,7 @@ export class CostService {
 
   async updateAccount(actor: AuthUser, projectId: string, id: string, dto: UpdateCostAccountDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'COST_PLAN');
     this.access.requireOpen(ctx);
     const a = await this.prisma.costAccount.findFirst({ where: { id, projectId, tenantId: ctx.tenantId } });
     if (!a) throw new NotFoundException('Cost account not found');
@@ -101,7 +101,7 @@ export class CostService {
 
   async addEntry(actor: AuthUser, projectId: string, dto: CreateCostEntryDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'COST_ACTUAL');
     this.access.requireOpen(ctx);
     if (dto.amount === 0) throw new BadRequestException('amount must not be zero');
     const account = await this.prisma.costAccount.findFirst({ where: { id: dto.accountId, projectId, tenantId: ctx.tenantId } });

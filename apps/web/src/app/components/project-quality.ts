@@ -100,14 +100,15 @@ export class ProjectQuality {
   readonly srcLabels = NC_SOURCE_LABELS;
   readonly statusLabels = NC_STATUS_LABELS;
   readonly quality = computed(() => !!this.project().permissions?.quality);
-  readonly canPlan = computed(() => !!(this.project().permissions?.manage || this.project().permissions?.quality));
+  readonly canPlan = computed(() => !!this.project().permissions?.edit?.QUALITY);
+  readonly canNc = computed(() => !!this.project().permissions?.edit?.NC);
   readonly planForm = this.fb.group({ objectives: [''], procedures: [''], activities: [''] });
   readonly ncForm = this.fb.group({ title: ['', [Validators.required, Validators.minLength(2)]], severity: ['MINOR'], source: ['INSPECTION'], description: ['', Validators.required] });
   readonly ncEdit = this.fb.group({ containment: [''], rootCause: [''], correctiveAction: [''], actionOwnerId: [''], actionDueDate: [''] });
 
   next(n: Nonconformity) { return NEXT[n.status]; }
   owner(n: Nonconformity) { return this.members().find((m) => m.userId === n.actionOwnerId)?.user?.name ?? '—'; }
-  canEditNc(n: Nonconformity) { return this.canPlan() || n.actionOwnerId === this.auth.user()?.id; }
+  canEditNc(n: Nonconformity) { return this.canNc() || n.actionOwnerId === this.auth.user()?.id; }
 
   async ngOnInit() {
     this.members.set(await this.api.get<Member[]>(`/projects/${this.project().id}/members`));

@@ -31,7 +31,7 @@ export class EngagementService {
   }
   async createSwot(actor: AuthUser, projectId: string, dto: CreateSwotDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'RISK');
     this.access.requireOpen(ctx);
     return this.audit.tx(actor, { action: 'swot.create', entity: 'SwotReview', entityId: (r) => r.id }, (tx) =>
       tx.swotReview.create({ data: { ...dto, reviewDate: new Date(dto.reviewDate), ...this.where(ctx), createdById: actor.id } }));
@@ -113,7 +113,7 @@ export class EngagementService {
   }
 
   private requireEditor(ctx: ProjectCtx) {
-    if (!ctx.isManager && !ctx.isQuality) throw new ForbiddenException('Project manager or quality manager required');
+    if (!ctx.perms.COMM) throw new ForbiddenException('Not allowed to edit stakeholders');
     this.access.requireOpen(ctx);
   }
   private async findStakeholder(ctx: ProjectCtx, id: string) {

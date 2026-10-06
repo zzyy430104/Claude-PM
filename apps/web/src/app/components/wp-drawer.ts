@@ -195,8 +195,8 @@ export class WpDrawer {
   readonly lines = signal<{ accountId: string; description: string; amount: number }[]>([]);
 
   readonly categories = this.brand.inspectionCategories;
-  readonly manage = computed(() => !!this.project().permissions?.manage);
-  readonly canPlanQ = computed(() => this.manage() || !!this.project().permissions?.quality);
+  readonly manage = computed(() => !!this.project().permissions?.edit?.WBS);
+  readonly canPlanQ = computed(() => !!this.project().permissions?.edit?.INSPECTION);
   readonly cost = computed<WpCost | null>(() => this.plan()?.workPackages.find((w) => w.id === this.wp().id) ?? null);
   readonly std = computed(() => this.cost()?.role?.rate ?? 0);
   readonly otherAccounts = computed(() => (this.plan()?.accounts ?? []).filter((a) => !a.isLabor));

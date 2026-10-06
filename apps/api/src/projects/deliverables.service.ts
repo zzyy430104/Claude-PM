@@ -23,7 +23,7 @@ export class DeliverablesService {
 
   async create(actor: AuthUser, projectId: string, dto: CreateDeliverableDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'DELIVERABLES');
     this.access.requireOpen(ctx);
     if (dto.phaseId) {
       const ph = await this.prisma.phase.findFirst({
@@ -57,7 +57,7 @@ export class DeliverablesService {
 
   async update(actor: AuthUser, projectId: string, id: string, dto: UpdateDeliverableDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'DELIVERABLES');
     this.access.requireOpen(ctx);
     const d = await this.prisma.deliverable.findFirst({
       where: { id, projectId, tenantId: ctx.tenantId },

@@ -87,7 +87,7 @@ export class ProjectDeliverables {
     dueDate: [''],
   });
 
-  canWrite() { return !!(this.project().permissions?.manage || this.project().permissions?.quality); }
+  canWrite() { return !!this.project().permissions?.edit?.DELIVERABLES; }
   kindLabel(d: Deliverable) { return DELIVERABLE_KIND_LABELS[d.kind]; }
   statusLabel(d: Deliverable) { return DELIVERABLE_STATUS_LABELS[d.status]; }
   phaseName(d: Deliverable) { return this.phases().find((p) => p.id === d.phaseId)?.name ?? '—'; }

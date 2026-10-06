@@ -24,7 +24,7 @@ export class ConfigService {
 
   async create(actor: AuthUser, projectId: string, dto: CreateConfigItemDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'DELIVERABLES');
     this.access.requireOpen(ctx);
     if (dto.parentId) {
       const parent = await this.prisma.configItem.findFirst({ where: { id: dto.parentId, projectId, tenantId: ctx.tenantId } });
@@ -45,7 +45,7 @@ export class ConfigService {
 
   async update(actor: AuthUser, projectId: string, id: string, dto: UpdateConfigItemDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'DELIVERABLES');
     this.access.requireOpen(ctx);
     const item = await this.prisma.configItem.findFirst({ where: { id, projectId, tenantId: ctx.tenantId } });
     if (!item) throw new NotFoundException('Configuration item not found');

@@ -1,3 +1,4 @@
+import { ProjectPermSettings } from '../components/project-perm-settings';
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -21,7 +22,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** 企业设置：品牌、立项、挣值预警阈值、工作日历 */
 @Component({
   selector: 'app-settings',
-  imports: [CostQualitySettings, RiskSettingsEditor, PerfSettings, AiSettings, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule],
+  imports: [ProjectPermSettings, CostQualitySettings, RiskSettingsEditor, PerfSettings, AiSettings, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule],
   styles: `
     section { max-width: 760px; }
     .week { display: flex; gap: 12px; flex-wrap: wrap; margin: 4px 0 12px; }
@@ -78,6 +79,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
       </form>
       @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
       <app-cost-quality-settings />
+      <app-project-perm-settings />
       <app-risk-settings />
       <app-perf-settings />
       <app-ai-settings />

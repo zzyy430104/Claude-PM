@@ -25,7 +25,7 @@ export class TeamService {
 
   async updateCommPlan(actor: AuthUser, projectId: string, dto: UpdateCommPlanDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'COMM');
     this.access.requireOpen(ctx);
     const data = { channels: dto.channels as unknown as Prisma.InputJsonValue | undefined, notes: dto.notes };
     return this.audit.tx(

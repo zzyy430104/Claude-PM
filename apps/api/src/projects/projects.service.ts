@@ -60,6 +60,8 @@ export class ProjectsService {
         quality: ctx.isQuality,
         ccb: ctx.isCcb,
         topManagement: ctx.isTopManagement,
+        /** 按企业的项目权限表，本人在这个项目可以编辑的内容 */
+        edit: ctx.perms,
       },
     };
   }

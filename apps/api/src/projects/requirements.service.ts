@@ -28,7 +28,7 @@ export class RequirementsService {
 
   async create(actor: AuthUser, projectId: string, dto: CreateRequirementDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'REQUIREMENTS');
     this.access.requireOpen(ctx);
     await this.guard.assertAllowed(ctx, dto.changeRequestId);
     await this.checkDeliverable(ctx, dto.deliverableId);
@@ -47,7 +47,7 @@ export class RequirementsService {
 
   async update(actor: AuthUser, projectId: string, id: string, dto: UpdateRequirementDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'REQUIREMENTS');
     this.access.requireOpen(ctx);
     const r = await this.find(ctx, id);
     await this.checkDeliverable(ctx, dto.deliverableId ?? undefined);
@@ -63,7 +63,7 @@ export class RequirementsService {
 
   async remove(actor: AuthUser, projectId: string, id: string, changeRequestId?: string) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManagerOrQuality(ctx);
+    this.access.requireCan(ctx, 'REQUIREMENTS');
     this.access.requireOpen(ctx);
     await this.guard.assertAllowed(ctx, changeRequestId);
     const r = await this.find(ctx, id);

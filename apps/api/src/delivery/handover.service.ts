@@ -48,9 +48,9 @@ export class HandoverService {
       defaultDocuments: DEFAULT_HANDOVER_DOCS,
       required: !!(ctx?.project ?? (await this.prisma.project.findUnique({ where: { id: projectId } })))?.initiationId,
       can: {
-        edit: !!ctx?.isManager && h.status === HandoverStatus.DRAFT && open,
-        submit: !!ctx?.isManager && h.status === HandoverStatus.DRAFT && open,
-        withdraw: !!ctx?.isManager && h.status === HandoverStatus.PENDING,
+        edit: !!ctx?.perms.HANDOVER && h.status === HandoverStatus.DRAFT && open,
+        submit: !!ctx?.perms.HANDOVER && h.status === HandoverStatus.DRAFT && open,
+        withdraw: !!ctx?.perms.HANDOVER && h.status === HandoverStatus.PENDING,
         confirm: h.status === HandoverStatus.PENDING && (h.receiverId ? h.receiverId === actor.id : !!ctx?.isManager),
       },
     };
@@ -58,7 +58,7 @@ export class HandoverService {
 
   async save(actor: AuthUser, projectId: string, dto: HandoverDto) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'HANDOVER');
     this.access.requireOpen(ctx);
     const h = await this.row(ctx.tenantId, projectId);
     if (h.status !== HandoverStatus.DRAFT) throw new ConflictException({ code: 'HANDOVER_SUBMITTED', message: 'Withdraw the handover before changing it' });
@@ -77,7 +77,7 @@ export class HandoverService {
 
   async submit(actor: AuthUser, projectId: string) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'HANDOVER');
     this.access.requireOpen(ctx);
     const h = await this.row(ctx.tenantId, projectId);
     if (h.status !== HandoverStatus.DRAFT) throw new ConflictException('Already submitted');
@@ -93,7 +93,7 @@ export class HandoverService {
 
   async withdraw(actor: AuthUser, projectId: string) {
     const ctx = await this.access.load(actor, projectId);
-    this.access.requireManager(ctx);
+    this.access.requireCan(ctx, 'HANDOVER');
     const h = await this.row(ctx.tenantId, projectId);
     if (h.status !== HandoverStatus.PENDING) throw new ConflictException('Not pending');
     return this.audit.tx(actor, { action: 'handover.withdraw', entity: 'Handover', entityId: () => h.id }, (tx) => tx.handover.update({ where: { id: h.id }, data: { status: HandoverStatus.DRAFT, submittedAt: null } }));

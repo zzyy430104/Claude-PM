@@ -66,7 +66,7 @@ export class ProjectConfig {
   readonly baselines = signal<BaselineRow[]>([]);
   readonly status = signal<ConfigStatus | null>(null);
   readonly error = signal('');
-  readonly canEdit = computed(() => !!(this.project().permissions?.manage || this.project().permissions?.quality));
+  readonly canEdit = computed(() => !!this.project().permissions?.edit?.DELIVERABLES);
   readonly canBaseline = computed(() => !!this.project().permissions?.manage);
   readonly form = this.fb.group({ code: ['', Validators.required], name: ['', Validators.required], kind: ['HARDWARE'], parentId: [''], serialNumber: [''], batchNumber: [''], safetyRelated: [false], lowestLevel: [false] });
   readonly blForm = this.fb.group({ type: ['AS_DESIGNED'], name: ['', [Validators.required, Validators.minLength(2)]] });
