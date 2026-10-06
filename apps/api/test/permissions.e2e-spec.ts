@@ -43,4 +43,15 @@ describe('项目权限表（企业设置）', () => {
     expect(back.config.grants.REQUIREMENTS).toContain(design.id);
     expect(back.config.grants.WBS).toEqual([]);
   });
+
+  it('采购人员（项目成员）按权限表可以新增物料', async () => {
+    const t = await setupTenant(app, 'permbuy');
+    const p = await gateProject(app, t, { baseline: false });
+    const roles = (await http().get('/functional-roles').set(bearer(t.admin.token)).expect(200)).body as { id: string; name: string }[];
+    const buyer = roles.find((r) => r.name.includes('采购')) ?? (await http().post('/functional-roles').set(bearer(t.admin.token)).send({ name: '采购' }).expect(201)).body;
+    await http().patch(`/users/${t.member.id}`).set(bearer(t.admin.token)).send({ functionalRoleId: buyer.id }).expect(200);
+    const plan = (await http().get(`/projects/${p.id}/purchase-plan`).set(bearer(t.member.token)).expect(200)).body;
+    expect(plan.canEdit).toBe(true);
+    await http().post(`/projects/${p.id}/purchase-items`).set(bearer(t.member.token)).send({ name: '钢背板', amount: 1000 }).expect(201);
+  });
 });
