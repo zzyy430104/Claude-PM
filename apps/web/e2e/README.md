@@ -31,7 +31,8 @@
 
 ```bash
 # 1. 启动后端和数据库（需要 PostgreSQL，见 ../../api/README 与根目录 README）
-cd apps/api && npm run build && ALLOW_TENANT_SIGNUP=true node dist/main &
+# 注册接口默认每个 IP 每小时限 10 次，整套脚本要注册二十多个企业，所以要放宽限流，否则跑到一半会返回 429
+cd apps/api && npm run build && ALLOW_TENANT_SIGNUP=true AI_TRANSPORT=mock RATE_LIMIT_SIGNUP_PER_IP=100000 RATE_LIMIT_LOGIN_PER_IP=100000 RATE_LIMIT_LOGIN_PER_ACCOUNT=1000 node dist/main &
 # 2. 启动前端
 cd apps/web && npx ng serve &
 # 3. 运行
