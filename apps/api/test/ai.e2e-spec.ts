@@ -22,6 +22,16 @@ describe('AI 辅助', () => {
     expect(s.config).toMatchObject({ enabled: false, baseUrl: 'https://api.deepseek.com' });
     expect(s.keyHint).toBeNull();
     await http().put('/ai-settings').set(bearer(t.admin.token)).send({ baseUrl: 'ftp://x' }).expect(400);
+    // 防 SSRF：内网地址、元数据地址、不在允许清单里的域名都不能保存
+    for (const baseUrl of ['http://169.254.169.254', 'http://api:3000', 'https://127.0.0.1:5432', 'https://evil.example.com', 'http://api.deepseek.com']) {
+      await http().put('/ai-settings').set(bearer(t.admin.token)).send({ baseUrl }).expect(400);
+    }
+    await http().put('/ai-settings').set(bearer(t.admin.token)).send({ baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/' }).expect(200);
+    await http().put('/ai-settings').set(bearer(t.admin.token)).send({ baseUrl: 'https://api.deepseek.com' }).expect(200);
+    // 输入检查：类型不对、未知场景、未知字段都拒绝
+    for (const body of [{ enabled: 'yes' }, { scenarios: { REPORT: 'no' } }, { scenarios: { NOPE: true } }, { perUserDaily: 1.5 }, { perUserDaily: 0 }, { model: '' }, { model: null }, { foo: 1 }, { apiKey: 123 }]) {
+      await http().put('/ai-settings').set(bearer(t.admin.token)).send(body).expect(400);
+    }
     s = (await http().put('/ai-settings').set(bearer(t.admin.token)).send({ enabled: true, apiKey: 'sk-test-0000000000abcd', model: 'deepseek-flash' }).expect(200)).body;
     expect(s.keyHint).toBe('sk-****abcd');
     expect(JSON.stringify(s)).not.toContain('sk-test-0000000000abcd');

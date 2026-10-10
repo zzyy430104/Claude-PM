@@ -1,12 +1,12 @@
 import { BadRequestException, Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { IsBoolean, IsObject, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsBoolean, IsInt, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { Role } from '../generated/prisma/enums.js';
 import { CurrentUser, Roles } from '../common/decorators.js';
 import { requireTenantId } from '../common/auth.types.js';
 import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { type AiConfig, loadAiConfig, type Scenario } from './ai-config.js';
+import { loadAiConfig, type Scenario } from './ai-config.js';
 import { AiService } from './ai.service.js';
 import { extractText } from './extract.js';
 
@@ -19,6 +19,19 @@ class AdoptDto {
   @IsOptional() @IsString() @MaxLength(40) entityType?: string;
   @IsOptional() @IsUUID('all') entityId?: string;
 }
+/** PUT /ai-settings 的请求体：字段都可选，只改传进来的；未知字段会被全局 ValidationPipe 拒绝 */
+class AiSettingsDto {
+  @IsOptional() @IsBoolean() enabled?: boolean;
+  @IsOptional() @IsString() @MaxLength(500) baseUrl?: string;
+  @IsOptional() @IsString() @MaxLength(100) model?: string;
+  @IsOptional() @IsObject() scenarios?: Record<string, unknown>;
+  @IsOptional() @IsInt() @Min(1) @Max(1_000_000) perUserDaily?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(1_000_000) perTenantDaily?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(1_000_000) maxFileMb?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(1_000_000) maxInputChars?: number;
+  /** 不传：不修改；null 或空串：删除；字符串：设置新密钥 */
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(500) apiKey?: string | null;
+}
 type Upload = { originalname: string; buffer: Buffer; mimetype: string; size: number };
 
 /** AI 辅助：设置、起草、采纳、使用记录 */
@@ -28,7 +41,7 @@ export class AiController {
 
   @Get('ai/status') status(@CurrentUser() u: AuthUser) { return this.ai.status(u); }
   @Get('ai-settings') @Roles(Role.TENANT_ADMIN) settings(@CurrentUser() u: AuthUser) { return this.ai.getSettings(u); }
-  @Put('ai-settings') @Roles(Role.TENANT_ADMIN) save(@CurrentUser() u: AuthUser, @Body() body: Partial<AiConfig> & { apiKey?: string | null }) { return this.ai.saveSettings(u, body); }
+  @Put('ai-settings') @Roles(Role.TENANT_ADMIN) save(@CurrentUser() u: AuthUser, @Body() body: AiSettingsDto) { return this.ai.saveSettings(u, body); }
   @Post('ai-settings/test') @HttpCode(200) @Roles(Role.TENANT_ADMIN) test(@CurrentUser() u: AuthUser) { return this.ai.test(u); }
 
   @Post('ai/draft/:scenario') @HttpCode(200)
