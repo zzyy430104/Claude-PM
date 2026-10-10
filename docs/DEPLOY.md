@@ -95,6 +95,9 @@ PM_URL=http://你的地址 PM_ADMIN_EMAIL=平台管理员邮箱 PM_ADMIN_PASSWOR
 | `ACCESS_TOKEN_TTL` / `REFRESH_TOKEN_TTL_DAYS` | 访问令牌有效期（默认 15m）与刷新令牌有效天数（默认 7） |
 | `RATE_LIMIT_LOGIN_PER_ACCOUNT` / `_PER_IP` / `RATE_LIMIT_SIGNUP_PER_IP` | 登录失败次数上限（每 15 分钟，默认 8 / 60）与注册次数上限（每小时，默认 10） |
 | `REQUIRE_RLS` | 已在 compose 中设为 `true`：数据库账号绕过行级安全时拒绝启动 |
+| `AI_ALLOWED_HOSTS` | AI 接口地址允许的域名（逗号分隔，含子域名）；留空用内置清单（DeepSeek、通义千问、OpenAI、Kimi、智谱、火山方舟、千帆）。企业管理员只能填这些域名，防止服务器被用来访问内网 |
+| `AI_ALLOW_PRIVATE` | 私有部署接内网模型时设为 `true`：允许 http 和内网地址（地址仍须在 `AI_ALLOWED_HOSTS` 里）；默认 `false` |
+| `DATABASE_POOL_MAX` | 每个后台进程的数据库连接池大小，默认 10 |
 
 ## 5. HTTPS
 

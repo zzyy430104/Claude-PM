@@ -1,7 +1,13 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Prisma, PrismaClient } from '../generated/prisma/client.js';
-import { tenantContext } from './tenant-context.js';
+import { SerialQueue, tenantContext } from './tenant-context.js';
+
+/** 连接池大小，可用 DATABASE_POOL_MAX 调整（默认 10，与 pg 默认一致） */
+export function poolSize(): number {
+  const n = Number(process.env.DATABASE_POOL_MAX);
+  return Number.isInteger(n) && n > 0 ? n : 10;
+}
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
@@ -14,7 +20,7 @@ const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleDestroy {
   constructor() {
-    super({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
+    super({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL, max: poolSize() }) });
     const base = this as PrismaClient;
     const scoped = base.$extends({
       query: {
@@ -22,7 +28,10 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
           async $allOperations({ model, operation, args, query }) {
             const ctx = tenantContext.getStore();
             // 只读请求里已经有一个写好租户上下文的事务，直接用它，省掉每条查询的 BEGIN / set_config / COMMIT
-            if (ctx?.tx) return (ctx.tx as Record<string, Record<string, (a: unknown) => Promise<unknown>>>)[lowerFirst(model)][operation](args);
+            if (ctx?.tx) {
+              const run = () => (ctx.tx as Record<string, Record<string, (a: unknown) => Promise<unknown>>>)[lowerFirst(model)][operation](args);
+              return ctx.queue ? ctx.queue.run(run) : run();
+            }
             const [, result] = await base.$transaction([
               base.$executeRaw`SELECT set_config('app.tenant_id', ${ctx?.tenantId ?? ''}, true), set_config('app.bypass_rls', ${ctx?.bypass ? 'on' : 'off'}, true)`,
               query(args),
@@ -42,7 +51,11 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
   /** 交互式事务：事务内所有语句都在同一租户上下文下执行 */
   txn<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     const ctx = tenantContext.getStore();
-    if (ctx?.tx) return fn(ctx.tx as Prisma.TransactionClient);
+    if (ctx?.tx) {
+      // 在共享事务里直接使用 tx 的代码不经过排队器，所以整段独占连接执行
+      const tx = ctx.tx as Prisma.TransactionClient;
+      return ctx.queue ? ctx.queue.run(() => tenantContext.run({ ...ctx, queue: new SerialQueue() }, () => fn(tx))) : fn(tx);
+    }
     return this.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.tenant_id', ${ctx?.tenantId ?? ''}, true), set_config('app.bypass_rls', ${ctx?.bypass ? 'on' : 'off'}, true)`;
       return fn(tx);
@@ -57,7 +70,7 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
     const ctx = tenantContext.getStore() ?? {};
     return this.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.tenant_id', ${ctx.tenantId ?? ''}, true), set_config('app.bypass_rls', ${ctx.bypass ? 'on' : 'off'}, true)`;
-      return tenantContext.run({ ...ctx, tx, memo: new Map() }, fn);
+      return tenantContext.run({ ...ctx, tx, queue: new SerialQueue(), memo: new Map() }, fn);
     }, { maxWait: 10_000, timeout: 60_000 });
   }
 

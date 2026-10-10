@@ -14,12 +14,43 @@ export interface TenantContext {
   tx?: unknown;
   /** 同一请求内的小缓存（如工作日历），随请求结束丢弃 */
   memo?: Map<string, unknown>;
+  /** 共享事务上的排队器：一条连接同一时间只能跑一条查询，Promise.all 的并发查询在这里排队 */
+  queue?: SerialQueue;
 }
+
+/** 让同一事务上的查询逐条执行（pg 不支持在一个连接上并发查询，pg@9 会直接报错） */
+export class SerialQueue {
+  private tail: Promise<unknown> = Promise.resolve();
+  run<T>(fn: () => PromiseLike<T>): Promise<T> {
+    const next = this.tail.then(() => fn());
+    this.tail = next.then(() => undefined, () => undefined);
+    return next;
+  }
+}
+
+type RawTx = { $executeRaw: (s: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> };
 
 export const tenantContext = new AsyncLocalStorage<TenantContext>();
 
 /** 以“跨租户”身份执行：仅限登录、注册、平台管理员操作、启动引导等没有租户上下文的场景 */
 export function withBypass<T>(fn: () => PromiseLike<T>): Promise<T> {
+  const ctx = tenantContext.getStore();
+  // 已经在只读请求的共享事务里：不能再去连接池拿第二条连接（并发时会把连接池耗尽、互相等待直到超时），
+  // 改为在同一事务里临时打开 bypass，执行完再关掉。整个过程独占这条连接，期间请求里的其他查询排队等待，
+  // 所以 bypass 不会泄漏给别的查询。
+  if (ctx?.tx && ctx.queue) {
+    const tx = ctx.tx as RawTx;
+    const outer = ctx;
+    return ctx.queue.run(async () => {
+      if (outer.bypass) return await tenantContext.run({ ...outer, queue: new SerialQueue() }, async () => await fn());
+      await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'on', true)`;
+      try {
+        return await tenantContext.run({ ...outer, bypass: true, queue: new SerialQueue() }, async () => await fn());
+      } finally {
+        await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'off', true)`;
+      }
+    });
+  }
   // 必须在 run 里面 await：Prisma 的查询是惰性的，等到有人 then 才真正执行，
   // 如果把惰性对象原样返回，执行就会发生在上下文之外
   return tenantContext.run({ bypass: true }, async () => await fn());

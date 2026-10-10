@@ -33,6 +33,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
       # 后台进程数：auto 按 CPU 核数（最多 8 个）；小机器可设 1 或 2
       WORKERS: ${WORKERS:-auto}
+      # AI 接口地址只允许这些域名（逗号分隔，含子域名）；留空用内置清单（DeepSeek、通义千问等）
+      AI_ALLOWED_HOSTS: ${AI_ALLOWED_HOSTS:-}
+      # 私有部署用内网模型时设为 true（允许 http 和内网地址，地址仍须在 AI_ALLOWED_HOSTS 里）
+      AI_ALLOW_PRIVATE: ${AI_ALLOW_PRIVATE:-false}
       ALLOW_TENANT_SIGNUP: ${ALLOW_TENANT_SIGNUP:-false}
       PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-}
       PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}

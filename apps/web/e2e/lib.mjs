@@ -63,9 +63,17 @@ export async function login(p, slug, email, password) {
   }
 }
 export async function changePassword(p, current, next) {
-  await p.fill('input[formcontrolname=currentPassword]', current);
-  await p.fill('input[formcontrolname=newPassword]', next);
-  await p.fill('input[formcontrolname=confirm]', next);
+  // 刚跳转到改密页时立刻填写，偶尔会有字段在填完后被清空（只在页面刚打开的几十毫秒内出现，
+  // 真实用户不会这么快输入），表单无效、按钮一直不能点。这里填完后核对三个字段，被清空就重填。
+  const fields = [['currentPassword', current], ['newPassword', next], ['confirm', next]];
+  await p.waitForSelector('app-account input[formcontrolname=confirm]');
+  for (let attempt = 0; ; attempt++) {
+    for (const [name, value] of fields) await p.fill(`input[formcontrolname=${name}]`, value);
+    await p.waitForTimeout(200);
+    const values = await Promise.all(fields.map(([name]) => p.inputValue(`input[formcontrolname=${name}]`)));
+    if (values.every((v, i) => v === fields[i][1])) break;
+    if (attempt >= 4) throw new Error(`改密表单字段被反复清空：${JSON.stringify(values.map((v) => v.length))}`);
+  }
   await p.click('button[type=submit]:has-text("修改密码")');
 }
 export async function logout(p) {

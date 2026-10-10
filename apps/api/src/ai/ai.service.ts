@@ -7,6 +7,9 @@ import type { AuthUser } from '../common/auth.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { type AiConfig, decryptKey, DEFAULT_AI, encryptKey, loadAiConfig, maskKey, type Scenario, SCENARIO_LABELS, SCENARIOS } from './ai-config.js';
 import { type ChatMessage, SCENARIO_DEFS } from './scenarios.js';
+import { aiFetch, AiUrlError, checkAiBaseUrl } from './url-guard.js';
+
+export interface AiSettingsInput extends Partial<Omit<AiConfig, 'scenarios'>> { scenarios?: Record<string, unknown>; apiKey?: string | null }
 
 const isMgmt = (u: AuthUser) => u.role === Role.TOP_MANAGEMENT || u.role === Role.TENANT_ADMIN;
 const startOfDay = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
@@ -39,14 +42,28 @@ export class AiService {
     return { config, keyHint, labels: SCENARIO_LABELS, defaults: DEFAULT_AI };
   }
 
-  async saveSettings(actor: AuthUser, body: Partial<AiConfig> & { apiKey?: string | null }) {
+  async saveSettings(actor: AuthUser, body: AiSettingsInput) {
     const tenantId = requireTenantId(actor);
     const { config: cur } = await loadAiConfig(this.prisma, tenantId);
-    const next: AiConfig = { ...cur, ...body, scenarios: { ...cur.scenarios, ...body.scenarios } };
-    delete (next as Partial<AiConfig> & { apiKey?: unknown }).apiKey;
-    try { const u = new URL(next.baseUrl); if (!/^https?:$/.test(u.protocol)) throw new Error(); } catch { throw new BadRequestException('baseUrl must be an http(s) URL'); }
-    next.baseUrl = next.baseUrl.replace(/\/+$/, '');
-    if (!next.model?.trim() || next.model.length > 100) throw new BadRequestException('model is required');
+    if (body.scenarios !== undefined) {
+      for (const [k, v] of Object.entries(body.scenarios)) {
+        if (!SCENARIOS.includes(k as Scenario)) throw new BadRequestException(`Unknown scenario ${k}`);
+        if (typeof v !== 'boolean') throw new BadRequestException(`scenarios.${k} must be a boolean`);
+      }
+    }
+    // 只取已知字段，避免把请求里的其他内容写进企业配置
+    const pick = <K extends keyof AiConfig>(k: K) => (body[k] !== undefined ? body[k] : cur[k]) as AiConfig[K];
+    const next: AiConfig = {
+      enabled: pick('enabled'), baseUrl: pick('baseUrl'), model: pick('model'),
+      scenarios: { ...cur.scenarios, ...body.scenarios },
+      perUserDaily: pick('perUserDaily'), perTenantDaily: pick('perTenantDaily'), maxFileMb: pick('maxFileMb'), maxInputChars: pick('maxInputChars'),
+    };
+    if (typeof next.enabled !== 'boolean') throw new BadRequestException('enabled must be a boolean');
+    next.baseUrl = String(next.baseUrl ?? '').trim().replace(/\/+$/, '');
+    if (body.baseUrl !== undefined) {
+      try { checkAiBaseUrl(next.baseUrl); } catch (e) { throw new BadRequestException((e as Error).message); }
+    }
+    if (typeof next.model !== 'string' || !next.model.trim() || next.model.length > 100) throw new BadRequestException('model is required');
     for (const k of ['perUserDaily', 'perTenantDaily', 'maxFileMb', 'maxInputChars'] as const) {
       if (!Number.isInteger(next[k]) || next[k] < 1 || next[k] > 1_000_000) throw new BadRequestException(`${k} must be a positive integer`);
     }
@@ -63,13 +80,16 @@ export class AiService {
     if (!keyEnc) throw new BadRequestException({ code: 'AI_NOT_CONFIGURED', message: 'API key is not set' });
     if (mock()) return { ok: true, models: ['deepseek-flash', 'deepseek-v4-pro'] };
     try {
-      const r = await fetch(`${config.baseUrl}/models`, { headers: { Authorization: `Bearer ${decryptKey(keyEnc)}` }, signal: AbortSignal.timeout(20_000) });
+      const r = await aiFetch(config.baseUrl, '/models', { headers: { Authorization: `Bearer ${decryptKey(keyEnc)}` }, signal: AbortSignal.timeout(20_000) });
       const text = await r.text();
-      if (!r.ok) return { ok: false, status: r.status, message: text.slice(0, 300) };
+      // 不回显对方的响应正文（防止借测试连接读取内网服务的内容），只给状态码
+      if (!r.ok) return { ok: false, status: r.status, message: r.status === 401 || r.status === 403 ? 'API key was rejected' : 'AI service returned an error' };
       const j = JSON.parse(text) as { data?: { id: string }[] };
       return { ok: true, models: (j.data ?? []).map((m) => m.id) };
     } catch (e) {
-      return { ok: false, message: (e as Error).message };
+      if (e instanceof AiUrlError) return { ok: false, message: e.message };
+      this.logger.warn(`AI test failed: ${(e as Error).message}`);
+      return { ok: false, message: 'Could not reach the AI service' };
     }
   }
 
@@ -90,14 +110,14 @@ export class AiService {
   }
 
   private async call(config: AiConfig, key: string, messages: ChatMessage[]) {
-    const r = await fetch(`${config.baseUrl}/chat/completions`, {
+    const r = await aiFetch(config.baseUrl, '/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ model: config.model, messages, temperature: 0.2, response_format: { type: 'json_object' }, max_tokens: 8000 }),
       signal: AbortSignal.timeout(180_000),
     });
     const text = await r.text();
-    if (!r.ok) throw new Error(`AI service returned ${r.status}: ${text.slice(0, 300)}`);
+    if (!r.ok) throw new Error(`AI service returned ${r.status}`);
     const j = JSON.parse(text) as { model?: string; choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
     const content = j.choices?.[0]?.message?.content ?? '';
     const json = content.replace(/^```(?:json)?\s*|\s*```$/g, '');
