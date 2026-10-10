@@ -1,0 +1,65 @@
+# 私有部署与本地开发共用。用法：cp .env.example .env，修改密码后 docker compose up -d
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 中设置 POSTGRES_PASSWORD}
+      POSTGRES_DB: claude_pm
+      # 首次初始化时用于创建受行级安全约束的应用账号 pm_app，见 db/init/01-app-role.sh
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?请在 .env 中设置 APP_DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pm -d claude_pm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./apps/api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # 运行时用受限账号（受行级安全约束），迁移用有建表权限的账号
+      DATABASE_URL: postgresql://pm_app:${APP_DB_PASSWORD}@db:5432/claude_pm
+      MIGRATION_DATABASE_URL: postgresql://pm:${POSTGRES_PASSWORD}@db:5432/claude_pm
+      # 数据库账号绕过了行级安全时拒绝启动
+      REQUIRE_RLS: "true"
+      JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
+      # 后台进程数：auto 按 CPU 核数（最多 8 个）；小机器可设 1 或 2
+      WORKERS: ${WORKERS:-auto}
+      # AI 接口地址只允许这些域名（逗号分隔，含子域名）；留空用内置清单（DeepSeek、通义千问等）
+      AI_ALLOWED_HOSTS: ${AI_ALLOWED_HOSTS:-}
+      # 私有部署用内网模型时设为 true（允许 http 和内网地址，地址仍须在 AI_ALLOWED_HOSTS 里）
+      AI_ALLOW_PRIVATE: ${AI_ALLOW_PRIVATE:-false}
+      ALLOW_TENANT_SIGNUP: ${ALLOW_TENANT_SIGNUP:-false}
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-}
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
+      PORT: 3000
+      STORAGE_DIR: /data/storage
+      APP_URL: ${APP_URL:-}
+      # 站点走 https 时设为 true；纯 http 内网试运行设为 false
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-Claude-PM <no-reply@localhost>}
+    volumes:
+      - storage:/data/storage
+    expose:
+      - "3000"
+
+  web:
+    build: ./apps/web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  pgdata:
+  storage:

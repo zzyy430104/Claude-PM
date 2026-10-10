@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "tenants" ADD COLUMN     "evm_amber" DECIMAL(4,2) NOT NULL DEFAULT 0.95,
+ADD COLUMN     "evm_red" DECIMAL(4,2) NOT NULL DEFAULT 0.90;
+

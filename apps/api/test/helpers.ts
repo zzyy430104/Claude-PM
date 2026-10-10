@@ -1,0 +1,178 @@
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
+import { AppModule } from '../src/app.module.js';
+
+export async function createApp(): Promise<INestApplication> {
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
+  const app = moduleRef.createNestApplication();
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+  await app.init();
+  return app;
+}
+
+let counter = 0;
+export const uid = () => `${Date.now().toString(36)}${counter++}`;
+
+export async function signupTenant(app: INestApplication, label: string) {
+  const slug = `t-${label}-${uid()}`;
+  const adminEmail = `admin@${slug}.test`;
+  const password = 'admin-pass-123';
+  await request(app.getHttpServer())
+    .post('/auth/signup')
+    .send({
+      tenantName: `Tenant ${label}`,
+      tenantSlug: slug,
+      adminEmail,
+      adminName: 'Admin',
+      password,
+    })
+    .expect(201);
+  const login = await request(app.getHttpServer())
+    .post('/auth/login')
+    .send({ tenantSlug: slug, email: adminEmail, password })
+    .expect(200);
+  return {
+    slug,
+    adminEmail,
+    password,
+    token: login.body.accessToken as string,
+    refreshCookie: cookieOf(login),
+  };
+}
+
+/** 取出响应里的刷新令牌 Cookie（name=value 部分），用于带回 /auth/refresh */
+export function cookieOf(res: request.Response): string {
+  const raw = (res.headers['set-cookie'] as unknown as string[] | undefined) ?? [];
+  const c = raw.find((x) => x.startsWith('pm_rt='));
+  if (!c) throw new Error('response has no pm_rt cookie');
+  return c.split(';')[0];
+}
+
+export const CSRF = { 'X-Requested-With': 'claude-pm' };
+
+export const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+export interface TestUser {
+  id: string;
+  email: string;
+  token: string;
+}
+
+/** createUser 建出的用户改密后的密码 */
+export const USER_PASSWORD = 'password-456';
+
+/** 由租户管理员创建指定角色的用户、登录并完成首次改密 */
+export async function createUser(
+  app: INestApplication,
+  tenant: { slug: string; token: string },
+  role: string,
+  label = role.toLowerCase(),
+): Promise<TestUser> {
+  const email = `${label}-${uid()}@${tenant.slug}.test`;
+  const password = 'password-123';
+  const created = await request(app.getHttpServer())
+    .post('/users')
+    .set(bearer(tenant.token))
+    .send({ email, name: label, password, role })
+    .expect(201);
+  const login = await request(app.getHttpServer())
+    .post('/auth/login')
+    .send({ tenantSlug: tenant.slug, email, password })
+    .expect(200);
+  // 管理员建的账号首次登录必须改密，改完才能正常使用
+  const changed = await request(app.getHttpServer())
+    .post('/auth/change-password')
+    .set(bearer(login.body.accessToken))
+    .send({ currentPassword: password, newPassword: USER_PASSWORD })
+    .expect(200);
+  return { id: created.body.id, email, token: changed.body.accessToken };
+}
+
+/** 创建一个租户，含项目经理、质量经理和几个普通成员 */
+export async function setupTenant(app: INestApplication, label: string) {
+  const admin = await signupTenant(app, label);
+  // 老测试直接建项目：打开“小项目免立项”（立项流程见 initiation.e2e-spec.ts）
+  await request(app.getHttpServer()).patch('/tenant-settings').set(bearer(admin.token)).send({ allowDirectProject: true }).expect(200);
+  // 老用例按 1–5 分评价风险（新企业默认 3 档，见 risks-objectives.e2e-spec.ts）
+  await request(app.getHttpServer()).put('/risk-settings').set(bearer(admin.token)).send({ scale: 5 }).expect(200);
+  const pm = await createUser(app, admin, 'PROJECT_MANAGER', 'pm');
+  const pqm = await createUser(app, admin, 'PROJECT_QUALITY_MANAGER', 'pqm');
+  const member = await createUser(app, admin, 'MEMBER', 'member');
+  const outsider = await createUser(app, admin, 'MEMBER', 'outsider');
+  const top = await createUser(app, admin, 'TOP_MANAGEMENT', 'top');
+  return { admin, pm, pqm, member, outsider, top };
+}
+
+export async function createProject(
+  app: INestApplication,
+  token: string,
+  overrides: Record<string, unknown> = {},
+) {
+  const res = await request(app.getHttpServer())
+    .post('/projects')
+    .set(bearer(token))
+    .send({
+      code: `P-${uid()}`,
+      name: '测试项目',
+      riskLevel: 'MEDIUM',
+      startDate: '2026-01-05',
+      endDate: '2026-12-31',
+      budget: 1000000,
+      customerDeliveryDate: '2026-12-15',
+      ...overrides,
+    })
+    .expect(201);
+  return res.body as { id: string; code: string };
+}
+
+export async function addMember(
+  app: INestApplication,
+  token: string,
+  projectId: string,
+  userId: string,
+  projectRole: string,
+  extra: Record<string, unknown> = {},
+) {
+  return request(app.getHttpServer())
+    .post(`/projects/${projectId}/members`)
+    .set(bearer(token))
+    .send({ userId, projectRole, ...extra })
+    .expect(201);
+}
+
+/** 建立带 PM、质量经理、成员、最高管理层可见的项目；phases 缺省用自定义三阶段模板 */
+export async function gateProject(
+  app: INestApplication,
+  t: Awaited<ReturnType<typeof setupTenant>>,
+  opts: { baseline?: boolean } = {},
+) {
+  const tpl = await request(app.getHttpServer())
+    .post('/phase-templates')
+    .set(bearer(t.admin.token))
+    .send({
+      name: `gate-${uid()}`,
+      phases: [
+        { name: '设计', checklist: ['设计评审完成'], mandatoryRoles: ['PROJECT_MANAGER'] },
+        { name: '制造', checklist: ['首件合格'], mandatoryRoles: ['PROJECT_MANAGER', 'PROJECT_QUALITY_MANAGER'] },
+        { name: '交付', checklist: [], mandatoryRoles: [] },
+      ],
+    })
+    .expect(201);
+  const p = await createProject(app, t.pm.token, { templateId: tpl.body.id });
+  await addMember(app, t.pm.token, p.id, t.pqm.id, 'PROJECT_QUALITY_MANAGER');
+  await addMember(app, t.pm.token, p.id, t.member.id, 'MEMBER');
+  if (opts.baseline !== false) {
+    await request(app.getHttpServer()).post(`/projects/${p.id}/baseline`).set(bearer(t.pm.token)).expect(200);
+  }
+  const phases = await request(app.getHttpServer()).get(`/projects/${p.id}/phases`).set(bearer(t.pm.token)).expect(200);
+  return { ...p, phases: phases.body as { id: string; name: string; status: string; order: number }[] };
+}

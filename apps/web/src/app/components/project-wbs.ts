@@ -1,0 +1,611 @@
+import { Component, computed, inject, input, signal } from '@angular/core';
+import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
+import { AiPlan } from './ai-plan';
+import { Modal } from './modal';
+import { Ai } from '../core/ai';
+import { Api, errorMessage } from '../core/api';
+import { askText } from '../core/i18n';
+import { AuthService } from '../core/auth.service';
+import {
+  ChangeRequest, CostPlan, CostSummary, InspectionItem, Deliverable, FunctionalRole, Member, OptionalWorkPackage, Performance, Phase, PlanVersion, Project, WbsTemplate, WP_STATUS_LABELS, WbsResponse, WorkPackage, WpStatus,
+} from '../core/models';
+import { approvedScopeChanges } from '../core/scope-change';
+import { BaselineDates, GanttComponent } from './gantt';
+import { DrawerTab, WpDrawer } from './wp-drawer';
+import { askConfirm } from '../core/dialog';
+
+const COLUMNS: WpStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'DONE', 'VERIFIED'];
+
+@Component({
+  selector: 'app-project-wbs',
+  imports: [AiPlan, Modal, ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatFormFieldModule, MatSelectModule, GanttComponent, WpDrawer],
+  styles: `
+    .crit-name { color: var(--pm-red); font-weight: 500; }
+    .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .tag { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: #e9edf3; color: var(--pm-muted); white-space: nowrap; }
+    .tag.ext { background: #e3eefa; color: #2a5d8f; }
+    .tag.late { background: var(--pm-red-bg); color: var(--pm-red); }
+    .tag.lead { background: var(--pm-amber-bg); color: var(--pm-amber); }
+    .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .col { border-radius: 8px; padding: 8px; min-height: 120px; }
+    .card { padding: 8px; margin: 6px 0; font-size: 13px; }
+    .summary { margin: 0 0 12px; }
+    .warn { color: var(--pm-red); }
+    .pct { width: 64px; height: 30px; border: 1px solid #c5cfdb; border-radius: 6px; padding: 0 8px; font: inherit; text-align: right; }
+    .pct:focus { outline: 2px solid var(--pm-accent); outline-offset: -1px; }
+    .actions { white-space: nowrap; text-align: right; }
+    .actions button { min-width: 0; padding: 0 8px; }
+    .danger { color: var(--pm-red) !important; }
+    .scope-cr { background: #eef3f9; border: 1px solid #cfdbea; border-radius: var(--pm-radius); padding: 10px 16px 0; margin: 0 0 12px; }
+    .scope-cr p { margin: 0 0 6px; font-size: 13px; }
+    .form-title { font-weight: 600; width: 100%; margin: 0 0 4px; }
+    .num { text-align: right !important; }
+    .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+    @media (max-width: 760px) { .desk { display: none !important; } .tools { margin-bottom: 8px; } }
+    .tools .sep { width: 1px; height: 24px; background: var(--pm-line); margin: 0 4px; }
+    .tpl { height: 36px; border: 1px solid #c5cfdb; border-radius: 8px; padding: 0 8px; font: inherit; background: #fff; }
+    .ok-box { background: var(--pm-green-bg); color: var(--pm-green); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
+    .error ul { margin: 6px 0 0; padding-left: 18px; }
+    .nw { white-space: nowrap; }
+    .dates { white-space: nowrap; font-size: 12.5px; }
+    .wpname { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+    .wpname:hover { text-decoration: underline; }
+    button.tag { border: 0; cursor: pointer; font: inherit; font-size: 11.5px; }
+    .tag.ok { background: var(--pm-green-bg); color: var(--pm-green); }
+  `,
+  template: `
+    @if (data(); as d) {
+      <p class="summary">
+        总工期 {{ d.projectDurationDays }} 天，预计完成 {{ d.projectedEnd }}
+        @if (d.exceedsPlannedEnd) { <span class="warn">（超出项目计划结束日 {{ project().endDate.slice(0, 10) }}）</span> }
+      </p>
+      @if (d.requiredEnd && d.gapDays !== null && d.gapDays !== undefined) {
+        @if (d.gapDays > 0) {
+          <div class="banner red" role="status">按当前计划预计 {{ d.projectedEnd }} 完工，比客户交期 {{ d.requiredEnd }} 晚 {{ d.gapDays }} 个工作日。
+            标“最晚开始已过”的工作包需要压缩工期、并行或调整依赖；确实做不到时发起项目要求变更。</div>
+        } @else {
+          <div class="banner green" role="status">按客户交期 {{ d.requiredEnd }} 倒排：预计 {{ d.projectedEnd }} 完工，余量 {{ -d.gapDays }} 个工作日。</div>
+        }
+      }
+    }
+    @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
+    @if (manage() && !project().baselined && ai.on('PLAN')) { <app-ai-plan [project]="project()" (changed)="load()" /> }
+
+    @if (manage() && project().baselined) {
+      <div class="scope-cr">
+        <p>计划已批准：新增或删除工作包需要引用一项已批准的范围变更。</p>
+        <mat-form-field style="min-width: 320px">
+          <mat-label>依据的范围变更</mat-label>
+          <mat-select [formControl]="crControl">
+            <mat-option value="">（不引用）</mat-option>
+            @for (c of scopeChanges(); track c.id) { <mat-option [value]="c.id">{{ c.code }} {{ c.title }}</mat-option> }
+          </mat-select>
+          @if (scopeChanges().length === 0) { <mat-hint>暂无已批准的范围变更，请先在「变更控制」里提交并获批</mat-hint> }
+        </mat-form-field>
+      </div>
+    }
+
+    <div class="tools">
+      @if (manage()) {
+        <button mat-flat-button type="button" (click)="openNew()">+ 新增工作包</button>
+        <button mat-stroked-button type="button" (click)="error.set(''); depOpen.set(true)">+ 添加依赖</button>
+        <span class="sep desk"></span>
+      }
+      <button mat-stroked-button class="desk" type="button" (click)="exportExcel()">导出 Excel</button>
+      @if (manage()) {
+        <button mat-stroked-button class="desk" type="button" (click)="templateExcel()">下载导入模板</button>
+        <button mat-stroked-button class="desk" type="button" (click)="fileInput.click()">导入 Excel</button>
+        <input #fileInput type="file" accept=".xlsx" hidden (change)="importExcel($any($event.target))" aria-label="选择 Excel 文件" />
+        <span class="sep desk"></span>
+        <select class="tpl desk" [value]="''" (change)="applyTemplate($any($event.target))" aria-label="从 WBS 模板添加">
+          <option value="">从 WBS 模板添加…</option>
+          @for (t of wbsTemplates(); track t.id) { <option [value]="t.id">{{ t.name }}（{{ t.items.length }} 项）</option> }
+        </select>
+        <button mat-button class="desk" type="button" (click)="saveAsTemplate()">另存为 WBS 模板</button>
+        @if (library().length && !mobile) {
+          <span class="sep"></span>
+          <select class="tpl" #libSel aria-label="从可选工作包库添加" (change)="suggestParent(libSel.value)">
+            <option value="">从可选库添加…</option>
+            @for (l of library(); track l.id) { <option [value]="l.id">{{ l.name }}（{{ l.durationDays ? l.durationDays + ' 天' : '里程碑' }}）</option> }
+          </select>
+          @if (libSel.value) {
+            <select class="tpl" [value]="libParent()" (change)="libParent.set($any($event.target).value)" aria-label="放在哪个阶段下">
+              <option value="">（顶层）</option>
+              @for (g of groups(); track g.id) { <option [value]="g.id" [selected]="g.id === libParent()">{{ g.code }} {{ g.name }}</option> }
+            </select>
+            <button mat-stroked-button type="button" (click)="addFromLibrary(libSel)">添加</button>
+          }
+        }
+        @if (roleCounts().length) {
+          <button mat-stroked-button class="desk" type="button" (click)="assigning.set(!assigning())">按角色指定责任人</button>
+        }
+      }
+    </div>
+    @if (mobile && manage()) { <p class="muted" style="font-size: 12px; margin: 0 0 8px">Excel 导入导出、WBS 模板、按角色指定责任人等批量操作，请在电脑上进行。</p> }
+    @if (assigning()) {
+      <div class="pcard">
+        <header><h3>按职能角色指定责任人</h3><span class="sub">模板里的工作包带有职能角色；给每个角色选一个人，一次填好对应工作包的责任人</span></header>
+        <div class="body">
+          <div class="fgrid">
+            @for (r of roleCounts(); track r.id) {
+              <label class="fld">{{ r.name }}（{{ r.total }} 个工作包，{{ r.empty }} 个未指定）
+                <select [value]="roleOwner()[r.id] ?? ''" (change)="setRoleOwner(r.id, $any($event.target).value)">
+                  <option value="">不指定</option>
+                  @for (u of usersFor(r.id); track u.id) { <option [value]="u.id" [selected]="u.id === roleOwner()[r.id]">{{ u.name }}{{ u.functionalRoleId === r.id ? '（' + r.name + '）' : '' }}</option> }
+                </select></label>
+            }
+          </div>
+          <label><input type="checkbox" [checked]="overwrite()" (change)="overwrite.set($any($event.target).checked)" /> 已有责任人的也改</label>
+          <div style="margin-top: 10px">
+            <button mat-flat-button type="button" (click)="assignByRole()">确定</button>
+            <button mat-button type="button" (click)="assigning.set(false)">取消</button>
+          </div>
+        </div>
+      </div>
+    }
+    @if (importResult(); as r) { <div class="ok-box" role="status">导入完成：新增 {{ r.created }} 个、更新 {{ r.updated }} 个工作包，新增 {{ r.dependencies }} 个依赖。</div> }
+    @if (importErrors().length) {
+      <div class="error" role="alert">
+        导入失败，表格没有写入任何数据。请修改后重新导入：
+        <ul>@for (e of importErrors(); track e) { <li>{{ e }}</li> }</ul>
+      </div>
+    }
+
+    @if (wpOpen()) {
+      <app-modal [title]="editing() ? '编辑工作包 ' + editing()!.code : '新增工作包'" width="720px" (closed)="cancelEdit()">
+        @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
+        @if (project().baselined && !editing()) {
+          <label class="fld" style="margin-bottom: 8px">依据的范围变更（计划已批准，新增工作包需要引用）<select [formControl]="crControl" aria-label="依据的范围变更">
+            <option value="">（不引用）</option>
+            @for (c of scopeChanges(); track c.id) { <option [value]="c.id">{{ c.code }} {{ c.title }}</option> }
+          </select></label>
+        }
+        <form id="wp-form" [formGroup]="wpForm" (ngSubmit)="saveWp()">
+          <div class="fgrid">
+            <label class="fld">编号 <span class="req">*</span><input formControlName="code" placeholder="1.1" aria-label="编号" /></label>
+            <label class="fld" style="grid-column: span 2">名称 <span class="req">*</span><input formControlName="name" aria-label="名称" /></label>
+            @if (!editing()) {
+              <label class="fld" style="grid-column: span 2">上级<select formControlName="parentId" aria-label="上级">
+                <option value="">（顶层）</option>
+                @for (w of items(); track w.id) { <option [value]="w.id">{{ w.code }} {{ w.name }}</option> }
+              </select></label>
+            }
+            @if (!wpForm.controls.isMilestone.value) {
+              <label class="fld">工期（工作日） <span class="req">*</span><input type="number" min="1" formControlName="durationDays" aria-label="工期" /></label>
+            }
+            <label class="fld">负责人<select formControlName="ownerId" aria-label="负责人">
+              <option value="">未分配</option>
+              @for (m of members(); track m.userId) { <option [value]="m.userId">{{ m.user?.name }}</option> }
+            </select></label>
+            <label class="fld">所属阶段<select formControlName="phaseId" aria-label="所属阶段">
+              <option value="">未指定</option>
+              @for (ph of phases(); track ph.id) { <option [value]="ph.id">{{ ph.order }}. {{ ph.name }}</option> }
+            </select></label>
+            <label class="fld">产出的交付物<select formControlName="deliverableId" aria-label="产出的交付物">
+              <option value="">无</option>
+              @for (dl of deliverables(); track dl.id) { <option [value]="dl.id">{{ dl.name }}</option> }
+            </select></label>
+            <label class="fld">成本科目<select formControlName="costAccountId" aria-label="成本科目">
+              <option value="">未指定</option>
+              @for (a of accounts(); track a.id) { <option [value]="a.id">{{ a.code }} {{ a.name }}</option> }
+            </select></label>
+            <label class="fld">预算（元）<input type="number" min="0" formControlName="budget" aria-label="预算" /></label>
+            <label class="fld">资源估算（人天）<input type="number" min="0" formControlName="resourceDays" aria-label="资源估算" /></label>
+            <label class="fld" style="grid-column: span 2">外部供方（如由供方完成）<input formControlName="externalProvider" aria-label="外部供方" /></label>
+          </div>
+          <div style="display: flex; gap: 20px; margin-top: 10px">
+            <label class="chk"><input type="checkbox" formControlName="isMilestone" /> 里程碑</label>
+            <label class="chk"><input type="checkbox" formControlName="longLead" /> 长周期物料</label>
+          </div>
+        </form>
+        <ng-container footer>
+          <button mat-button type="button" (click)="cancelEdit()">取消</button>
+          <button mat-flat-button type="submit" form="wp-form" [disabled]="wpForm.invalid">{{ editing() ? '保存修改' : '添加工作包' }}</button>
+        </ng-container>
+      </app-modal>
+    }
+    @if (depOpen()) {
+      <app-modal title="添加依赖" width="520px" (closed)="depOpen.set(false)">
+        @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
+        <form id="dep-form" [formGroup]="depForm" (ngSubmit)="addDep()">
+          <div class="fgrid">
+            <label class="fld">前置 <span class="req">*</span><select formControlName="predecessorId" aria-label="前置">
+              <option value="">请选择</option>
+              @for (w of leaves(); track w.id) { <option [value]="w.id">{{ w.code }} {{ w.name }}</option> }
+            </select></label>
+            <label class="fld">后续（前置完成后才能开始） <span class="req">*</span><select formControlName="successorId" aria-label="后续">
+              <option value="">请选择</option>
+              @for (w of leaves(); track w.id) { <option [value]="w.id">{{ w.code }} {{ w.name }}</option> }
+            </select></label>
+          </div>
+        </form>
+        <ng-container footer>
+          <button mat-button type="button" (click)="depOpen.set(false)">关闭</button>
+          <button mat-flat-button type="submit" form="dep-form" [disabled]="depForm.invalid">添加依赖</button>
+        </ng-container>
+      </app-modal>
+    }
+
+    <mat-button-toggle-group [value]="view()" (change)="view.set($event.value)" aria-label="视图">
+      <mat-button-toggle value="table">列表</mat-button-toggle>
+      <mat-button-toggle value="gantt">甘特图</mat-button-toggle>
+      <mat-button-toggle value="board">看板</mat-button-toggle>
+    </mat-button-toggle-group>
+
+    @switch (view()) {
+      @case ('table') {
+        <table class="wbs">
+          <thead><tr><th>编号</th><th>名称</th><th>负责人</th><th>工期</th><th>计划</th><th class="num">预算</th><th>状态</th><th>进度</th><th></th></tr></thead>
+          <tbody>
+            @for (w of items(); track w.id) {
+              <tr>
+                <td [style.padding-left.px]="14 + depth(w) * 16">{{ w.code }}</td>
+                <td>
+                  <button type="button" class="wpname" (click)="open(w, 'time')" [class.crit-name]="w.critical">@if (w.isMilestone) { ◆ }{{ w.name }}{{ w.critical ? ' ★' : '' }}</button>
+                  <div class="tags">
+                    @if (phaseName(w)) { <span class="tag">{{ phaseName(w) }}</span> }
+                    @if (deliverableName(w)) { <span class="tag">交付物：{{ deliverableName(w) }}</span> }
+                    @if (w.externalProvider) { <span class="tag ext">外部供方：{{ w.externalProvider }}</span> }
+                    @if (w.longLead) { <span class="tag lead">长周期</span> }
+                    @if (w.resourceDays) { <span class="tag">{{ +w.resourceDays }} 人天</span> }
+                    @if (slip(w); as s) { <span class="tag late">比批准计划{{ s > 0 ? '晚' : '早' }} {{ s > 0 ? s : -s }} 个工作日</span> }
+                    @if (roleName(w); as rn) { <span class="tag">{{ rn }}</span> }
+                    @if (costState()[w.id]; as cs) { <button type="button" class="tag late" [class.lead]="cs === 'AMBER'" (click)="open(w, 'cost')">超支</button> }
+                    @if (inspCount()[w.id]; as ic) { <button type="button" class="tag" [class.late]="ic.failed > 0" [class.ok]="ic.done === ic.total && !ic.failed" (click)="open(w, 'qual')" title="检验 / 验证项">检 {{ ic.done }}/{{ ic.total }}</button> }
+                    @if (w.isLeaf && w.startTooLate) { <span class="tag late">最晚开始已过（{{ w.latestStart }}）</span> }
+                    @else if (w.isLeaf && w.latestStart && w.status === 'NOT_STARTED') { <span class="tag">最晚开始 {{ w.latestStart }}</span> }
+                  </div>
+                </td>
+                <td class="nw">{{ ownerName(w) }}</td>
+                <td class="nw">{{ w.isMilestone ? '里程碑' : w.isLeaf ? w.durationDays + ' 天' : '' }}</td>
+                <td class="dates">{{ w.scheduledStart }}<br />{{ w.scheduledEnd }}</td>
+                <td class="num nw">{{ w.budget ? (+w.budget).toLocaleString() : '' }}</td>
+                <td class="nw">{{ status(w.status) }}</td>
+                <td class="nw">
+                  @if (w.isLeaf && canProgress(w) && !w.isMilestone) {
+                    <input class="pct" type="number" min="0" max="100" [value]="w.percentComplete" (change)="setPercent(w, $any($event.target).valueAsNumber)" aria-label="进度百分比" /> %
+                  } @else { {{ w.isLeaf ? w.percentComplete + '%' : '' }} }
+                </td>
+                <td class="actions">
+                  @if (canVerify(w)) { <button mat-button (click)="verify(w)">核验</button> }
+                  @if (manage() && w.status !== 'VERIFIED') { <button mat-button (click)="edit(w)">编辑</button> }
+                  @if (manage()) { <button mat-button class="danger" (click)="remove(w)">删除</button> }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <p class="muted">★ 表示在关键路径上，◆ 表示里程碑。工期按企业工作日历计算（工作日）。</p>
+      }
+      @case ('gantt') {
+        @if (data(); as d) { <app-gantt [items]="items()" [dependencies]="d.dependencies" [totalDays]="d.calendarDays ?? d.projectDurationDays" [baseline]="baseline()" /> }
+      }
+      @case ('board') {
+        <div class="board">
+          @for (c of columns; track c) {
+            <div class="col">
+              <strong>{{ status(c) }}</strong>
+              @for (w of byStatus(c); track w.id) {
+                <div class="card">
+                  {{ w.code }} {{ w.name }}<br />{{ ownerName(w) }} · {{ w.percentComplete }}%
+                  @if (canProgress(w) && c === 'NOT_STARTED') { <br /><button mat-button (click)="move(w, 'IN_PROGRESS')">开始</button> }
+                  @if (canProgress(w) && c === 'IN_PROGRESS') { <br /><button mat-button (click)="move(w, 'DONE')">完成</button> }
+                  @if (canVerify(w)) { <br /><button mat-button (click)="verify(w)">核验</button> }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    }
+    @if (drawer(); as d) { <app-wp-drawer [project]="project()" [wp]="d.wp" [ownerName]="ownerName(d.wp)" [initialTab]="d.tab" (closed)="drawer.set(null)" (changed)="load()" /> }
+  `,
+})
+export class ProjectWbs {
+  private readonly api = inject(Api);
+  private readonly auth = inject(AuthService);
+  private readonly fb = inject(FormBuilder).nonNullable;
+
+  readonly project = input.required<Project>();
+  readonly data = signal<WbsResponse | null>(null);
+  readonly members = signal<Member[]>([]);
+  readonly phases = signal<Phase[]>([]);
+  readonly deliverables = signal<Deliverable[]>([]);
+  readonly accounts = signal<CostSummary['accounts']>([]);
+  readonly scopeChanges = signal<ChangeRequest[]>([]);
+  readonly editing = signal<WorkPackage | null>(null);
+  /** 手机上隐藏 Excel、模板、可选库、按角色指定等批量操作（建议在电脑上做） */
+  readonly mobile = window.matchMedia('(max-width: 760px)').matches;
+  readonly wpOpen = signal(false);
+  readonly depOpen = signal(false);
+  readonly baseline = signal<BaselineDates | null>(null);
+  readonly slips = signal<Record<string, number>>({});
+  readonly wbsTemplates = signal<WbsTemplate[]>([]);
+  readonly importResult = signal<{ created: number; updated: number; dependencies: number } | null>(null);
+  readonly importErrors = signal<string[]>([]);
+  readonly library = signal<OptionalWorkPackage[]>([]);
+  readonly drawer = signal<{ wp: WorkPackage; tab: DrawerTab } | null>(null);
+  readonly costState = signal<Record<string, string>>({});
+  readonly inspCount = signal<Record<string, { done: number; total: number; failed: number }>>({});
+  open(w: WorkPackage, tab: DrawerTab) { if (w.isLeaf) this.drawer.set({ wp: w, tab }); }
+  readonly libParent = signal('');
+  readonly fRoles = signal<FunctionalRole[]>([]);
+  readonly directory = signal<{ id: string; name: string; functionalRoleId: string | null }[]>([]);
+  readonly assigning = signal(false);
+  readonly overwrite = signal(false);
+  readonly roleOwner = signal<Partial<Record<string, string>>>({});
+  /** 一级工作包（阶段或工作线），可选库的工作包放到它们下面 */
+  readonly groups = computed(() => this.items().filter((w) => !w.parentId));
+  /** 工作包里用到的职能角色，以及各自未指定责任人的数量 */
+  readonly roleCounts = computed(() => {
+    const leaves = this.leaves().filter((w) => w.functionalRoleId);
+    return this.fRoles().filter((r) => leaves.some((w) => w.functionalRoleId === r.id)).map((r) => ({
+      id: r.id, name: r.name,
+      total: leaves.filter((w) => w.functionalRoleId === r.id).length,
+      empty: leaves.filter((w) => w.functionalRoleId === r.id && !w.ownerId).length,
+    }));
+  });
+  slip(w: WorkPackage) { return this.slips()[w.id] ?? 0; }
+  readonly error = signal('');
+  readonly view = signal<'table' | 'gantt' | 'board'>('table');
+  readonly columns = COLUMNS;
+  readonly crControl = new FormControl('', { nonNullable: true });
+
+  readonly items = computed(() =>
+    [...(this.data()?.items ?? [])].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })),
+  );
+  readonly leaves = computed(() => this.items().filter((w) => w.isLeaf));
+  readonly manage = computed(() => !!this.project().permissions?.edit?.WBS);
+  readonly ai = inject(Ai);
+  readonly quality = computed(() => !!this.project().permissions?.edit?.INSPECTION);
+
+  private readonly empty = {
+    code: '', name: '', parentId: '', durationDays: 1, ownerId: '', phaseId: '', deliverableId: '', costAccountId: '',
+    budget: null as number | null, resourceDays: null as number | null, externalProvider: '', longLead: false, isMilestone: false,
+  };
+  readonly wpForm = this.fb.group({
+    ...this.empty,
+    code: [this.empty.code, Validators.required],
+    name: [this.empty.name, Validators.required],
+    durationDays: [this.empty.durationDays, [Validators.required, Validators.min(1)]],
+  });
+  readonly depForm = this.fb.group({ predecessorId: ['', Validators.required], successorId: ['', Validators.required] });
+
+  status(s: WpStatus) { return WP_STATUS_LABELS[s]; }
+  byStatus(s: WpStatus) { return this.leaves().filter((w) => w.status === s); }
+  depth(w: WorkPackage) { return w.code.split('.').length - 1; }
+  ownerName(w: WorkPackage) { return this.members().find((m) => m.userId === w.ownerId)?.user?.name ?? this.directory().find((u) => u.id === w.ownerId)?.name ?? '—'; }
+  roleName(w: WorkPackage) { return w.functionalRoleId ? this.fRoles().find((r) => r.id === w.functionalRoleId)?.name ?? '' : ''; }
+  /** 候选人：本角色的人排在前面 */
+  usersFor(roleId: string) {
+    const all = this.directory();
+    return [...all.filter((u) => u.functionalRoleId === roleId), ...all.filter((u) => u.functionalRoleId !== roleId)];
+  }
+  setRoleOwner(roleId: string, userId: string) { this.roleOwner.update((m) => ({ ...m, [roleId]: userId })); }
+  phaseName(w: WorkPackage) { return this.phases().find((p) => p.id === w.phaseId)?.name ?? ''; }
+  deliverableName(w: WorkPackage) { return this.deliverables().find((d) => d.id === w.deliverableId)?.name ?? ''; }
+  canProgress(w: WorkPackage) {
+    return w.status !== 'VERIFIED' && (this.manage() || w.ownerId === this.auth.user()?.id);
+  }
+  canVerify(w: WorkPackage) {
+    return w.isLeaf && w.status === 'DONE' && (this.manage() || this.quality()) && w.ownerId !== this.auth.user()?.id;
+  }
+
+  async ngOnInit() {
+    const id = this.project().id;
+    const [members, phases, deliverables] = await Promise.all([
+      this.api.get<Member[]>(`/projects/${id}/members`),
+      this.api.get<Phase[]>(`/projects/${id}/phases`),
+      this.api.get<Deliverable[]>(`/projects/${id}/deliverables`),
+    ]);
+    this.members.set(members);
+    this.phases.set(phases);
+    this.deliverables.set(deliverables);
+    if (this.manage()) {
+      this.accounts.set((await this.api.get<CostSummary>(`/projects/${id}/cost`)).accounts);
+      if (this.project().baselined) this.scopeChanges.set(await approvedScopeChanges(this.api, id));
+      this.wbsTemplates.set(await this.api.get<WbsTemplate[]>('/wbs-templates'));
+      const [lib, roles, dir] = await Promise.all([
+        this.api.get<OptionalWorkPackage[]>('/optional-work-packages'),
+        this.api.get<FunctionalRole[]>('/functional-roles'),
+        this.api.get<{ id: string; name: string; functionalRoleId: string | null }[]>('/users/directory'),
+      ]);
+      const type = this.project().type;
+      this.library.set(lib.filter((l) => l.active && (!type || !l.types.length || l.types.includes(type))));
+      this.fRoles.set(roles); this.directory.set(dir);
+    } else {
+      this.fRoles.set(await this.api.get<FunctionalRole[]>('/functional-roles'));
+    }
+    await this.load();
+  }
+
+  async load() {
+    if (this.project().baselined) {
+      const [versions, perf] = await Promise.all([
+        this.api.get<PlanVersion[]>(`/projects/${this.project().id}/plan-versions`),
+        this.api.get<Performance>(`/projects/${this.project().id}/performance`),
+      ]);
+      const latest = versions[0];
+      this.baseline.set(latest ? Object.fromEntries(latest.snapshot.workPackages.map((w) => [w.id, { start: w.start, end: w.end }])) : null);
+      this.slips.set(Object.fromEntries(perf.schedule.slips.map((s) => [s.id, s.slipDays])));
+    }
+    this.data.set(await this.api.get<WbsResponse>(`/projects/${this.project().id}/wbs`));
+    const d = this.drawer();
+    if (d) { const w = this.data()!.items.find((x) => x.id === d.wp.id); if (w) this.drawer.set({ ...d, wp: w }); }
+    try {
+      const [plan, items] = await Promise.all([
+        this.api.get<CostPlan>(`/projects/${this.project().id}/cost-plan`),
+        this.api.get<InspectionItem[]>(`/projects/${this.project().id}/inspections`),
+      ]);
+      this.costState.set(Object.fromEntries(plan.workPackages.filter((w) => w.state).map((w) => [w.id, w.state])));
+      const ic: Record<string, { done: number; total: number; failed: number }> = {};
+      for (const it of items) {
+        const x = (ic[it.workPackageId] ??= { done: 0, total: 0, failed: 0 });
+        x.total++; if (it.result !== 'PENDING') x.done++; if (it.result === 'FAIL') x.failed++;
+      }
+      this.inspCount.set(ic);
+    } catch { /* 标记只是提示，取不到不影响 WBS */ }
+  }
+
+  /** 按库里的“建议位置”预选上级 */
+  suggestParent(libId: string) {
+    const l = this.library().find((x) => x.id === libId);
+    const hint = l?.suggestedPhase ?? '';
+    // 建议位置如“设计冻结或 FAI 之后”“工艺 / 技术准备”：拆成词，与一级工作包名称互相包含即可
+    const words = hint.split(/[\s/或、，,]+|之[前后]/).filter((x) => x.length >= 2);
+    const g = this.groups().find((w) => words.some((x) => w.name.includes(x) || x.includes(w.name)));
+    this.libParent.set(g?.id ?? '');
+  }
+  async addFromLibrary(sel: HTMLSelectElement) {
+    const libraryId = sel.value;
+    if (!libraryId) return;
+    await this.run(async () => {
+      await this.api.post(`/projects/${this.project().id}/wbs/from-library`, { libraryId, parentId: this.libParent() || undefined, changeRequestId: this.crControl.value || undefined });
+      sel.value = '';
+      this.libParent.set('');
+    }, '添加失败');
+  }
+  async assignByRole() {
+    const assignments = Object.entries(this.roleOwner()).filter(([, u]) => u).map(([functionalRoleId, userId]) => ({ functionalRoleId, userId }));
+    if (!assignments.length) { this.assigning.set(false); return; }
+    await this.run(async () => {
+      await this.api.post(`/projects/${this.project().id}/wbs/assign-by-role`, { assignments, overwrite: this.overwrite() });
+      this.assigning.set(false);
+      this.roleOwner.set({});
+    }, '指定失败');
+  }
+
+  private async run(fn: () => Promise<unknown>, fallback: string) {
+    this.error.set('');
+    try {
+      await fn();
+    } catch (e) {
+      this.error.set(errorMessage(e, fallback));
+    }
+    await this.load();
+  }
+
+  edit(w: WorkPackage) {
+    this.editing.set(w);
+    this.wpForm.reset({
+      code: w.code, name: w.name, parentId: w.parentId ?? '', durationDays: w.durationDays, ownerId: w.ownerId ?? '',
+      phaseId: w.phaseId ?? '', deliverableId: w.deliverableId ?? '', costAccountId: w.costAccountId ?? '',
+      budget: w.budget === null ? null : +w.budget, resourceDays: w.resourceDays === null ? null : +w.resourceDays,
+      externalProvider: w.externalProvider ?? '', longLead: w.longLead, isMilestone: !!w.isMilestone,
+    });
+    this.wpForm.controls.code.disable();
+    this.error.set('');
+    this.wpOpen.set(true);
+  }
+
+  openNew() {
+    this.cancelEdit();
+    this.error.set('');
+    this.wpOpen.set(true);
+  }
+
+  cancelEdit() {
+    this.wpOpen.set(false);
+    this.editing.set(null);
+    this.wpForm.controls.code.enable();
+    this.wpForm.reset(this.empty);
+  }
+
+  saveWp() {
+    const v = this.wpForm.getRawValue();
+    const editing = this.editing();
+    return this.run(async () => {
+      if (editing) {
+        await this.api.patch(`/projects/${this.project().id}/wbs/${editing.id}`, {
+          name: v.name, durationDays: v.durationDays, ownerId: v.ownerId || undefined,
+          phaseId: v.phaseId || null, deliverableId: v.deliverableId || null, costAccountId: v.costAccountId || null,
+          budget: v.budget ?? undefined, resourceDays: v.resourceDays ?? null, externalProvider: v.externalProvider, longLead: v.longLead,
+          isMilestone: v.isMilestone,
+        });
+      } else {
+        await this.api.post(`/projects/${this.project().id}/wbs`, {
+          code: v.code, name: v.name, parentId: v.parentId || undefined, ownerId: v.ownerId || undefined,
+          phaseId: v.phaseId || undefined, deliverableId: v.deliverableId || undefined, costAccountId: v.costAccountId || undefined,
+          budget: v.budget ?? undefined, resourceDays: v.resourceDays ?? undefined,
+          externalProvider: v.externalProvider || undefined, longLead: v.longLead,
+          isMilestone: v.isMilestone, durationDays: v.isMilestone ? 0 : v.durationDays,
+          changeRequestId: this.crControl.value || undefined,
+        });
+      }
+      this.cancelEdit();
+    }, editing ? '保存失败' : '添加失败');
+  }
+
+  exportExcel() {
+    return this.run(() => this.api.download(`/projects/${this.project().id}/wbs/export`, `wbs-${this.project().code}.xlsx`), '导出失败');
+  }
+  templateExcel() {
+    return this.run(() => this.api.download(`/projects/${this.project().id}/wbs/export?template=1`, 'wbs-import-template.xlsx'), '下载失败');
+  }
+  async importExcel(input: HTMLInputElement) {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    this.importResult.set(null);
+    this.importErrors.set([]);
+    const form = new FormData();
+    form.append('file', file);
+    if (this.crControl.value) form.append('changeRequestId', this.crControl.value);
+    await this.run(async () => {
+      try {
+        this.importResult.set(await this.api.upload<{ created: number; updated: number; dependencies: number }>(`/projects/${this.project().id}/wbs/import`, form));
+      } catch (e) {
+        const errs = (e as { error?: { errors?: string[] } })?.error?.errors;
+        if (errs?.length) { this.importErrors.set(errs); return; }
+        throw e;
+      }
+    }, '导入失败');
+  }
+  async applyTemplate(select: HTMLSelectElement) {
+    const templateId = select.value;
+    select.value = '';
+    if (!templateId) return;
+    await this.run(() => this.api.post(`/projects/${this.project().id}/wbs/apply-template`, { templateId, changeRequestId: this.crControl.value || undefined }), '添加失败');
+  }
+  async saveAsTemplate() {
+    const name = await askText('WBS 模板名称');
+    if (!name?.trim()) return;
+    await this.run(async () => {
+      await this.api.post(`/projects/${this.project().id}/wbs/save-as-template`, { name: name.trim() });
+      this.wbsTemplates.set(await this.api.get<WbsTemplate[]>('/wbs-templates'));
+    }, '保存模板失败');
+  }
+
+  addDep() {
+    return this.run(async () => {
+      await this.api.post(`/projects/${this.project().id}/dependencies`, this.depForm.getRawValue());
+      this.depForm.reset({ predecessorId: '', successorId: '' });
+      this.depOpen.set(false);
+    }, '添加依赖失败');
+  }
+
+  setPercent(w: WorkPackage, percentComplete: number) {
+    if (Number.isNaN(percentComplete)) return Promise.resolve();
+    return this.run(() => this.api.patch(`/projects/${this.project().id}/wbs/${w.id}`, { percentComplete }), '更新失败');
+  }
+  move(w: WorkPackage, status: WpStatus) {
+    return this.run(() => this.api.patch(`/projects/${this.project().id}/wbs/${w.id}`, {
+      status, ...(status === 'DONE' ? { percentComplete: 100 } : {}),
+    }), '更新失败');
+  }
+  verify(w: WorkPackage) {
+    return this.run(() => this.api.post(`/projects/${this.project().id}/wbs/${w.id}/verify`), '核验失败');
+  }
+  async remove(w: WorkPackage) {
+    if (!await askConfirm(`确定删除工作包 ${w.code} ${w.name}？`)) return Promise.resolve();
+    const cr = this.crControl.value;
+    return this.run(
+      () => this.api.delete(`/projects/${this.project().id}/wbs/${w.id}${cr ? `?changeRequestId=${cr}` : ''}`),
+      '删除失败',
+    );
+  }
+}
