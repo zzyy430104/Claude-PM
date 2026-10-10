@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { clearRefreshCookie, CSRF_HEADER, CSRF_VALUE, readCookie, REFRESH_COOKIE, setRefreshCookie } from '../common/cookies.js';
 import { CurrentUser, Public } from '../common/decorators.js';
 import type { AuthUser } from '../common/auth.types.js';
-import { AuthService } from './auth.service.js';
+import { AuthService, RefreshTokenReusedError } from './auth.service.js';
 import { ChangePasswordDto, LoginDto, SignupDto } from './dto.js';
 
 @Controller()
@@ -38,7 +38,8 @@ export class AuthController {
       setRefreshCookie(res, refreshToken);
       return { accessToken };
     } catch (e) {
-      clearRefreshCookie(res);
+      // 令牌只是被别的标签页轮换掉时不清 Cookie：浏览器里此时可能已经是那个标签页拿到的新令牌
+      if (!(e instanceof RefreshTokenReusedError)) clearRefreshCookie(res);
       throw e;
     }
   }

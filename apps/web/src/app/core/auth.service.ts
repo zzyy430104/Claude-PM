@@ -9,6 +9,9 @@ export const API = '/api';
 /** 刷新令牌接口要求的自定义请求头，与后端约定一致，用于防跨站请求伪造 */
 export const CSRF_HEADERS = { 'X-Requested-With': 'claude-pm' };
 
+/** 跨标签页刷新令牌用的锁名 */
+export const REFRESH_LOCK = 'claude-pm-auth-refresh';
+
 /**
  * 登录状态：
  *  - 访问令牌只保存在内存里，页面刷新后由刷新令牌换回
@@ -68,12 +71,19 @@ export class AuthService {
     await this.loadMe();
   }
 
-  /** 多个并发请求同时 401 时只发一次刷新 */
+  /**
+   * 多个并发请求同时 401 时只发一次刷新；
+   * 多个标签页之间用 Web Locks 排队，同一时间只有一个标签页在刷新，后面的标签页会带着已更新的 Cookie 再刷新
+   */
   refresh(): Promise<boolean> {
     if (this.refreshing) return this.refreshing;
-    this.refreshing = firstValueFrom(
-      this.http.post<{ accessToken: string }>(`${API}/auth/refresh`, {}, { headers: CSRF_HEADERS }),
-    )
+    const doRefresh = () =>
+      firstValueFrom(this.http.post<{ accessToken: string }>(`${API}/auth/refresh`, {}, { headers: CSRF_HEADERS }));
+    const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+    const call: Promise<{ accessToken: string }> = locks
+      ? (locks.request(REFRESH_LOCK, doRefresh) as unknown as Promise<{ accessToken: string }>)
+      : doRefresh();
+    this.refreshing = call
       .then((r) => {
         this.token = r.accessToken;
         return true;
