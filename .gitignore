@@ -1,3 +1,7 @@
 node_modules
 dist
 .env
+# scripts/backup.sh 的默认输出目录：数据库导出含业务数据和密码哈希，不能进版本库
+backups/
+# 构建增量缓存
+*.tsbuildinfo
