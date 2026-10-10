@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: 后端（lint / 类型检查 / 构建 / 单元测试 / 接口测试）
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # 用非超级用户、不能绕过行级安全的角色，行级安全相关测试才有意义
+      DATABASE_URL: postgresql://pm:pm@localhost:5432/claude_pm_test
+      TEST_DATABASE_URL: postgresql://pm:pm@localhost:5432/claude_pm_test
+      JWT_SECRET: ci-only-secret
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+      - name: 建数据库角色和测试库
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE pm LOGIN PASSWORD 'pm' NOSUPERUSER NOBYPASSRLS CREATEDB"
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE claude_pm_test OWNER pm"
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit -p tsconfig.json
+      - run: npm run build
+      - run: npm test
+      - run: npm run test:e2e
+
+  web:
+    name: 前端（构建 / 单元测试）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npx ng build
+      - run: npx ng test --watch=false
