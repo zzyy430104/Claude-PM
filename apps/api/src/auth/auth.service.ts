@@ -106,37 +106,63 @@ export class AuthService {
     return this.issueTokens(user.id, user.tenantId, user.role);
   }
 
-  /** 刷新令牌一次性使用：用旧换新，旧的立即作废 */
+  /**
+   * 刷新令牌一次性使用：用旧换新，旧的立即作废。
+   * 多个标签页可能几乎同时拿同一个 Cookie 来刷新：旧令牌因轮换作废后的短暂宽限期内
+   * （REFRESH_REUSE_GRACE_SECONDS，默认 30 秒）再次使用，仍签发一组新令牌，避免把用户登出。
+   * 超过宽限期再用已轮换的令牌，抛出 RefreshTokenReusedError（不清 Cookie，浏览器里可能已是更新的令牌）。
+   */
   refresh(refreshToken: string) {
     return withBypass(() => this.doRefresh(refreshToken));
   }
 
-  private async doRefresh(refreshToken: string) {
+  private async doRefresh(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
     const record = await this.prisma.refreshToken.findUnique({
       where: { tokenHash: sha256(refreshToken) },
       include: { user: { include: { tenant: true } } },
     });
     if (
       !record ||
-      record.revokedAt ||
       record.expiresAt < new Date() ||
       !record.user.active ||
       (record.user.tenant && !record.user.tenant.active)
     ) {
       throw new UnauthorizedException('Invalid refresh token');
     }
+    if (record.revokedAt) {
+      if (record.rotatedAt && this.withinGrace(record.rotatedAt) && !(await this.revokedAfter(record.userId, record.rotatedAt))) {
+        return this.issueTokens(record.user.id, record.user.tenantId, record.user.role);
+      }
+      if (record.rotatedAt) throw new RefreshTokenReusedError();
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    const now = new Date();
     const revoked = await this.prisma.refreshToken.updateMany({
       where: { id: record.id, revokedAt: null },
-      data: { revokedAt: new Date() },
+      data: { revokedAt: now, rotatedAt: now },
     });
     if (revoked.count === 0) {
-      throw new UnauthorizedException('Invalid refresh token');
+      // 并发请求刚刚把它轮换掉：重新读取，按宽限期规则处理
+      return this.doRefresh(refreshToken);
     }
     return this.issueTokens(
       record.user.id,
       record.user.tenantId,
       record.user.role,
     );
+  }
+
+  private withinGrace(rotatedAt: Date) {
+    const sec = Number(process.env.REFRESH_REUSE_GRACE_SECONDS ?? 30);
+    return Date.now() - rotatedAt.getTime() <= sec * 1000;
+  }
+
+  /** 轮换之后是否发生过登出 / 改密码等主动作废（这些作废不记 rotatedAt），发生过就不再给宽限 */
+  private async revokedAfter(userId: string, since: Date) {
+    const n = await this.prisma.refreshToken.count({
+      where: { userId, rotatedAt: null, revokedAt: { gte: since } },
+    });
+    return n > 0;
   }
 
   /** 本人修改密码：校验当前密码，作废所有刷新令牌（其他设备下线），为当前会话签发新令牌 */
@@ -208,5 +234,12 @@ export class AuthService {
       },
     });
     return { accessToken, refreshToken };
+  }
+}
+
+/** 已轮换的刷新令牌在宽限期外被再次使用 */
+export class RefreshTokenReusedError extends UnauthorizedException {
+  constructor() {
+    super('Refresh token already rotated');
   }
 }

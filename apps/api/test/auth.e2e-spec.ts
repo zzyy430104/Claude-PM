@@ -82,6 +82,10 @@ describe('认证', () => {
   });
 
   it('刷新令牌一次性使用，登出后失效；必须带 CSRF 请求头', async () => {
+    process.env.REFRESH_REUSE_GRACE_SECONDS = '0'; // 关掉宽限期，验证严格一次性
+    onTestFinished(() => {
+      delete process.env.REFRESH_REUSE_GRACE_SECONDS;
+    });
     const t = await signupTenant(app, 'refresh');
     const refresh = (cookie: string, csrf = true) => {
       let r = request(app.getHttpServer()).post('/auth/refresh').set('Cookie', cookie);
@@ -94,8 +98,10 @@ describe('认证', () => {
     const r1 = await refresh(t.refreshCookie).expect(200);
     const next = cookieOf(r1);
     expect(next).not.toBe(t.refreshCookie);
-    // 旧令牌已作废
-    await refresh(t.refreshCookie).expect(401);
+    // 旧令牌已作废；因为只是被轮换，不清 Cookie（浏览器里可能已是别的标签页拿到的新令牌）
+    await new Promise((r) => setTimeout(r, 5));
+    const reused = await refresh(t.refreshCookie).expect(401);
+    expect(((reused.headers['set-cookie'] as unknown as string[]) ?? []).some((c) => c.startsWith('pm_rt=;'))).toBe(false);
     await request(app.getHttpServer())
       .post('/auth/logout')
       .set('Cookie', next)
@@ -103,6 +109,32 @@ describe('认证', () => {
       .send({})
       .expect(204);
     await refresh(next).expect(401);
+  });
+
+  it('多个标签页同时用同一个 Cookie 刷新：全部成功，不会被登出', async () => {
+    const t = await signupTenant(app, 'multitab');
+    const refresh = () => request(app.getHttpServer()).post('/auth/refresh').set('Cookie', t.refreshCookie).set(CSRF);
+    const results = await Promise.all([refresh(), refresh(), refresh(), refresh(), refresh()]);
+    for (const r of results) {
+      expect(r.status).toBe(200);
+      expect(r.body.accessToken).toBeTruthy();
+      const next = cookieOf(r);
+      expect(next).not.toBe(t.refreshCookie);
+      // 每个标签页拿到的新令牌都能继续用
+      await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', next).set(CSRF).expect(200);
+    }
+  });
+
+  it('宽限期内，登出之后旧令牌也不能再换新', async () => {
+    const t = await signupTenant(app, 'gracelogout');
+    const r1 = await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', t.refreshCookie).set(CSRF).expect(200);
+    await request(app.getHttpServer())
+      .post('/auth/logout')
+      .set('Cookie', cookieOf(r1))
+      .set(bearer(r1.body.accessToken))
+      .send({})
+      .expect(204);
+    await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', t.refreshCookie).set(CSRF).expect(401);
   });
 
   it('连续输错密码会被限流，登录成功后清零', async () => {
